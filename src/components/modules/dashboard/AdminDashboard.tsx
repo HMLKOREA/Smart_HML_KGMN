@@ -176,15 +176,14 @@ export default function AdminDashboard({ userName }: { userName: string }) {
       const [
         todayTotalRes, todayPendingRes, todayCompletedRes,
         monthShipmentsRes, prevMonthShipmentsRes,
-        monthSettlementsRes, todaySettlementsRes, recentRes,
+        monthUnitPricesRes, recentRes,
       ] = await Promise.all([
         supabase.from('shipments').select('*', { count: 'exact', head: true }).eq('shipment_date', today),
         supabase.from('shipments').select('*', { count: 'exact', head: true }).eq('shipment_date', today).eq('status', 'pending'),
         supabase.from('shipments').select('*', { count: 'exact', head: true }).eq('shipment_date', today).in('status', ['completed', 'delivered']),
-        supabase.from('v_shipments').select('weight_net, company_name, customer_name, quantity').gte('shipment_date', monthStart).lte('shipment_date', today),
+        supabase.from('v_shipments').select('weight_net, company_name, company_id, customer_name, product_name, quantity').gte('shipment_date', monthStart).lte('shipment_date', today),
         supabase.from('v_shipments').select('customer_name, quantity, weight_net').gte('shipment_date', prevMonthStart).lte('shipment_date', prevMonthEnd),
-        supabase.from('settlements').select('final_amount').gte('settlement_date', monthStart).lte('settlement_date', today),
-        supabase.from('settlements').select('final_amount').eq('settlement_date', today),
+        supabase.from('unit_prices').select('company_id, product_id, price, transport_type').eq('effective_date', monthStart),
         supabase.from('v_shipments').select('shipment_date,shipment_number,customer_name,product_name,quantity,weight_net,vehicle_number,company_name,status').order('created_at', { ascending: false }).limit(10),
       ]);
 
@@ -236,13 +235,35 @@ export default function AdminDashboard({ userName }: { userName: string }) {
         .sort((a, b) => b.currentTon - a.currentTon)
         .slice(0, 10);
 
-      // 정산 누적
-      const settleData = (monthSettlementsRes.data || []) as Array<Record<string, unknown>>;
-      const settlementAmount = settleData.reduce((sum, r) => sum + (Number(r.final_amount) || 0), 0);
-
-      // 금일 정산
-      const todaySettleData = (todaySettlementsRes.data || []) as Array<Record<string, unknown>>;
-      const todaySettle = todaySettleData.reduce((sum, r) => sum + (Number(r.final_amount) || 0), 0);
+      // 정산 누적: shipments weight_net × unit_prices 기반 추정 계산
+      // unit_prices를 company_id 기반으로 평균 단가 맵 생성
+      const priceData = (monthUnitPricesRes.data || []) as Array<Record<string, unknown>>;
+      const avgPriceByCompany = new Map<string, number>();
+      const priceCountByCompany = new Map<string, number>();
+      priceData.forEach(p => {
+        const cid = String(p.company_id || '');
+        const price = Number(p.price) || 0;
+        if (cid && price > 0) {
+          avgPriceByCompany.set(cid, (avgPriceByCompany.get(cid) || 0) + price);
+          priceCountByCompany.set(cid, (priceCountByCompany.get(cid) || 0) + 1);
+        }
+      });
+      // 평균 계산
+      avgPriceByCompany.forEach((total, cid) => {
+        avgPriceByCompany.set(cid, total / (priceCountByCompany.get(cid) || 1));
+      });
+      // 월간 정산 추정: 각 shipment의 weight_net × 해당 운송사 평균 단가
+      let settlementAmount = 0;
+      let todaySettle = 0;
+      monthData.forEach(r => {
+        const weight = Number(r.weight_net) || 0;
+        const cid = String(r.company_id || '');
+        const avgPrice = avgPriceByCompany.get(cid) || 15000; // 기본 단가 15,000원/톤
+        const fee = Math.round(weight * avgPrice);
+        settlementAmount += fee;
+      });
+      // 금일 정산은 오늘 건수 × 평균 추정
+      todaySettle = Math.round(settlementAmount / Math.max(monthData.length, 1) * todayStats.total);
       setTodaySettlement(todaySettle);
 
       setMonthly({ totalQuantity, companyVolumes, customerVolumes, settlementAmount });

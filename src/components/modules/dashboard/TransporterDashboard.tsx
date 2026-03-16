@@ -84,31 +84,24 @@ export default function TransporterDashboard({ userName, companyName }: { userNa
         return;
       }
 
-      const [todayShipmentsRes, monthShipmentsRes, monthDispatchesRes, monthSettlementsRes] = await Promise.all([
+      const [todayShipmentsRes, monthShipmentsRes, monthUnitPricesRes] = await Promise.all([
         // 금일 출하 요청
         supabase.from('v_shipments')
           .select('id,shipment_number,customer_name,product_name,quantity,delivery_address,vehicle_number,driver_name,status,weight_empty,weight_loaded,weight_net')
           .eq('company_id', companyId)
           .eq('shipment_date', today)
           .order('created_at', { ascending: false }),
-        // 월간 출하 데이터
+        // 월간 출하 데이터 (배차 + 출하 통합)
         supabase.from('v_shipments')
-          .select('weight_net,vehicle_number')
+          .select('weight_net,vehicle_number,product_name')
           .eq('company_id', companyId)
           .gte('shipment_date', monthStart)
           .lte('shipment_date', today),
-        // 월간 배차
-        supabase.from('dispatches')
-          .select('vehicle_number')
+        // 월간 단가 (정산 추정용)
+        supabase.from('unit_prices')
+          .select('price,transport_type')
           .eq('company_id', companyId)
-          .gte('dispatch_date', monthStart)
-          .lte('dispatch_date', today),
-        // 월간 정산
-        supabase.from('settlements')
-          .select('final_amount')
-          .eq('company_id', companyId)
-          .gte('settlement_date', monthStart)
-          .lte('settlement_date', today),
+          .eq('effective_date', monthStart),
       ]);
 
       const todayData = (todayShipmentsRes.data || []) as TodayRequest[];
@@ -121,24 +114,23 @@ export default function TransporterDashboard({ userName, companyName }: { userNa
 
       // 월간 분석
       const monthData = (monthShipmentsRes.data || []) as Array<Record<string, unknown>>;
-      const dispatchData = (monthDispatchesRes.data || []) as Array<Record<string, unknown>>;
-      const settleData = (monthSettlementsRes.data || []) as Array<Record<string, unknown>>;
+      const priceData = (monthUnitPricesRes.data || []) as Array<Record<string, unknown>>;
 
       const totalQuantity = monthData.reduce((sum, r) => sum + (Number(r.weight_net) || 0), 0);
-      const dispatchCount = dispatchData.length;
-      const settlementAmount = settleData.reduce((sum, r) => sum + (Number(r.final_amount) || 0), 0);
+      // 배차 횟수 = shipments 건수 (dispatches 테이블이 아닌 shipments 기준)
+      const dispatchCount = monthData.length;
+      // 정산 추정: weight_net × 평균 단가
+      const avgPrice = priceData.length > 0
+        ? priceData.reduce((sum, p) => sum + (Number(p.price) || 0), 0) / priceData.length
+        : 15000;
+      const settlementAmount = Math.round(totalQuantity * avgPrice);
 
-      // 차량별 분석
+      // 차량별 분석 (shipments 기준)
       const vehicleMap = new Map<string, { dispatch_count: number; total_quantity: number }>();
-      dispatchData.forEach(r => {
-        const vn = String(r.vehicle_number || '미지정');
-        const existing = vehicleMap.get(vn) || { dispatch_count: 0, total_quantity: 0 };
-        existing.dispatch_count += 1;
-        vehicleMap.set(vn, existing);
-      });
       monthData.forEach(r => {
         const vn = String(r.vehicle_number || '미지정');
         const existing = vehicleMap.get(vn) || { dispatch_count: 0, total_quantity: 0 };
+        existing.dispatch_count += 1;
         existing.total_quantity += Number(r.weight_net) || 0;
         vehicleMap.set(vn, existing);
       });

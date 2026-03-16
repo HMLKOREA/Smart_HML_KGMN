@@ -70,7 +70,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: '대시보드', path: '/home', iconKey: 'dashboard', roles: ['admin', 'monitor', 'field', 'transporter'] },
-  { label: '출하관리', path: '/shipping', iconKey: 'shipping', roles: ['admin', 'monitor', 'field', 'transporter'] },
+  { label: '출하관리', path: '/shipping', iconKey: 'shipping', roles: ['admin', 'monitor', 'field'] },
   { label: '배차관리', path: '/dispatch', iconKey: 'dispatch', roles: ['admin', 'monitor', 'field', 'transporter'] },
   { label: '운송사관리', path: '/transport-company', iconKey: 'company', roles: ['admin', 'monitor', 'transporter'] },
   { label: '거래처관리', path: '/customer', iconKey: 'customer', roles: ['admin', 'monitor'] },
@@ -78,7 +78,7 @@ const navItems: NavItem[] = [
   { label: '제품코드관리', path: '/product-code', iconKey: 'product', roles: ['admin', 'monitor'] },
   { label: '성적서관리', path: '/report', iconKey: 'report', roles: ['admin', 'monitor', 'field'] },
   { label: '정산관리', path: '/settlement', iconKey: 'settlement', roles: ['admin', 'monitor'] },
-  { label: '사용자관리', path: '/admin/users', iconKey: 'users', roles: ['admin', 'transporter'] },
+  { label: '사용자관리', path: '/admin/users', iconKey: 'users', roles: ['admin'] },
 ];
 
 interface SidebarProps {

@@ -1,10 +1,11 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { exportToExcel, EXCEL_COLUMNS } from '@/lib/utils/exportExcel';
 import { useToast } from '@/components/ui/Toast';
+import { getSession } from '@/lib/auth/session';
 
 // ── Types ──────────────────────────────────────────────
 interface Driver {
@@ -69,6 +70,11 @@ export default function DriverPage() {
   const [searchText, setSearchText] = useState('');
   const [companies, setCompanies] = useState<TransportCompany[]>([]);
 
+  // ── Auth: 운송사 계정이면 자기 회사만 ──
+  const session = useMemo(() => getSession(), []);
+  const isTransporter = session?.profile?.role === 'transporter';
+  const userCompanyId = session?.profile?.company_id || '';
+
   // ── Data Fetching ────────────────────────────────────
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -78,6 +84,11 @@ export default function DriverPage() {
         .from('v_drivers')
         .select('*')
         .order('name');
+
+      // 운송사 계정: 자기 운송사 기사만 표시
+      if (isTransporter && userCompanyId) {
+        query = query.eq('company_id', userCompanyId);
+      }
 
       if (searchText) {
         query = query.or(
@@ -94,7 +105,7 @@ export default function DriverPage() {
     } finally {
       setLoading(false);
     }
-  }, [supabase, searchText]);
+  }, [supabase, searchText, isTransporter, userCompanyId]);
 
   const fetchCompanies = useCallback(async () => {
     try {
