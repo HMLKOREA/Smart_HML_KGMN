@@ -110,11 +110,28 @@ export function prepareOptions(
   };
 }
 
-const cellPad = '4px 6px';
+/** 워크플로우 상태 판별 */
+function getWorkflowStatus(row: Shipment): { label: string; bg: string; color: string } {
+  if (row.is_shipped || row.certificate_time) {
+    return { label: '출하완료', bg: '#dcfce7', color: '#15803d' };
+  }
+  if (row.driver_name || row.vehicle_number) {
+    return { label: '기사배정', bg: '#e0e7ff', color: '#4338ca' };
+  }
+  if (row.company_name) {
+    return { label: '배차완료', bg: '#dbeafe', color: '#1d4ed8' };
+  }
+  if (row.customer_name && row.product_name) {
+    return { label: '출하등록', bg: '#fef3c7', color: '#b45309' };
+  }
+  return { label: '입력중', bg: '#f3f4f6', color: '#6b7280' };
+}
+
+const cellPad = '6px 8px';
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  fontSize: 11,
-  padding: '3px 6px',
+  fontSize: 12,
+  padding: '4px 6px',
   border: '1px solid #d1d5db',
   borderRadius: 4,
   outline: 'none',
@@ -191,21 +208,35 @@ export default function InlineShipmentRow({
         onClick={() => onToggleSelect(row.id)}
         onDoubleClick={() => onStartEdit(row.id)}
       >
-        <td style={{ textAlign: 'center', color: '#9ca3af', padding: cellPad, fontSize: 11 }}>{index + 1}</td>
+        <td style={{ textAlign: 'center', padding: cellPad }}>
+          {(() => {
+            const ws = getWorkflowStatus(row);
+            return (
+              <span style={{
+                display: 'inline-block', padding: '2px 6px', borderRadius: 4,
+                fontSize: 11, fontWeight: 700, backgroundColor: ws.bg, color: ws.color,
+                whiteSpace: 'nowrap',
+              }}>
+                {ws.label}
+              </span>
+            );
+          })()}
+        </td>
+        <td style={{ textAlign: 'center', color: '#9ca3af', padding: cellPad, fontSize: 13 }}>{index + 1}</td>
         <td style={{ textAlign: 'center', padding: cellPad }} onClick={e => e.stopPropagation()}>
           <input type="checkbox" checked={isSelected} onChange={() => onToggleSelect(row.id)} />
         </td>
-        <td style={{ whiteSpace: 'nowrap', padding: cellPad, fontSize: 11 }}>{row.shipment_date?.slice(2)}</td>
-        <td style={{ padding: cellPad, fontSize: 11 }}>{row.transport_type || '-'}</td>
-        <td style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: cellPad, fontSize: 11 }}>
+        <td style={{ whiteSpace: 'nowrap', padding: cellPad, fontSize: 13 }}>{row.shipment_date?.slice(2)}</td>
+        <td style={{ padding: cellPad, fontSize: 13 }}>{row.transport_type || '-'}</td>
+        <td style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: cellPad, fontSize: 13 }}>
           {row.customer_name || '-'}
         </td>
-        <td style={{ maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: cellPad, fontSize: 11 }}>
+        <td style={{ maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: cellPad, fontSize: 13 }}>
           {row.product_name || '-'}
         </td>
-        <td style={{ padding: cellPad, fontSize: 11 }}>{row.company_name || '-'}</td>
-        <td style={{ fontFamily: 'monospace', fontSize: 10, padding: cellPad }}>{row.vehicle_number || '-'}</td>
-        <td style={{ padding: cellPad, fontSize: 11 }}>{row.silo || '-'}</td>
+        <td style={{ padding: cellPad, fontSize: 13 }}>{row.company_name || '-'}</td>
+        <td style={{ fontFamily: 'monospace', fontSize: 12, padding: cellPad }}>{row.vehicle_number || '-'}</td>
+        <td style={{ padding: cellPad, fontSize: 13 }}>{row.silo || '-'}</td>
         <td style={{ textAlign: 'center', padding: cellPad }} onClick={e => e.stopPropagation()}>
           <input
             type="checkbox"
@@ -213,19 +244,19 @@ export default function InlineShipmentRow({
             onChange={() => onShipToggle(row.id, row.is_shipped || false)}
           />
         </td>
-        <td style={{ textAlign: 'right', fontWeight: (row.weight_net || 0) > 0 ? 600 : 400, padding: cellPad, fontSize: 11 }}>
+        <td style={{ textAlign: 'right', fontWeight: (row.weight_net || 0) > 0 ? 600 : 400, padding: cellPad, fontSize: 13 }}>
           {(row.weight_net ?? 0).toFixed(2)}
         </td>
-        <td style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, padding: cellPad }}>
+        <td style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, padding: cellPad }}>
           {row.notes || ''}
         </td>
-        <td style={{ fontSize: 10, whiteSpace: 'nowrap', padding: cellPad, backgroundColor: row.certificate_time ? '#fef9c3' : undefined }}>
+        <td style={{ fontSize: 12, whiteSpace: 'nowrap', padding: cellPad, backgroundColor: row.certificate_time ? '#fef9c3' : undefined }}>
           {formatKoreanDateTime(row.certificate_time)}
         </td>
-        <td style={{ textAlign: 'center', fontWeight: 600, color: row.has_attachment ? '#16a34a' : '#dc2626', padding: cellPad, fontSize: 11 }}>
+        <td style={{ textAlign: 'center', fontWeight: 600, color: row.has_attachment ? '#16a34a' : '#dc2626', padding: cellPad, fontSize: 13 }}>
           {row.has_attachment ? 'O' : 'X'}
         </td>
-        <td style={{ textAlign: 'center', fontWeight: 600, color: row.dispatch_notified ? '#16a34a' : '#dc2626', padding: cellPad, fontSize: 11 }}>
+        <td style={{ textAlign: 'center', fontWeight: 600, color: row.dispatch_notified ? '#16a34a' : '#dc2626', padding: cellPad, fontSize: 13 }}>
           {row.dispatch_notified ? 'O' : 'X'}
         </td>
         <td style={{ textAlign: 'center', padding: cellPad }}>
@@ -253,7 +284,16 @@ export default function InlineShipmentRow({
       style={{ backgroundColor: bgEdit, borderLeft }}
       onKeyDown={handleKeyDown}
     >
-      <td style={{ textAlign: 'center', color: '#9ca3af', padding: cellPad, fontSize: 11 }}>
+      <td style={{ textAlign: 'center', padding: cellPad }}>
+        <span style={{
+          display: 'inline-block', padding: '2px 6px', borderRadius: 4,
+          fontSize: 11, fontWeight: 700, backgroundColor: '#fef3c7', color: '#b45309',
+          whiteSpace: 'nowrap',
+        }}>
+          {isNew ? '신규' : '편집중'}
+        </span>
+      </td>
+      <td style={{ textAlign: 'center', color: '#9ca3af', padding: cellPad, fontSize: 13 }}>
         {isNew ? '+' : index + 1}
       </td>
       <td style={{ textAlign: 'center', padding: cellPad }}>
@@ -369,17 +409,17 @@ export default function InlineShipmentRow({
       </td>
 
       {/* 출하증 발급시간 - read-only */}
-      <td style={{ fontSize: 10, whiteSpace: 'nowrap', padding: cellPad, backgroundColor: row.certificate_time ? '#fef9c3' : undefined }}>
+      <td style={{ fontSize: 12, whiteSpace: 'nowrap', padding: cellPad, backgroundColor: row.certificate_time ? '#fef9c3' : undefined }}>
         {formatKoreanDateTime(row.certificate_time)}
       </td>
 
       {/* 첨부파일 - read-only */}
-      <td style={{ textAlign: 'center', fontWeight: 600, color: row.has_attachment ? '#16a34a' : '#dc2626', padding: cellPad, fontSize: 11 }}>
+      <td style={{ textAlign: 'center', fontWeight: 600, color: row.has_attachment ? '#16a34a' : '#dc2626', padding: cellPad, fontSize: 13 }}>
         {row.has_attachment ? 'O' : 'X'}
       </td>
 
       {/* 배차통보 - read-only */}
-      <td style={{ textAlign: 'center', fontWeight: 600, color: row.dispatch_notified ? '#16a34a' : '#dc2626', padding: cellPad, fontSize: 11 }}>
+      <td style={{ textAlign: 'center', fontWeight: 600, color: row.dispatch_notified ? '#16a34a' : '#dc2626', padding: cellPad, fontSize: 13 }}>
         {row.dispatch_notified ? 'O' : 'X'}
       </td>
 

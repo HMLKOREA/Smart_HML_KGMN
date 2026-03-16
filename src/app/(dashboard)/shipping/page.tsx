@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { format, addDays, subDays, endOfMonth } from 'date-fns';
 import ShipmentPrint from '@/components/modules/shipping/ShipmentPrint';
+import ShipmentListPrint from '@/components/modules/shipping/ShipmentListPrint';
 import InlineShipmentRow, { type EditableRowData } from '@/components/modules/shipping/InlineShipmentRow';
 import MultiCustomerPanel from '@/components/modules/shipping/MultiCustomerPanel';
 import { useShipmentCrud } from '@/components/modules/shipping/useShipmentCrud';
@@ -107,11 +108,13 @@ export default function ShippingPage() {
   // ── Modal State (kept: print, waiting, dispatch notify) ──
   const [showPrint, setShowPrint] = useState(false);
   const [printRow, setPrintRow] = useState<Shipment | null>(null);
+  const [showListPrint, setShowListPrint] = useState(false);
   const [showWaitingScreen, setShowWaitingScreen] = useState(false);
   const [showDispatchNotify, setShowDispatchNotify] = useState(false);
   const [notifyMethod, setNotifyMethod] = useState<'email' | 'kakao'>('email');
   const [notifyLoading, setNotifyLoading] = useState(false);
   const [showMultiCustomer, setShowMultiCustomer] = useState(false);
+  const [multiCustomerRecent, setMultiCustomerRecent] = useState<Shipment[]>([]);
   const [waitingCompanyId, setWaitingCompanyId] = useState<string>('');
   const [waitingStep, setWaitingStep] = useState<'select' | 'password' | 'data'>('select');
   const [waitingPassword, setWaitingPassword] = useState('');
@@ -272,6 +275,33 @@ export default function ShippingPage() {
     }
   }, [editingRows, newRows, crud, toast, fetchData]);
 
+  const handleSaveAll = useCallback(async () => {
+    const ids = Array.from(editingRows.keys());
+    if (ids.length === 0) { toast.info('저장할 편집 항목이 없습니다.'); return; }
+    let successCount = 0;
+    let failCount = 0;
+    for (const id of ids) {
+      const editData = editingRows.get(id);
+      if (!editData) continue;
+      if (!editData.customer_id || !editData.product_id) { failCount++; continue; }
+      const isNew = newRows.some(r => r.id === id);
+      const result = await crud.saveRow(editData, isNew ? null : id);
+      if (result.success) {
+        successCount++;
+        setEditingRows(prev => { const next = new Map(prev); next.delete(id); return next; });
+        if (isNew) setNewRows(prev => prev.filter(r => r.id !== id));
+      } else {
+        failCount++;
+      }
+    }
+    if (successCount > 0) {
+      toast.success(`${successCount}건 저장 완료${failCount > 0 ? `, ${failCount}건 실패` : ''}`);
+      fetchData();
+    } else if (failCount > 0) {
+      toast.error(`${failCount}건 저장 실패 (거래처/제품 미입력 확인)`);
+    }
+  }, [editingRows, newRows, crud, toast, fetchData]);
+
   const handleUpdateEditData = useCallback((id: string, updates: Partial<EditableRowData>) => {
     setEditingRows(prev => {
       const next = new Map(prev);
@@ -417,9 +447,7 @@ export default function ShippingPage() {
   };
 
   const handlePrint = () => {
-    if (selectedIds.size === 0) { toast.warning('출력할 출하건을 선택해주세요.'); return; }
-    const row = allRows.find(d => selectedIds.has(d.id));
-    if (row) { setPrintRow(row); setShowPrint(true); }
+    setShowListPrint(true);
   };
 
   // ── 출하증 대기화면 헬퍼 ──
@@ -446,21 +474,35 @@ export default function ShippingPage() {
 
   const handleMultiCustomerRegister = async (multiData: {
     shipment_date: string;
-    transport_type: string;
-    product_id: string;
-    silo: string;
-    customerIds: string[];
+    entries: Array<{
+      transport_type: string;
+      customer_id: string;
+      product_id: string;
+      silo: string;
+      count: number;
+    }>;
   }) => {
-    const rows = multiData.customerIds.map(cid => ({
-      shipment_date: multiData.shipment_date,
-      transport_type: multiData.transport_type,
-      customer_id: cid,
-      product_id: multiData.product_id,
-      silo: multiData.silo || null,
-    }));
+    const rows: Array<{
+      shipment_date: string;
+      transport_type: string;
+      customer_id: string;
+      product_id: string;
+      silo: string | null;
+    }> = [];
+    for (const entry of multiData.entries) {
+      for (let i = 0; i < entry.count; i++) {
+        rows.push({
+          shipment_date: multiData.shipment_date,
+          transport_type: entry.transport_type,
+          customer_id: entry.customer_id,
+          product_id: entry.product_id,
+          silo: entry.silo || null,
+        });
+      }
+    }
     const result = await crud.batchInsert(rows);
     if (result.success) {
-      toast.success(`${multiData.customerIds.length}건의 출하가 등록되었습니다.`);
+      toast.success(`${rows.length}건의 출하가 등록되었습니다.`);
       setShowMultiCustomer(false);
       fetchData();
     } else {
@@ -480,41 +522,49 @@ export default function ShippingPage() {
       {/* ═══ Left Filter Panel ═══ */}
       {!filterCollapsed && (
         <div style={{
-          width: 220, minWidth: 220,
+          width: 210, minWidth: 210,
           borderRight: '1px solid #e5e7eb',
-          backgroundColor: '#fafafa',
+          backgroundColor: '#fff',
           display: 'flex', flexDirection: 'column', overflow: 'auto',
         }}>
           <div style={{
-            padding: '10px 14px', borderBottom: '1px solid #e5e7eb',
+            padding: '9px 14px', borderBottom: '1px solid #e5e7eb',
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            backgroundColor: '#f1f5f9',
+            background: 'linear-gradient(135deg, #1e293b, #334155)',
           }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>조회 조건</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <svg style={{ width: 14, height: 14, color: '#94a3b8' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 0 1-.659 1.591l-5.432 5.432a2.25 2.25 0 0 0-.659 1.591v2.927a2.25 2.25 0 0 1-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 0 0-.659-1.591L3.659 7.409A2.25 2.25 0 0 1 3 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0 1 12 3Z" />
+              </svg>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>조회 조건</span>
+            </div>
             <button
               onClick={() => setFilterCollapsed(true)}
-              style={{ fontSize: 11, color: '#9ca3af', cursor: 'pointer', background: 'none', border: 'none' }}
+              style={{ fontSize: 12, color: '#94a3b8', cursor: 'pointer', background: 'none', border: 'none', fontWeight: 600 }}
             >
               접기 ◀
             </button>
           </div>
 
-          <div style={{ padding: '14px 12px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 12 }}>
             {/* Date Mode Radio */}
             <div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 12px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 10px' }}>
                 {([
                   { value: 'year', label: '년도별' },
                   { value: 'month', label: '월별' },
                   { value: 'day', label: '일자별' },
                   { value: 'period', label: '기간별' },
                 ] as const).map(opt => (
-                  <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12, cursor: 'pointer' }}>
+                  <label key={opt.value} style={{
+                    display: 'flex', alignItems: 'center', gap: 3, fontSize: 13, cursor: 'pointer',
+                    color: dateMode === opt.value ? '#1d4ed8' : '#6b7280', fontWeight: dateMode === opt.value ? 700 : 400,
+                  }}>
                     <input
                       type="radio" name="dateMode"
                       checked={dateMode === opt.value}
                       onChange={() => setDateMode(opt.value)}
-                      style={{ width: 13, height: 13, accentColor: '#2563eb' }}
+                      style={{ width: 12, height: 12, accentColor: '#2563eb' }}
                     />
                     {opt.label}
                   </label>
@@ -524,19 +574,19 @@ export default function ShippingPage() {
 
             {/* Date Selector */}
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>날짜선택</label>
+              <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 3 }}>날짜선택</label>
               {dateMode === 'period' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <input type="date" value={periodFrom} onChange={e => setPeriodFrom(e.target.value)} className="form-input" style={{ fontSize: 12 }} />
-                  <span style={{ fontSize: 11, textAlign: 'center', color: '#9ca3af' }}>~</span>
-                  <input type="date" value={periodTo} onChange={e => setPeriodTo(e.target.value)} className="form-input" style={{ fontSize: 12 }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <input type="date" value={periodFrom} onChange={e => setPeriodFrom(e.target.value)} className="form-input" style={{ fontSize: 13, padding: '6px 8px' }} />
+                  <span style={{ fontSize: 12, textAlign: 'center', color: '#9ca3af' }}>~</span>
+                  <input type="date" value={periodTo} onChange={e => setPeriodTo(e.target.value)} className="form-input" style={{ fontSize: 13, padding: '6px 8px' }} />
                 </div>
               ) : dateMode === 'year' ? (
                 <input
                   type="number"
                   value={parseInt(selectedDate.slice(0, 4))}
                   onChange={e => setSelectedDate(`${e.target.value}-01-01`)}
-                  className="form-input" style={{ fontSize: 12 }}
+                  className="form-input" style={{ fontSize: 13, padding: '6px 8px' }}
                   min={2020} max={2035}
                 />
               ) : dateMode === 'month' ? (
@@ -544,18 +594,24 @@ export default function ShippingPage() {
                   type="month"
                   value={selectedDate.slice(0, 7)}
                   onChange={e => setSelectedDate(`${e.target.value}-01`)}
-                  className="form-input" style={{ fontSize: 12 }}
+                  className="form-input" style={{ fontSize: 13, padding: '6px 8px' }}
                 />
               ) : (
                 <>
                   <input
                     type="date" value={selectedDate}
                     onChange={e => setSelectedDate(e.target.value)}
-                    className="form-input" style={{ fontSize: 12 }}
+                    className="form-input" style={{ fontSize: 13, padding: '6px 8px' }}
                   />
-                  <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
-                    <button onClick={handlePrevDay} className="btn btn-secondary" style={{ flex: 1, fontSize: 11, padding: '4px 0' }}>◀ 전날</button>
-                    <button onClick={handleNextDay} className="btn btn-secondary" style={{ flex: 1, fontSize: 11, padding: '4px 0' }}>다음날 ▶</button>
+                  <div style={{ display: 'flex', gap: 4, marginTop: 5 }}>
+                    <button onClick={handlePrevDay} style={{
+                      flex: 1, fontSize: 12, padding: '4px 0', borderRadius: 5, cursor: 'pointer',
+                      background: '#f8fafc', color: '#475569', border: '1px solid #d1d5db', fontWeight: 600,
+                    }}>◀ 전날</button>
+                    <button onClick={handleNextDay} style={{
+                      flex: 1, fontSize: 12, padding: '4px 0', borderRadius: 5, cursor: 'pointer',
+                      background: '#f8fafc', color: '#475569', border: '1px solid #d1d5db', fontWeight: 600,
+                    }}>다음날 ▶</button>
                   </div>
                 </>
               )}
@@ -563,41 +619,44 @@ export default function ShippingPage() {
 
             {/* Transport Type */}
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>운송구분</label>
+              <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 3 }}>운송구분</label>
               <select
                 value={filterTransportType} onChange={e => setFilterTransportType(e.target.value)}
-                className="form-input" style={{ fontSize: 12 }}
+                className="form-input" style={{ fontSize: 13, padding: '6px 8px' }}
               >
-                <option value="">[선택]</option>
+                <option value="">[전체]</option>
                 {TRANSPORT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
 
             {/* Customer */}
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>거래처</label>
+              <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 3 }}>거래처</label>
               <select
                 value={filterCustomerId} onChange={e => setFilterCustomerId(e.target.value)}
-                className="form-input" style={{ fontSize: 12 }}
+                className="form-input" style={{ fontSize: 13, padding: '6px 8px' }}
               >
-                <option value="">[선택]</option>
+                <option value="">[전체]</option>
                 {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
 
             {/* Transport Company */}
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>운송사</label>
+              <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 3 }}>운송사</label>
               <select
                 value={filterCompanyId} onChange={e => setFilterCompanyId(e.target.value)}
-                className="form-input" style={{ fontSize: 12 }}
+                className="form-input" style={{ fontSize: 13, padding: '6px 8px' }}
               >
-                <option value="">[선택]</option>
+                <option value="">[전체]</option>
                 {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
 
-            <button onClick={() => fetchData()} className="btn btn-primary" style={{ width: '100%', fontSize: 13, padding: '8px 0' }}>
+            <button onClick={() => fetchData()} style={{
+              width: '100%', fontSize: 13, padding: '8px 0', borderRadius: 7, border: 'none', cursor: 'pointer',
+              fontWeight: 700, background: '#2563eb', color: '#fff',
+            }}>
               조회
             </button>
           </div>
@@ -607,114 +666,166 @@ export default function ShippingPage() {
       {/* ═══ Main Content Area ═══ */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* ── Title + KPI + Toolbar ── */}
+        {/* ── Title Bar ── */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '6px 16px', borderBottom: '1px solid #e5e7eb', backgroundColor: '#fff', gap: 8,
+          padding: '8px 16px', borderBottom: '1px solid #e5e7eb', backgroundColor: '#fff', gap: 8,
         }}>
           {/* Left: Title + KPI chips */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexShrink: 1, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flexShrink: 1 }}>
             {filterCollapsed && (
-              <button onClick={() => setFilterCollapsed(false)} className="btn btn-secondary" style={{ fontSize: 11, padding: '4px 8px', flexShrink: 0 }}>
+              <button onClick={() => setFilterCollapsed(false)} style={{
+                fontSize: 13, padding: '5px 10px', background: '#f1f5f9', border: '1px solid #cbd5e1',
+                borderRadius: 6, cursor: 'pointer', color: '#475569', fontWeight: 600, flexShrink: 0,
+              }}>
                 필터 ▶
               </button>
             )}
-            <h1 style={{ fontSize: 15, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', flexShrink: 0 }}>출하 관리</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              <div style={{ width: 4, height: 18, borderRadius: 2, background: '#2563eb' }} />
+              <h1 style={{ fontSize: 16, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>출하 관리</h1>
+            </div>
 
             {/* KPI Chips */}
-            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 6, background: '#eff6ff', border: '1px solid #bfdbfe' }}>
-                <svg style={{ width: 13, height: 13, color: '#3b82f6', flexShrink: 0 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
-                </svg>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8' }}>{allRows.length}</span>
-                <span style={{ fontSize: 10, color: '#3b82f6' }}>건</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 6, background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
-                <svg style={{ width: 13, height: 13, color: '#16a34a', flexShrink: 0 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 0 0-.879-2.121l-2.246-2.245A2.999 2.999 0 0 0 16.875 9H14.25m0 0V5.625c0-.621-.504-1.125-1.125-1.125H5.25c-.621 0-1.125.504-1.125 1.125v12.249" />
-                </svg>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d' }}>{shippedCount}</span>
-                <span style={{ fontSize: 10, color: '#16a34a' }}>출하</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 6, background: '#fffbeb', border: '1px solid #fde68a' }}>
-                <svg style={{ width: 13, height: 13, color: '#d97706', flexShrink: 0 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                </svg>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#b45309' }}>{pendingCount}</span>
-                <span style={{ fontSize: 10, color: '#d97706' }}>대기</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 6, background: '#f5f3ff', border: '1px solid #c4b5fd' }}>
-                <svg style={{ width: 13, height: 13, color: '#7c3aed', flexShrink: 0 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0 0 12 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52 2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 0 1-2.031.352 5.988 5.988 0 0 1-2.031-.352c-.483-.174-.711-.703-.59-1.202L18.75 4.971Zm-16.5.52c.99-.203 1.99-.377 3-.52m0 0 2.62 10.726c.122.499-.106 1.028-.589 1.202a5.989 5.989 0 0 1-2.031.352 5.989 5.989 0 0 1-2.031-.352c-.483-.174-.711-.703-.59-1.202L5.25 4.971Z" />
-                </svg>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#6d28d9' }}>{totalWeight.toFixed(1)}</span>
-                <span style={{ fontSize: 10, color: '#7c3aed' }}>톤</span>
-              </div>
+            <div style={{ display: 'flex', gap: 5, flexShrink: 0, marginLeft: 4 }}>
+              {[
+                { label: '전체', value: allRows.length, unit: '건', bg: '#eff6ff', border: '#bfdbfe', color: '#1d4ed8', accent: '#3b82f6' },
+                { label: '출하', value: shippedCount, unit: '건', bg: '#f0fdf4', border: '#bbf7d0', color: '#15803d', accent: '#16a34a' },
+                { label: '대기', value: pendingCount, unit: '건', bg: '#fffbeb', border: '#fde68a', color: '#b45309', accent: '#d97706' },
+                { label: '계근', value: totalWeight.toFixed(1), unit: '톤', bg: '#f5f3ff', border: '#c4b5fd', color: '#6d28d9', accent: '#7c3aed' },
+              ].map(kpi => (
+                <div key={kpi.label} style={{
+                  display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px',
+                  borderRadius: 6, background: kpi.bg, border: `1px solid ${kpi.border}`,
+                }}>
+                  <span style={{ fontSize: 12, color: kpi.accent, fontWeight: 600 }}>{kpi.label}</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: kpi.color }}>{kpi.value}</span>
+                  <span style={{ fontSize: 11, color: kpi.accent }}>{kpi.unit}</span>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Right: Toolbar buttons */}
-          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-            <button onClick={() => fetchData()} className="btn btn-primary" style={{ fontSize: 12 }}>
-              <svg style={{ width: 14, height: 14 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          {/* Right: Primary actions */}
+          <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+            <button onClick={() => fetchData()} style={{
+              fontSize: 13, padding: '6px 14px', borderRadius: 7, border: 'none', cursor: 'pointer', fontWeight: 600,
+              background: '#2563eb', color: '#fff', display: 'flex', alignItems: 'center', gap: 5,
+            }}>
+              <svg style={{ width: 13, height: 13 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
               </svg>
               조회
             </button>
-            <button onClick={handleNewRow} className="btn btn-primary" style={{ fontSize: 12 }}>
-              <svg style={{ width: 14, height: 14 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <button onClick={handleNewRow} style={{
+              fontSize: 13, padding: '6px 14px', borderRadius: 7, border: 'none', cursor: 'pointer', fontWeight: 600,
+              background: '#16a34a', color: '#fff', display: 'flex', alignItems: 'center', gap: 5,
+            }}>
+              <svg style={{ width: 13, height: 13 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
               </svg>
               신규
             </button>
-            <button onClick={handleDelete} className="btn btn-danger" style={{ fontSize: 12 }}>삭제</button>
-            <div className="toolbar-separator" />
-            <button onClick={() => toast.info('엑셀 가져오기 기능은 준비 중입니다.')} className="btn btn-secondary" style={{ fontSize: 12 }}>엑셀가져오기</button>
-            <button onClick={handleExcel} className="btn btn-secondary" style={{ fontSize: 12 }}>엑셀내보내기</button>
+            <button onClick={handleSaveAll} style={{
+              fontSize: 13, padding: '6px 14px', borderRadius: 7, border: 'none', cursor: editingRows.size === 0 ? 'default' : 'pointer', fontWeight: 700,
+              background: editingRows.size > 0 ? '#f59e0b' : '#e5e7eb', color: editingRows.size > 0 ? '#fff' : '#9ca3af',
+              display: 'flex', alignItems: 'center', gap: 5,
+              transition: 'all 0.2s',
+            }}>
+              <svg style={{ width: 13, height: 13 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
+              </svg>
+              저장{editingRows.size > 0 ? ` (${editingRows.size})` : ''}
+            </button>
+            <button onClick={handleDelete} style={{
+              fontSize: 13, padding: '6px 14px', borderRadius: 7, cursor: 'pointer', fontWeight: 600,
+              background: '#fff', color: '#dc2626', border: '1px solid #fca5a5',
+            }}>삭제</button>
+            <div style={{ width: 1, height: 22, background: '#e5e7eb', margin: '0 2px' }} />
+            <button onClick={() => toast.info('엑셀 가져오기 기능은 준비 중입니다.')} style={{
+              fontSize: 13, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontWeight: 500,
+              background: '#fff', color: '#374151', border: '1px solid #d1d5db',
+            }}>엑셀가져오기</button>
+            <button onClick={handleExcel} style={{
+              fontSize: 13, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontWeight: 500,
+              background: '#fff', color: '#374151', border: '1px solid #d1d5db',
+            }}>엑셀내보내기</button>
           </div>
         </div>
 
         {/* ── Action Bar ── */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '6px 16px', backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', flexWrap: 'wrap', gap: 4,
+          padding: '5px 16px', backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', gap: 4,
         }}>
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            <button onClick={toggleSelectAll} className="btn btn-secondary" style={{ fontSize: 12, padding: '5px 12px' }}>전체선택/해제</button>
-            <button onClick={openDispatchNotify} className="btn btn-secondary" style={{ fontSize: 12, padding: '5px 12px', fontWeight: 700, borderColor: '#374151' }}>배차통보</button>
-            <button onClick={openWaitingScreen} className="btn btn-secondary" style={{ fontSize: 12, padding: '5px 12px' }}>출하증대기화면</button>
-            <button
-              onClick={() => setShowMultiCustomer(true)}
-              className="btn btn-secondary"
-              style={{ fontSize: 12, padding: '5px 12px' }}
-            >
-              거래처 다중 등록
-            </button>
-            <button onClick={handleConfirm} className="btn btn-secondary" style={{ fontSize: 12, padding: '5px 12px' }}>확정</button>
-            <button onClick={handleCancelConfirm} className="btn btn-secondary" style={{ fontSize: 12, padding: '5px 12px' }}>확정취소</button>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <button onClick={toggleSelectAll} style={{
+              fontSize: 13, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 600,
+              background: '#fff', color: '#475569', border: '1px solid #cbd5e1',
+            }}>전체선택</button>
+            <div style={{ width: 1, height: 18, background: '#d1d5db', margin: '0 2px' }} />
+            <button onClick={openDispatchNotify} style={{
+              fontSize: 13, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 700,
+              background: '#1e293b', color: '#fff', border: 'none',
+            }}>배차통보</button>
+            <button onClick={openWaitingScreen} style={{
+              fontSize: 13, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 600,
+              background: '#fff', color: '#475569', border: '1px solid #cbd5e1',
+            }}>출하증대기화면</button>
+            <button onClick={async () => {
+              const { data: recent } = await supabase
+                .from('v_shipments')
+                .select('*')
+                .order('shipment_date', { ascending: false })
+                .order('created_at', { ascending: false })
+                .limit(50);
+              setMultiCustomerRecent(recent || []);
+              setShowMultiCustomer(true);
+            }} style={{
+              fontSize: 13, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 600,
+              background: '#fff', color: '#475569', border: '1px solid #cbd5e1',
+            }}>거래처 다중 등록</button>
+            <div style={{ width: 1, height: 18, background: '#d1d5db', margin: '0 2px' }} />
+            <button onClick={handleConfirm} style={{
+              fontSize: 13, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 600,
+              background: '#eff6ff', color: '#1d4ed8', border: '1px solid #93c5fd',
+            }}>확정</button>
+            <button onClick={handleCancelConfirm} style={{
+              fontSize: 13, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 600,
+              background: '#fff', color: '#6b7280', border: '1px solid #d1d5db',
+            }}>확정취소</button>
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
-            <button onClick={() => toast.info('위하고 양식 기능은 준비 중입니다.')} className="btn btn-secondary" style={{ fontSize: 12, padding: '5px 12px' }}>위하고 양식</button>
-            <button onClick={handlePrint} className="btn btn-secondary" style={{ fontSize: 12, padding: '5px 12px' }}>인쇄</button>
+            <button onClick={() => toast.info('위하고 양식 기능은 준비 중입니다.')} style={{
+              fontSize: 13, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 500,
+              background: '#fff', color: '#6b7280', border: '1px solid #d1d5db',
+            }}>위하고 양식</button>
+            <button onClick={handlePrint} style={{
+              fontSize: 13, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 500,
+              background: '#fff', color: '#6b7280', border: '1px solid #d1d5db',
+            }}>인쇄</button>
           </div>
         </div>
 
         {/* ── Sub Header ── */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '5px 16px', backgroundColor: '#fff', borderBottom: '1px solid #e5e7eb',
+          padding: '4px 16px', backgroundColor: '#fff', borderBottom: '1px solid #e5e7eb',
         }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>● 출하내역</span>
-          <span style={{ fontSize: 12, color: '#2563eb', fontWeight: 600 }}>{allRows.length}건</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#2563eb' }} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>출하내역</span>
+          </div>
+          <span style={{ fontSize: 13, color: '#2563eb', fontWeight: 700 }}>{allRows.length}건</span>
         </div>
 
-        {/* ── Multi-Customer Panel ── */}
+        {/* ── Multi-Customer Panel (Modal) ── */}
         {showMultiCustomer && (
           <MultiCustomerPanel
             customers={customers}
             products={products}
             defaultDate={selectedDate}
+            recentData={multiCustomerRecent}
             onRegister={handleMultiCustomerRegister}
             onClose={() => setShowMultiCustomer(false)}
           />
@@ -731,27 +842,28 @@ export default function ShippingPage() {
               조회된 데이터가 없습니다.
             </div>
           ) : (
-            <table className="data-table" style={{ fontSize: 12 }}>
+            <table className="data-table" style={{ fontSize: 13 }}>
               <thead>
                 <tr>
-                  <th style={{ width: 32, textAlign: 'center', padding: '6px 4px' }}>#</th>
-                  <th style={{ width: 32, textAlign: 'center', padding: '6px 4px' }}>
+                  <th style={{ width: 56, textAlign: 'center', padding: '7px 6px' }}>상태</th>
+                  <th style={{ width: 32, textAlign: 'center', padding: '7px 6px' }}>#</th>
+                  <th style={{ width: 32, textAlign: 'center', padding: '7px 6px' }}>
                     <input type="checkbox" checked={selectedIds.size === allRows.length && allRows.length > 0} onChange={toggleSelectAll} />
                   </th>
-                  <th style={{ minWidth: 90, padding: '6px 4px' }}>출하일자</th>
-                  <th style={{ minWidth: 60, padding: '6px 4px' }}>운송구분</th>
-                  <th style={{ minWidth: 140, padding: '6px 4px' }}>거래처</th>
-                  <th style={{ minWidth: 130, padding: '6px 4px' }}>제품명</th>
-                  <th style={{ minWidth: 80, padding: '6px 4px' }}>운송사</th>
-                  <th style={{ minWidth: 100, padding: '6px 4px' }}>차량정보</th>
-                  <th style={{ minWidth: 60, padding: '6px 4px' }}>사일로</th>
-                  <th style={{ width: 36, textAlign: 'center', padding: '6px 4px' }}>출하</th>
-                  <th style={{ minWidth: 72, textAlign: 'right', padding: '6px 4px' }}>계근결과</th>
-                  <th style={{ minWidth: 120, padding: '6px 4px' }}>기타</th>
-                  <th style={{ minWidth: 140, padding: '6px 4px' }}>출하증 발급시간</th>
-                  <th style={{ width: 44, textAlign: 'center', padding: '6px 4px' }}>첨부파일</th>
-                  <th style={{ width: 56, textAlign: 'center', padding: '6px 4px' }}>배차통보</th>
-                  <th style={{ width: 50, textAlign: 'center', padding: '6px 4px' }}>작업</th>
+                  <th style={{ minWidth: 90, padding: '7px 6px' }}>출하일자</th>
+                  <th style={{ minWidth: 60, padding: '7px 6px' }}>운송구분</th>
+                  <th style={{ minWidth: 140, padding: '7px 6px' }}>거래처</th>
+                  <th style={{ minWidth: 130, padding: '7px 6px' }}>제품명</th>
+                  <th style={{ minWidth: 80, padding: '7px 6px' }}>운송사</th>
+                  <th style={{ minWidth: 100, padding: '7px 6px' }}>차량정보</th>
+                  <th style={{ minWidth: 60, padding: '7px 6px' }}>사일로</th>
+                  <th style={{ width: 36, textAlign: 'center', padding: '7px 6px' }}>출하</th>
+                  <th style={{ minWidth: 72, textAlign: 'right', padding: '7px 6px' }}>계근결과</th>
+                  <th style={{ minWidth: 120, padding: '7px 6px' }}>기타</th>
+                  <th style={{ minWidth: 140, padding: '7px 6px' }}>출하증 발급시간</th>
+                  <th style={{ width: 44, textAlign: 'center', padding: '7px 6px' }}>첨부파일</th>
+                  <th style={{ width: 56, textAlign: 'center', padding: '7px 6px' }}>배차통보</th>
+                  <th style={{ width: 50, textAlign: 'center', padding: '7px 6px' }}>작업</th>
                 </tr>
               </thead>
               <tbody>
@@ -786,75 +898,28 @@ export default function ShippingPage() {
           )}
         </div>
 
-        {/* ── Bottom Summary Cards ── */}
+        {/* ── Bottom Summary Bar ── */}
         <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10,
-          padding: '10px 16px', borderTop: '2px solid #d1d5db', backgroundColor: '#f8fafc',
+          display: 'flex', alignItems: 'center', gap: 0,
+          padding: '0 16px', borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc', height: 48,
         }}>
-          {/* 총건수 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, background: '#f1f5f9', border: '1px solid #cbd5e1' }}>
-            <div style={{ width: 34, height: 34, borderRadius: 8, background: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg style={{ width: 16, height: 16 }} fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
-              </svg>
+          {[
+            { label: '총 건수', value: allRows.length, unit: '건', color: '#475569', bg: '#f1f5f9', borderColor: '#cbd5e1' },
+            { label: '출하완료', value: shippedCount, unit: '건', color: '#15803d', bg: '#f0fdf4', borderColor: '#86efac' },
+            { label: '출하대기', value: pendingCount, unit: '건', color: '#b45309', bg: '#fffbeb', borderColor: '#fcd34d' },
+            { label: '운송사', value: companyCount, unit: '개사', color: '#1d4ed8', bg: '#eff6ff', borderColor: '#93c5fd' },
+            { label: '계근합계', value: totalWeight.toFixed(2), unit: '톤', color: '#6d28d9', bg: '#f5f3ff', borderColor: '#a78bfa' },
+          ].map((item, i) => (
+            <div key={item.label} style={{
+              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              height: '100%',
+              borderRight: i < 4 ? '1px solid #e2e8f0' : 'none',
+            }}>
+              <span style={{ fontSize: 13, color: '#64748b', fontWeight: 600 }}>{item.label}</span>
+              <span style={{ fontSize: 17, fontWeight: 800, color: item.color }}>{item.value}</span>
+              <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>{item.unit}</span>
             </div>
-            <div>
-              <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>총 건수</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#1e293b', lineHeight: 1 }}>{allRows.length}<span style={{ fontSize: 11, fontWeight: 500, color: '#64748b' }}> 건</span></div>
-            </div>
-          </div>
-
-          {/* 출하완료 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, background: '#f0fdf4', border: '1px solid #86efac' }}>
-            <div style={{ width: 34, height: 34, borderRadius: 8, background: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg style={{ width: 16, height: 16 }} fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-              </svg>
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: '#16a34a', fontWeight: 600 }}>출하완료</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#15803d', lineHeight: 1 }}>{shippedCount}<span style={{ fontSize: 11, fontWeight: 500, color: '#16a34a' }}> 건</span></div>
-            </div>
-          </div>
-
-          {/* 출하대기 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, background: '#fffbeb', border: '1px solid #fcd34d' }}>
-            <div style={{ width: 34, height: 34, borderRadius: 8, background: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg style={{ width: 16, height: 16 }} fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-              </svg>
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: '#d97706', fontWeight: 600 }}>출하대기</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#b45309', lineHeight: 1 }}>{pendingCount}<span style={{ fontSize: 11, fontWeight: 500, color: '#d97706' }}> 건</span></div>
-            </div>
-          </div>
-
-          {/* 운송사 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, background: '#eff6ff', border: '1px solid #93c5fd' }}>
-            <div style={{ width: 34, height: 34, borderRadius: 8, background: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg style={{ width: 16, height: 16 }} fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
-              </svg>
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: '#2563eb', fontWeight: 600 }}>운송사</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#1d4ed8', lineHeight: 1 }}>{companyCount}<span style={{ fontSize: 11, fontWeight: 500, color: '#2563eb' }}> 개사</span></div>
-            </div>
-          </div>
-
-          {/* 계근합계 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, background: '#f5f3ff', border: '1px solid #a78bfa' }}>
-            <div style={{ width: 34, height: 34, borderRadius: 8, background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg style={{ width: 16, height: 16 }} fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0 0 12 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52 2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 0 1-2.031.352 5.988 5.988 0 0 1-2.031-.352c-.483-.174-.711-.703-.59-1.202L18.75 4.971Zm-16.5.52c.99-.203 1.99-.377 3-.52m0 0 2.62 10.726c.122.499-.106 1.028-.589 1.202a5.989 5.989 0 0 1-2.031.352 5.989 5.989 0 0 1-2.031-.352c-.483-.174-.711-.703-.59-1.202L5.25 4.971Z" />
-              </svg>
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: '#7c3aed', fontWeight: 600 }}>계근합계</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#6d28d9', lineHeight: 1 }}>{totalWeight.toFixed(2)}<span style={{ fontSize: 11, fontWeight: 500, color: '#7c3aed' }}> 톤</span></div>
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
@@ -952,7 +1017,7 @@ export default function ShippingPage() {
                       </div>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 700, color: notifyMethod === 'email' ? '#1d4ed8' : '#374151' }}>이메일</div>
-                        <div style={{ fontSize: 11, color: '#6b7280' }}>거래처 등록 이메일로 발송</div>
+                        <div style={{ fontSize: 13, color: '#6b7280' }}>거래처 등록 이메일로 발송</div>
                       </div>
                     </label>
                     <label style={{
@@ -968,7 +1033,7 @@ export default function ShippingPage() {
                       </div>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 700, color: notifyMethod === 'kakao' ? '#92400e' : '#374151' }}>카카오톡</div>
-                        <div style={{ fontSize: 11, color: '#6b7280' }}>거래처 등록 번호로 발송</div>
+                        <div style={{ fontSize: 13, color: '#6b7280' }}>거래처 등록 번호로 발송</div>
                       </div>
                     </label>
                   </div>
@@ -1367,6 +1432,14 @@ export default function ShippingPage() {
       })()}
 
       {/* ═══ Print Modal ═══ */}
+      {showListPrint && (
+        <ShipmentListPrint
+          rows={allRows}
+          dateLabel={selectedDate}
+          onClose={() => setShowListPrint(false)}
+        />
+      )}
+
       {showPrint && printRow && (
         <ShipmentPrint
           shipment={{
