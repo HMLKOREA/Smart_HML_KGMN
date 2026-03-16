@@ -40,3 +40,5 @@ next-env.d.ts
 # temp files
 *.tmp
 kgmn-logo-src.pdf
+
+.vercel
