@@ -77,7 +77,7 @@ const navItems: NavItem[] = [
   { label: '기사관리', path: '/driver', iconKey: 'driver', roles: ['admin', 'monitor', 'transporter'] },
   { label: '제품코드관리', path: '/product-code', iconKey: 'product', roles: ['admin', 'monitor'] },
   { label: '성적서관리', path: '/report', iconKey: 'report', roles: ['admin', 'monitor', 'field'] },
-  { label: '정산관리', path: '/settlement', iconKey: 'settlement', roles: ['admin', 'monitor'] },
+  { label: '정산관리', path: '/settlement', iconKey: 'settlement', roles: ['admin', 'monitor', 'transporter'] },
   { label: '사용자관리', path: '/admin/users', iconKey: 'users', roles: ['admin'] },
 ];
 

@@ -30,5 +30,5 @@ export default function HomePage() {
   }
 
   // admin, monitor, field → 관리자 대시보드
-  return <AdminDashboard userName={profile.name} />;
+  return <AdminDashboard userName={profile.name} userRole={profile.role} />;
 }

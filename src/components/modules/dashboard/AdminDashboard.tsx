@@ -145,7 +145,7 @@ function ChartModeToggle({ mode, onChange }: { mode: ChartMode; onChange: (m: Ch
   );
 }
 
-export default function AdminDashboard({ userName }: { userName: string }) {
+export default function AdminDashboard({ userName, userRole = 'admin' }: { userName: string; userRole?: string }) {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
   const [todayStats, setTodayStats] = useState<TodayStats>({ total: 0, pending: 0, completed: 0 });
@@ -305,6 +305,25 @@ export default function AdminDashboard({ userName }: { userName: string }) {
         </h2>
         <p className="text-slate-300 text-sm mt-1.5">{today} 현재 시스템 현황을 확인하세요.</p>
       </div>
+
+      {/* ── 역할별 배너 ── */}
+      {userRole === 'monitor' && (
+        <div className="mt-4 px-5 py-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2">
+          <svg className="w-5 h-5 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+          </svg>
+          <span className="text-sm font-medium text-blue-800">모니터링 모드 - 조회 전용으로 시스템 현황을 확인합니다.</span>
+        </div>
+      )}
+      {userRole === 'field' && (
+        <div className="mt-4 px-5 py-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2">
+          <svg className="w-5 h-5 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+          </svg>
+          <span className="text-sm font-medium text-emerald-800">현장 모드 - 오늘의 출하 및 계근 현황을 확인합니다.</span>
+        </div>
+      )}
 
       {/* ═══════ Section 1: 배차현황 ═══════ */}
       <section className="mt-6">

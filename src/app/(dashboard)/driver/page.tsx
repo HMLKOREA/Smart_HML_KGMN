@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { exportToExcel, EXCEL_COLUMNS } from '@/lib/utils/exportExcel';
 import { useToast } from '@/components/ui/Toast';
 import { getSession } from '@/lib/auth/session';
+import ReadOnlyBanner from '@/components/ui/ReadOnlyBanner';
 
 // ── Types ──────────────────────────────────────────────
 interface Driver {
@@ -251,26 +252,33 @@ export default function DriverPage() {
         </button>
       </div>
 
+      {/* ReadOnly Banner for transporter */}
+      {isTransporter && <ReadOnlyBanner message="운송사 계정은 기사 정보를 수정할 수 없습니다." />}
+
       {/* Action Buttons */}
       <div className="flex items-center gap-2 px-6 py-2 bg-gray-50 border-b border-[var(--color-border)]">
-        <button
-          onClick={handleNew}
-          className="px-3 py-1.5 bg-[var(--color-primary)] text-white text-sm rounded hover:bg-[var(--color-primary-dark)] transition-colors"
-        >
-          신규등록
-        </button>
-        <button
-          onClick={() => handleEdit()}
-          className="px-3 py-1.5 bg-white text-[var(--color-text)] text-sm rounded border border-gray-300 hover:bg-gray-100 transition-colors"
-        >
-          수정
-        </button>
-        <button
-          onClick={handleDelete}
-          className="px-3 py-1.5 bg-white text-[var(--color-danger)] text-sm rounded border border-red-300 hover:bg-red-50 transition-colors"
-        >
-          삭제
-        </button>
+        {!isTransporter && (
+          <>
+            <button
+              onClick={handleNew}
+              className="px-3 py-1.5 bg-[var(--color-primary)] text-white text-sm rounded hover:bg-[var(--color-primary-dark)] transition-colors"
+            >
+              신규등록
+            </button>
+            <button
+              onClick={() => handleEdit()}
+              className="px-3 py-1.5 bg-white text-[var(--color-text)] text-sm rounded border border-gray-300 hover:bg-gray-100 transition-colors"
+            >
+              수정
+            </button>
+            <button
+              onClick={handleDelete}
+              className="px-3 py-1.5 bg-white text-[var(--color-danger)] text-sm rounded border border-red-300 hover:bg-red-50 transition-colors"
+            >
+              삭제
+            </button>
+          </>
+        )}
         <button
           onClick={handleExcel}
           className="px-3 py-1.5 bg-[var(--color-secondary)] text-white text-sm rounded hover:opacity-90 transition-colors"

@@ -11,6 +11,8 @@ import MultiCustomerPanel from '@/components/modules/shipping/MultiCustomerPanel
 import { useShipmentCrud } from '@/components/modules/shipping/useShipmentCrud';
 import { exportToExcel } from '@/lib/utils/exportExcel';
 import { useToast } from '@/components/ui/Toast';
+import { getSession } from '@/lib/auth/session';
+import AccessDenied from '@/components/ui/AccessDenied';
 
 // ── Types ──────────────────────────────────────────────
 interface Shipment {
@@ -79,6 +81,8 @@ export default function ShippingPage() {
   const supabase = createClient();
   const toast = useToast();
   const crud = useShipmentCrud();
+  const session = useMemo(() => getSession(), []);
+  const isTransporter = session?.profile?.role === 'transporter';
 
   // ── Data State ──
   const [data, setData] = useState<Shipment[]>([]);
@@ -517,6 +521,8 @@ export default function ShippingPage() {
   const companyCount = useMemo(() => new Set(allRows.map(r => r.company_name).filter(Boolean)).size, [allRows]);
 
   // ── Render ──
+  if (isTransporter) return <AccessDenied />;
+
   return (
     <div style={{ display: 'flex', height: 'calc(100vh - 7.5rem)' }}>
       {/* ═══ Left Filter Panel ═══ */}

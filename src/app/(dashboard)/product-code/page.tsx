@@ -1,10 +1,12 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { exportToExcel, EXCEL_COLUMNS } from '@/lib/utils/exportExcel';
 import { useToast } from '@/components/ui/Toast';
+import { getSession } from '@/lib/auth/session';
+import AccessDenied from '@/components/ui/AccessDenied';
 
 // ── Types ──────────────────────────────────────────────
 interface Product {
@@ -50,6 +52,8 @@ const CATEGORY_OPTIONS = ['골재', 'ite석', '모래', '자갈', '석분', '혼
 export default function ProductCodePage() {
   const supabase = createClient();
   const toast = useToast();
+  const session = useMemo(() => getSession(), []);
+  const isTransporter = session?.profile?.role === 'transporter';
 
   const [data, setData] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -190,6 +194,8 @@ export default function ProductCodePage() {
   };
 
   // ── Render ───────────────────────────────────────────
+  if (isTransporter) return <AccessDenied />;
+
   return (
     <div className="flex flex-col h-full">
       {/* Page Header */}
