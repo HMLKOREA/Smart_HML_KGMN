@@ -264,6 +264,33 @@ export interface HealthCheckResult {
   details?: Record<string, unknown>;
 }
 
+// 생산현황 (Production Schedule)
+export type TransportCategory = 'cargo_truck' | 'tank_lorry';
+export type ProductionScheduleStatus = 'planned' | 'in_progress' | 'completed' | 'cancelled';
+
+export interface ProductionSchedule {
+  id: string;
+  schedule_date: string;
+  transport_category: TransportCategory;
+  sub_category: string;
+  customer_id: string | null;
+  customer_name?: string;
+  product_id: string | null;
+  product_code?: string;
+  product_name?: string;
+  planned_quantity: number;
+  planned_trucks: number;
+  actual_quantity: number;
+  actual_trucks: number;
+  status: ProductionScheduleStatus;
+  priority: number;
+  notes?: string;
+  created_by?: string;
+  updated_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // 메뉴 아이템
 export interface MenuItem {
   id: string;

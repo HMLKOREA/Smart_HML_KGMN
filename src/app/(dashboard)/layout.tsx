@@ -16,6 +16,7 @@ const pageTitles: Record<string, string> = {
   '/driver': '기사관리',
   '/product-code': '제품코드관리',
   '/report': '성적서관리',
+  '/production': '생산현황',
   '/settlement': '정산관리',
   '/admin/users': '사용자관리',
 };
