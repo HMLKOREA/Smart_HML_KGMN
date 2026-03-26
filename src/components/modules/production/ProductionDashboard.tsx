@@ -9,6 +9,7 @@ import WeeklyCalendarView from './WeeklyCalendarView';
 import DetailTableView from './DetailTableView';
 import ScheduleModal from './ScheduleModal';
 import { useProductionCrud } from './useProductionCrud';
+import { localDateStr } from './constants';
 
 function getMonday(d: Date): Date {
   const day = d.getDay();
@@ -46,18 +47,20 @@ export default function ProductionDashboard() {
     try {
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekEnd.getDate() + 6);
-      const startStr = weekStart.toISOString().split('T')[0];
-      const endStr = weekEnd.toISOString().split('T')[0];
+      const startStr = localDateStr(weekStart);
+      const endStr = localDateStr(weekEnd);
 
       const { data, error } = await supabase
         .from('v_production_schedules')
         .select('*')
         .gte('schedule_date', startStr)
         .lte('schedule_date', endStr)
-        .order('schedule_date')
-        .order('priority');
+        .order('schedule_date', { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase query error:', JSON.stringify(error));
+        return;
+      }
       setSchedules((data as ProductionSchedule[]) || []);
     } catch (err) {
       console.error('Production dashboard load failed:', err);
@@ -129,7 +132,7 @@ export default function ProductionDashboard() {
         </div>
         <div className="flex items-center gap-2">
           {canEdit && !monitorMode && (
-            <button onClick={() => { setModalSchedule(null); setModalDefaultDate(new Date().toISOString().split('T')[0]); setModalOpen(true); }}
+            <button onClick={() => { setModalSchedule(null); setModalDefaultDate(localDateStr(new Date())); setModalOpen(true); }}
               className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition shadow-sm">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />

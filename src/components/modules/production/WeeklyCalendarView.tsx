@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import type { ProductionSchedule } from '@/types';
 import ScheduleCard from './ScheduleCard';
+import { localDateStr, todayStr as getTodayStr } from './constants';
 
 interface Props {
   schedules: ProductionSchedule[];
@@ -16,14 +17,7 @@ interface Props {
   monitorMode: boolean;
 }
 
-function fmt(d: Date) {
-  return d.toISOString().split('T')[0];
-}
-
-function dayLabel(d: Date) {
-  const days = ['일', '월', '화', '수', '목', '금', '토'];
-  return days[d.getDay()];
-}
+const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 
 export default function WeeklyCalendarView({
   schedules, weekStart, onPrevWeek, onNextWeek, onToday,
@@ -39,17 +33,14 @@ export default function WeeklyCalendarView({
     return result;
   }, [weekStart]);
 
-  const todayStr = useMemo(() => fmt(new Date()), []);
+  const todayDate = useMemo(() => getTodayStr(), []);
 
   const weekLabel = useMemo(() => {
     const end = new Date(weekStart);
     end.setDate(end.getDate() + 6);
-    const y = weekStart.getFullYear();
-    const ms = String(weekStart.getMonth() + 1).padStart(2, '0');
-    const ds = String(weekStart.getDate()).padStart(2, '0');
-    const me = String(end.getMonth() + 1).padStart(2, '0');
-    const de = String(end.getDate()).padStart(2, '0');
-    return `${y}년 ${ms}/${ds} ~ ${me}/${de}`;
+    const startS = localDateStr(weekStart); // YYYY-MM-DD
+    const endS = localDateStr(end);
+    return `${startS.substring(0, 4)}년 ${startS.substring(5, 7)}/${startS.substring(8)} ~ ${endS.substring(5, 7)}/${endS.substring(8)}`;
   }, [weekStart]);
 
   // 날짜별 그룹핑
@@ -88,8 +79,8 @@ export default function WeeklyCalendarView({
       {/* 주간 그리드 */}
       <div className="grid grid-cols-7 divide-x divide-gray-100">
         {days.map(d => {
-          const dateStr = fmt(d);
-          const isToday = dateStr === todayStr;
+          const dateStr = localDateStr(d);
+          const isToday = dateStr === todayDate;
           const isSunday = d.getDay() === 0;
           const isSaturday = d.getDay() === 6;
           const items = byDate.get(dateStr) || [];
@@ -103,7 +94,7 @@ export default function WeeklyCalendarView({
               <div className={`flex items-center justify-between px-2 py-2 border-b border-gray-50 ${isToday ? 'bg-blue-100/50' : ''}`}>
                 <div className="flex items-center gap-1.5">
                   <span className={`text-xs font-bold ${isSunday ? 'text-red-500' : isSaturday ? 'text-blue-500' : 'text-gray-500'}`}>
-                    {dayLabel(d)}
+                    {DAY_LABELS[d.getDay()]}
                   </span>
                   <span className={`text-sm font-bold ${isToday ? 'bg-blue-600 text-white px-1.5 py-0.5 rounded-md' : 'text-gray-700'}`}>
                     {d.getDate()}

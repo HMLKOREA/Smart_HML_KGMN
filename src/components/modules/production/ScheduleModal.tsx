@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { ProductionSchedule, TransportCategory, ProductionScheduleStatus } from '@/types';
-import { SUB_CATEGORIES, TRANSPORT_CATEGORIES, SCHEDULE_STATUS_MAP } from './constants';
+import { SUB_CATEGORIES, TRANSPORT_CATEGORIES, SCHEDULE_STATUS_MAP, todayStr } from './constants';
 
 interface Props {
   open: boolean;
@@ -75,7 +75,7 @@ export default function ScheduleModal({
       setStatus(schedule.status);
       setNotes(schedule.notes || '');
     } else {
-      setDate(defaultDate || new Date().toISOString().split('T')[0]);
+      setDate(defaultDate || todayStr());
       setCategory('cargo_truck');
       setSubCat(SUB_CATEGORIES.cargo_truck[0]);
       setCustomerId('');

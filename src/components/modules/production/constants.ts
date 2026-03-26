@@ -1,5 +1,18 @@
 import type { TransportCategory } from '@/types';
 
+/** 로컬 시간 기준 YYYY-MM-DD (toISOString은 UTC라 KST에서 하루 밀림) */
+export function localDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** 오늘 날짜 문자열 (로컬) */
+export function todayStr(): string {
+  return localDateStr(new Date());
+}
+
 export const TRANSPORT_CATEGORIES: { value: TransportCategory; label: string; color: string }[] = [
   { value: 'cargo_truck', label: 'Cargo Truck', color: 'blue' },
   { value: 'tank_lorry', label: 'Tank Lorry (BCT)', color: 'emerald' },
