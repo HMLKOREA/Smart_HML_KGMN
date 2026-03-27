@@ -84,7 +84,8 @@ export default function DriverPage() {
       let query = supabase
         .from('v_drivers')
         .select('*')
-        .order('name');
+        .order('company_name', { ascending: true })
+        .order('name', { ascending: true });
 
       // 운송사 계정: 자기 운송사 기사만 표시
       if (isTransporter && userCompanyId) {
@@ -311,12 +312,12 @@ export default function DriverPage() {
           <table className="data-table">
             <thead>
               <tr>
+                <th>운송사</th>
+                <th>차량종류</th>
                 <th>기사명</th>
                 <th>전화번호</th>
                 <th>차량번호</th>
-                <th>차량종류</th>
                 <th className="text-right">톤수</th>
-                <th>운송사</th>
                 <th>면허번호</th>
                 <th>사용</th>
                 <th>비고</th>
@@ -333,14 +334,14 @@ export default function DriverPage() {
                     handleEdit(row.id);
                   }}
                 >
+                  <td className="font-medium">{row.company_name}</td>
+                  <td>{row.vehicle_type}</td>
                   <td className="font-medium">{row.name}</td>
                   <td>{row.phone}</td>
                   <td>{row.vehicle_number}</td>
-                  <td>{row.vehicle_type}</td>
                   <td className="text-right">
                     {row.vehicle_tonnage != null ? Number(row.vehicle_tonnage).toLocaleString() : ''}
                   </td>
-                  <td>{row.company_name}</td>
                   <td>{row.license_number}</td>
                   <td>
                     <span

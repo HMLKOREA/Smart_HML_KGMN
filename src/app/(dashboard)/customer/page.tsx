@@ -19,6 +19,11 @@ interface Customer {
   address: string | null;
   delivery_address: string | null;
   email: string | null;
+  transport_type: string | null;
+  customer_code: string | null;
+  warehouse_code: string | null;
+  default_product_id: string | null;
+  contact_email: string | null;
   memo: string | null;
   is_active: boolean;
   created_at: string;
@@ -66,6 +71,8 @@ export default function CustomerPage() {
   const [formData, setFormData] = useState<CustomerFormData>(emptyForm);
   const [error, setError] = useState<string | null>(null);
   const [searchText, setSearchText] = useState('');
+  const [sortKey, setSortKey] = useState<string>('name');
+  const [sortAsc, setSortAsc] = useState(true);
 
   // ── Data Fetching ────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -97,6 +104,20 @@ export default function CustomerPage() {
   useEffect(() => {
     fetchData();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const sortedData = useMemo(() => {
+    return [...data].sort((a, b) => {
+      const va = (a as unknown as Record<string, unknown>)[sortKey] ?? '';
+      const vb = (b as unknown as Record<string, unknown>)[sortKey] ?? '';
+      const cmp = String(va).localeCompare(String(vb), 'ko');
+      return sortAsc ? cmp : -cmp;
+    });
+  }, [data, sortKey, sortAsc]);
+
+  const toggleSort = (key: string) => {
+    if (sortKey === key) setSortAsc(!sortAsc);
+    else { setSortKey(key); setSortAsc(true); }
+  };
 
   // ── Helpers ──────────────────────────────────────────
   const handleSearch = () => fetchData();
@@ -279,20 +300,26 @@ export default function CustomerPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>거래처명</th>
-                <th>사업자번호</th>
-                <th>대표자</th>
-                <th>전화번호</th>
-                <th>팩스</th>
-                <th>주소</th>
-                <th>배송지</th>
-                <th>이메일</th>
-                <th>사용</th>
-                <th>비고</th>
+                {[
+                  { key: 'transport_type', label: '운송구분' },
+                  { key: 'name', label: '거래처' },
+                  { key: 'customer_code', label: '거래처코드' },
+                  { key: 'warehouse_code', label: '창고코드' },
+                  { key: 'default_product_id', label: '제품명' },
+                  { key: 'contact_email', label: '담당자 이메일' },
+                  { key: 'address', label: '주소' },
+                  { key: 'phone', label: '전화번호' },
+                  { key: 'is_active', label: '사용' },
+                  { key: 'memo', label: '비고' },
+                ].map(col => (
+                  <th key={col.key} onClick={() => toggleSort(col.key)} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    {col.label} {sortKey === col.key ? (sortAsc ? '▲' : '▼') : ''}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {data.map((row) => (
+              {sortedData.map((row) => (
                 <tr
                   key={row.id}
                   className={`cursor-pointer ${selectedId === row.id ? 'selected' : ''}`}
@@ -302,14 +329,14 @@ export default function CustomerPage() {
                     handleEdit(row.id);
                   }}
                 >
+                  <td>{row.transport_type || '-'}</td>
                   <td className="font-medium">{row.name}</td>
-                  <td>{row.business_number}</td>
-                  <td>{row.representative}</td>
-                  <td>{row.phone}</td>
-                  <td>{row.fax}</td>
-                  <td className="max-w-[200px] truncate">{row.address}</td>
-                  <td className="max-w-[200px] truncate">{row.delivery_address}</td>
-                  <td>{row.email}</td>
+                  <td>{row.customer_code || '-'}</td>
+                  <td>{row.warehouse_code || '-'}</td>
+                  <td>{row.default_product_id || '-'}</td>
+                  <td>{row.contact_email || '-'}</td>
+                  <td className="max-w-[200px] truncate">{row.address || '-'}</td>
+                  <td>{row.phone || '-'}</td>
                   <td>
                     <span
                       className={`badge ${row.is_active ? 'badge-completed' : 'badge-cancelled'}`}
@@ -317,7 +344,7 @@ export default function CustomerPage() {
                       {row.is_active ? '사용' : '미사용'}
                     </span>
                   </td>
-                  <td className="max-w-[150px] truncate">{row.memo}</td>
+                  <td className="max-w-[150px] truncate">{row.memo || '-'}</td>
                 </tr>
               ))}
             </tbody>

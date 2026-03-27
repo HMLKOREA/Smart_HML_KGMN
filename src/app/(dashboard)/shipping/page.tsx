@@ -68,7 +68,7 @@ const EXCEL_COLS = [
   { key: 'certificate_time', header: '출하증 발급시간' },
 ];
 
-const TRANSPORT_TYPES = ['탱크', '벌크', '백(bag)', '기타'];
+const TRANSPORT_TYPES = ['탱크', '덤프', '카고'];
 
 /** 대기화면 비밀번호 (모든 운송사 공통) */
 const WAITING_SCREEN_PASSWORD = '1234';
@@ -83,6 +83,7 @@ export default function ShippingPage() {
   const crud = useShipmentCrud();
   const session = useMemo(() => getSession(), []);
   const isTransporter = session?.profile?.role === 'transporter';
+  const isAdmin = session?.profile?.role === 'admin';
 
   // ── Data State ──
   const [data, setData] = useState<Shipment[]>([]);
@@ -187,10 +188,9 @@ export default function ShippingPage() {
     setCompanies(compRes.data || []);
   }, [supabase]);
 
-  useEffect(() => {
-    fetchData();
-    fetchLookups();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchLookups(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // 날짜/모드 변경 시 자동 조회
+  useEffect(() => { fetchData(); }, [selectedDate, dateMode, periodFrom, periodTo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Selection ──
   const allRows = useMemo(() => [...newRows, ...data], [newRows, data]);
@@ -896,6 +896,7 @@ export default function ShippingPage() {
                       onSaveEdit={handleSaveEdit}
                       onUpdateEditData={handleUpdateEditData}
                       onShipToggle={handleShipToggle}
+                      isAdmin={isAdmin}
                     />
                   );
                 })}

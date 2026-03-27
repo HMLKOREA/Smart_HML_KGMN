@@ -39,6 +39,7 @@ interface RecentShipment {
   vehicle_number: string;
   company_name: string;
   status: string;
+  created_at: string;
 }
 
 /* ── 색상 팔레트 ── */
@@ -184,7 +185,7 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
         supabase.from('v_shipments').select('weight_net, company_name, company_id, customer_name, product_name, quantity').gte('shipment_date', monthStart).lte('shipment_date', today),
         supabase.from('v_shipments').select('customer_name, quantity, weight_net').gte('shipment_date', prevMonthStart).lte('shipment_date', prevMonthEnd),
         supabase.from('unit_prices').select('company_id, product_id, price, transport_type').eq('effective_date', monthStart),
-        supabase.from('v_shipments').select('shipment_date,shipment_number,customer_name,product_name,quantity,weight_net,vehicle_number,company_name,status').order('created_at', { ascending: false }).limit(10),
+        supabase.from('v_shipments').select('shipment_date,shipment_number,customer_name,product_name,quantity,weight_net,vehicle_number,company_name,status,created_at').order('created_at', { ascending: false }).limit(10),
       ]);
 
       setTodayStats({
@@ -504,12 +505,12 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
               <thead>
                 <tr>
                   <th>출하일자</th>
-                  <th>출하번호</th>
                   <th>거래처</th>
                   <th>제품</th>
                   <th className="text-right">계량(ton)</th>
                   <th>차량번호</th>
                   <th>운송사</th>
+                  <th>발급시간</th>
                   <th>상태</th>
                 </tr>
               </thead>
@@ -519,12 +520,14 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
                   return (
                     <tr key={i} className="hover:bg-blue-50/30 transition-colors">
                       <td className="text-gray-500">{s.shipment_date}</td>
-                      <td className="font-mono text-sm font-semibold text-gray-700">{s.shipment_number}</td>
                       <td className="font-medium text-gray-800">{s.customer_name || '-'}</td>
                       <td className="text-gray-600">{s.product_name || '-'}</td>
                       <td className="text-right tabular-nums font-semibold text-gray-800">{(s.weight_net || 0).toLocaleString()}</td>
                       <td className="font-mono text-sm text-gray-600">{s.vehicle_number || '-'}</td>
                       <td className="text-gray-600">{s.company_name || '-'}</td>
+                      <td className="text-gray-500 tabular-nums text-sm">
+                        {s.created_at ? new Date(s.created_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '-'}
+                      </td>
                       <td>
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold ${st.style}`}>
                           {st.label}

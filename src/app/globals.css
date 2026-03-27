@@ -61,10 +61,11 @@ body {
 }
 
 .data-table td {
-  padding: 10px 14px;
+  padding: 11px 14px;
   border-bottom: 1px solid #f3f4f6;
-  font-size: 14px;
-  color: #374151;
+  font-size: 15px;
+  color: #1f2937;
+  background-color: #ffffff;
 }
 
 .data-table tbody tr {

@@ -21,6 +21,10 @@ interface TransportCompany {
   bank_name: string | null;
   account_number: string | null;
   account_holder: string | null;
+  default_vehicle_type: string | null;
+  representative_name: string | null;
+  dispatch_manager: string | null;
+  business_manager: string | null;
   memo: string | null;
   is_active: boolean;
   created_at: string;
@@ -38,6 +42,10 @@ interface CompanyFormData {
   bank_name: string;
   account_number: string;
   account_holder: string;
+  default_vehicle_type: string;
+  representative_name: string;
+  dispatch_manager: string;
+  business_manager: string;
   memo: string;
   is_active: boolean;
   login_id: string;
@@ -47,6 +55,7 @@ interface CompanyFormData {
 const emptyForm: CompanyFormData = {
   name: '', business_number: '', representative: '', phone: '', fax: '',
   address: '', email: '', bank_name: '', account_number: '', account_holder: '',
+  default_vehicle_type: '', representative_name: '', dispatch_manager: '', business_manager: '',
   memo: '', is_active: true, login_id: '', login_pw: '',
 };
 
@@ -57,17 +66,18 @@ function getLoginInfo(companyName: string) {
 }
 
 // ── 데모 데이터 (Supabase 미연결 시) ──
+const _extra = { default_vehicle_type: null, representative_name: null, dispatch_manager: null, business_manager: null };
 const DEMO_COMPANIES: TransportCompany[] = [
-  { id: '1', name: '강천', business_number: '', representative: '', phone: '010-4219-2244', fax: '', address: '', email: 'han873111@naver.com', bank_name: '', account_number: '', account_holder: '', memo: '', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01' },
-  { id: '2', name: '대경', business_number: '', representative: '', phone: '010-9456-9988', fax: '', address: '', email: 'dydvlfl1283@naver.com', bank_name: '', account_number: '', account_holder: '', memo: '', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01' },
-  { id: '3', name: '동방', business_number: '', representative: '', phone: '010-9138-0775', fax: '', address: '', email: 'hwkim@dongbang.co.kr', bank_name: '', account_number: '', account_holder: '', memo: '', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01' },
-  { id: '4', name: '성윤', business_number: '', representative: '', phone: '010-6500-1101', fax: '', address: '', email: '', bank_name: '', account_number: '', account_holder: '', memo: '', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01' },
-  { id: '5', name: '성진', business_number: '', representative: '', phone: '010-3675-2872', fax: '', address: '', email: 'sung2872@daum.net', bank_name: '', account_number: '', account_holder: '', memo: '', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01' },
-  { id: '6', name: '우신', business_number: '', representative: '', phone: '', fax: '', address: '', email: 'wsts6663@nate.com', bank_name: '', account_number: '', account_holder: '', memo: '', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01' },
-  { id: '7', name: '우주', business_number: '', representative: '', phone: '010-5483-4667', fax: '', address: '', email: 'ouju4667@hanmail.net', bank_name: '', account_number: '', account_holder: '', memo: '', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01' },
-  { id: '8', name: '진흥', business_number: '', representative: '', phone: '010-3673-0193', fax: '', address: '', email: 'jh0193@hanmail.net', bank_name: '', account_number: '', account_holder: '', memo: '', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01' },
-  { id: '9', name: '태윤', business_number: '', representative: '', phone: '010-3471-0267', fax: '', address: '', email: 'kdj879@hanmail.net', bank_name: '', account_number: '', account_holder: '', memo: '', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01' },
-  { id: '10', name: '퍼스트', business_number: '', representative: '', phone: '010-6259-8393', fax: '', address: '', email: 'firstinc@hanmail.net', bank_name: '', account_number: '', account_holder: '', memo: '', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01' },
+  { id: '1', name: '강천', business_number: '', representative: '', phone: '010-4219-2244', fax: '', address: '', email: 'han873111@naver.com', bank_name: '', account_number: '', account_holder: '', memo: '', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01', ..._extra },
+  { id: '2', name: '대경', business_number: '', representative: '', phone: '010-9456-9988', fax: '', address: '', email: 'dydvlfl1283@naver.com', bank_name: '', account_number: '', account_holder: '', memo: '', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01', ..._extra },
+  { id: '3', name: '동방', business_number: '', representative: '', phone: '010-9138-0775', fax: '', address: '', email: 'hwkim@dongbang.co.kr', bank_name: '', account_number: '', account_holder: '', memo: '', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01', ..._extra },
+  { id: '4', name: '성윤', business_number: '', representative: '', phone: '010-6500-1101', fax: '', address: '', email: '', bank_name: '', account_number: '', account_holder: '', memo: '', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01', ..._extra },
+  { id: '5', name: '성진', business_number: '', representative: '', phone: '010-3675-2872', fax: '', address: '', email: 'sung2872@daum.net', bank_name: '', account_number: '', account_holder: '', memo: '', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01', ..._extra },
+  { id: '6', name: '우신', business_number: '', representative: '', phone: '', fax: '', address: '', email: 'wsts6663@nate.com', bank_name: '', account_number: '', account_holder: '', memo: '', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01', ..._extra },
+  { id: '7', name: '우주', business_number: '', representative: '', phone: '010-5483-4667', fax: '', address: '', email: 'ouju4667@hanmail.net', bank_name: '', account_number: '', account_holder: '', memo: '', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01', ..._extra },
+  { id: '8', name: '진흥', business_number: '', representative: '', phone: '010-3673-0193', fax: '', address: '', email: 'jh0193@hanmail.net', bank_name: '', account_number: '', account_holder: '', memo: '', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01', ..._extra },
+  { id: '9', name: '태윤', business_number: '', representative: '', phone: '010-3471-0267', fax: '', address: '', email: 'kdj879@hanmail.net', bank_name: '', account_number: '', account_holder: '', memo: '', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01', ..._extra },
+  { id: '10', name: '퍼스트', business_number: '', representative: '', phone: '010-6259-8393', fax: '', address: '', email: 'firstinc@hanmail.net', bank_name: '', account_number: '', account_holder: '', memo: '', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01', ..._extra },
 ];
 
 // ── Component ──────────────────────────────────────────
@@ -171,6 +181,10 @@ export default function TransportCompanyPage() {
       bank_name: row.bank_name || '',
       account_number: row.account_number || '',
       account_holder: row.account_holder || '',
+      default_vehicle_type: row.default_vehicle_type || '',
+      representative_name: row.representative_name || '',
+      dispatch_manager: row.dispatch_manager || '',
+      business_manager: row.business_manager || '',
       memo: row.memo || '',
       is_active: row.is_active,
       login_id: loginInfo?.loginId || '',
@@ -209,6 +223,10 @@ export default function TransportCompanyPage() {
         bank_name: formData.bank_name || null,
         account_number: formData.account_number || null,
         account_holder: formData.account_holder || null,
+        default_vehicle_type: formData.default_vehicle_type || null,
+        representative_name: formData.representative_name || null,
+        dispatch_manager: formData.dispatch_manager || null,
+        business_manager: formData.business_manager || null,
         memo: formData.memo || null,
         is_active: formData.is_active,
       };
@@ -335,7 +353,7 @@ export default function TransportCompanyPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                 <thead>
                   <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                    {['No', '운송사명', '로그인 ID', '로그인 PW', '대표자', '전화번호', '이메일', '팩스', '주소', '은행', '계좌번호', '예금주', '사용', '비고'].map((h, i) => (
+                    {['No', '운송사명', '로그인 ID', '로그인 PW', '대표자', '전화번호', '이메일', '기본차량종류', '대표명', '배차담당자', '업무담당자', '팩스', '주소', '은행', '계좌번호', '예금주', '사용', '비고'].map((h, i) => (
                       <th key={h} style={{
                         padding: '10px 10px', fontSize: 13, fontWeight: 700, color: '#475569',
                         textAlign: i === 0 ? 'center' : 'left', whiteSpace: 'nowrap',
@@ -413,6 +431,14 @@ export default function TransportCompanyPage() {
                             <a href={`mailto:${row.email}`} style={{ color: '#2563eb', textDecoration: 'none' }}>{row.email}</a>
                           ) : <span style={{ color: '#cbd5e1' }}>-</span>}
                         </td>
+                        {/* 기본차량종류 */}
+                        <td style={{ padding: '8px 10px', fontSize: 13, color: '#334155' }}>{row.default_vehicle_type || '-'}</td>
+                        {/* 대표명 */}
+                        <td style={{ padding: '8px 10px', fontSize: 13, color: '#334155' }}>{row.representative_name || '-'}</td>
+                        {/* 배차담당자 */}
+                        <td style={{ padding: '8px 10px', fontSize: 13, color: '#334155' }}>{row.dispatch_manager || '-'}</td>
+                        {/* 업무담당자 */}
+                        <td style={{ padding: '8px 10px', fontSize: 13, color: '#334155' }}>{row.business_manager || '-'}</td>
                         {/* 팩스 */}
                         <td style={{ padding: '8px 10px', fontSize: 13, color: '#64748b' }}>{row.fax || '-'}</td>
                         {/* 주소 */}
@@ -568,6 +594,42 @@ export default function TransportCompanyPage() {
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 14, boxSizing: 'border-box' }}
                 />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 5 }}>기본차량종류</label>
+                  <select value={formData.default_vehicle_type}
+                    onChange={(e) => setFormData({ ...formData, default_vehicle_type: e.target.value })}
+                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 14, boxSizing: 'border-box' }}
+                  >
+                    <option value="">선택</option>
+                    <option value="탱크">탱크</option>
+                    <option value="덤프">덤프</option>
+                    <option value="카고">카고</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 5 }}>대표명</label>
+                  <input type="text" value={formData.representative_name}
+                    onChange={(e) => setFormData({ ...formData, representative_name: e.target.value })}
+                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 14, boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 5 }}>배차담당자</label>
+                  <input type="text" value={formData.dispatch_manager}
+                    onChange={(e) => setFormData({ ...formData, dispatch_manager: e.target.value })}
+                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 14, boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 5 }}>업무담당자</label>
+                  <input type="text" value={formData.business_manager}
+                    onChange={(e) => setFormData({ ...formData, business_manager: e.target.value })}
+                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 14, boxSizing: 'border-box' }}
+                  />
+                </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>

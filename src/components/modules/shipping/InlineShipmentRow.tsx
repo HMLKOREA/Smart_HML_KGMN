@@ -93,6 +93,7 @@ interface InlineShipmentRowProps {
   onSaveEdit: (id: string) => void;
   onUpdateEditData: (id: string, updates: Partial<EditableRowData>) => void;
   onShipToggle: (id: string, currentValue: boolean) => void;
+  isAdmin?: boolean;
 }
 
 // Prepare lookup options once (memoized in parent)
@@ -157,6 +158,7 @@ export default function InlineShipmentRow({
   onSaveEdit,
   onUpdateEditData,
   onShipToggle,
+  isAdmin = false,
 }: InlineShipmentRowProps) {
   const rowRef = useRef<HTMLTableRowElement>(null);
 
@@ -198,15 +200,16 @@ export default function InlineShipmentRow({
   // ── Display Mode ──
   if (!isEditing || !editData) {
     const bgColor = row.is_confirmed
-      ? isSelected ? '#dcfce7' : '#f0fdf4'
+      ? isSelected ? '#e2e8f0' : '#f1f5f9'
       : isSelected ? '#eff6ff' : undefined;
+    const isLocked = row.is_confirmed && !isAdmin;
 
     return (
       <tr
         ref={rowRef}
         style={{ cursor: 'pointer', backgroundColor: bgColor }}
         onClick={() => onToggleSelect(row.id)}
-        onDoubleClick={() => onStartEdit(row.id)}
+        onDoubleClick={() => { if (!isLocked) onStartEdit(row.id); }}
       >
         <td style={{ textAlign: 'center', padding: cellPad }}>
           {(() => {
@@ -384,16 +387,22 @@ export default function InlineShipmentRow({
       {/* 계근결과 */}
       <td style={{ padding: '2px 3px' }}>
         <input
-          type="number"
-          step="0.01"
+          type="text"
+          inputMode="decimal"
           value={editData.weight_net ?? ''}
-          onChange={e => update({ weight_net: e.target.value ? parseFloat(e.target.value) : null })}
+          onChange={e => {
+            const v = e.target.value;
+            if (v === '' || /^-?\d*\.?\d*$/.test(v)) {
+              update({ weight_net: v === '' ? null : parseFloat(v) || null });
+            }
+          }}
           onBlur={e => {
             if (e.target.value) {
               update({ weight_net: parseFloat(parseFloat(e.target.value).toFixed(2)) });
             }
           }}
           style={{ ...inputStyle, width: 66, textAlign: 'right', fontWeight: 600 }}
+          placeholder="0.00"
         />
       </td>
 
