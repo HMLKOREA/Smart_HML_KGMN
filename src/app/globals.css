@@ -65,10 +65,11 @@ body {
   border-bottom: 1px solid #f3f4f6;
   font-size: 15px;
   color: #1f2937;
-  background-color: #ffffff;
+  background-color: inherit;
 }
 
 .data-table tbody tr {
+  background-color: #ffffff;
   transition: background-color 0.1s;
 }
 

@@ -68,11 +68,9 @@ const TRANSPORT_TYPES = ['탱크', '벌크', '백(bag)', '기타'];
 function formatKoreanDateTime(dt: string | null): string {
   if (!dt) return '';
   const d = new Date(dt);
-  const hours = d.getHours();
-  const ampm = hours >= 12 ? '오후' : '오전';
-  const h = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+  const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${ampm} ${h}:${mm}`;
+  return `${hh}:${mm}`;
 }
 
 interface InlineShipmentRowProps {
@@ -200,7 +198,7 @@ export default function InlineShipmentRow({
   // ── Display Mode ──
   if (!isEditing || !editData) {
     const bgColor = row.is_confirmed
-      ? isSelected ? '#cbd5e1' : '#d1d5db'
+      ? isSelected ? '#fbbf24' : '#fde68a'
       : isSelected ? '#eff6ff' : undefined;
     const isLocked = row.is_confirmed && !isAdmin;
 
@@ -253,7 +251,7 @@ export default function InlineShipmentRow({
         <td style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, padding: cellPad }}>
           {row.notes || ''}
         </td>
-        <td style={{ fontSize: 12, whiteSpace: 'nowrap', padding: cellPad, backgroundColor: row.certificate_time ? '#fef9c3' : undefined }}>
+        <td style={{ fontSize: 11, whiteSpace: 'nowrap', padding: '2px 4px', textAlign: 'center', fontFamily: 'monospace' }}>
           {formatKoreanDateTime(row.certificate_time)}
         </td>
         <td style={{ textAlign: 'center', fontWeight: 600, color: row.has_attachment ? '#16a34a' : '#dc2626', padding: cellPad, fontSize: 13 }}>
@@ -418,7 +416,7 @@ export default function InlineShipmentRow({
       </td>
 
       {/* 출하증 발급시간 - read-only */}
-      <td style={{ fontSize: 12, whiteSpace: 'nowrap', padding: cellPad, backgroundColor: row.certificate_time ? '#fef9c3' : undefined }}>
+      <td style={{ fontSize: 11, whiteSpace: 'nowrap', padding: '2px 4px', textAlign: 'center', fontFamily: 'monospace' }}>
         {formatKoreanDateTime(row.certificate_time)}
       </td>
 
