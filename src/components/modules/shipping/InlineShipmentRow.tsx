@@ -200,7 +200,7 @@ export default function InlineShipmentRow({
   // ── Display Mode ──
   if (!isEditing || !editData) {
     const bgColor = row.is_confirmed
-      ? isSelected ? '#e2e8f0' : '#f1f5f9'
+      ? isSelected ? '#cbd5e1' : '#d1d5db'
       : isSelected ? '#eff6ff' : undefined;
     const isLocked = row.is_confirmed && !isAdmin;
 
