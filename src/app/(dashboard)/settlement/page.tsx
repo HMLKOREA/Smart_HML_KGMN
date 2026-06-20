@@ -30,24 +30,6 @@ interface UnitPriceDisplay {
   effective_date: string;
   end_date: string | null;
   memo: string | null;
-  is_active: boolean;
-}
-
-interface ShipmentRow {
-  id: string;
-  shipment_date: string;
-  company_id: string | null;
-  company_name: string | null;
-  customer_id: string | null;
-  customer_name: string | null;
-  product_id: string | null;
-  product_name: string | null;
-  driver_name: string | null;
-  vehicle_number: string | null;
-  weight_net: number | null;
-  transport_type: string | null;
-  status: string | null;
-  certificate_time: string | null;
 }
 
 interface SettlementRow {
@@ -64,10 +46,9 @@ interface SettlementRow {
   totalFee: number;
 }
 
-// ── Group settlements by key ─────────────────────────
 type GroupSummary = { name: string; totalFee: number; totalWeight: number };
 
-function groupSettlementsByKey(rows: SettlementRow[], key: 'company' | 'customer' | 'product'): GroupSummary[] {
+function groupBy(rows: SettlementRow[], key: 'company' | 'customer' | 'product'): GroupSummary[] {
   const map = new Map<string, { totalFee: number; totalWeight: number }>();
   rows.forEach(r => {
     const k = r[key];
@@ -77,6 +58,83 @@ function groupSettlementsByKey(rows: SettlementRow[], key: 'company' | 'customer
     map.set(k, e);
   });
   return Array.from(map.entries()).map(([name, d]) => ({ name, ...d })).sort((a, b) => b.totalFee - a.totalFee);
+}
+
+// ── 날짜 유틸 ──────────────────────────────────────────
+/** 해당 월의 말일 반환 */
+function lastDay(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
+}
+
+/** 정확한 기간 문자열 반환 */
+function getDateRange(
+  year: number,
+  month: number,
+  period: PeriodFilter
+): { from: string; to: string; label: string } {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const y = year;
+
+  switch (period) {
+    case 'monthly': {
+      const ld = lastDay(y, month);
+      return {
+        from: `${y}-${pad(month)}-01`,
+        to: `${y}-${pad(month)}-${pad(ld)}`,
+        label: `${y}년 ${month}월`,
+      };
+    }
+    case 'quarterly': {
+      const q = Math.ceil(month / 3);
+      const sm = (q - 1) * 3 + 1;
+      const em = q * 3;
+      const ld = lastDay(y, em);
+      return {
+        from: `${y}-${pad(sm)}-01`,
+        to: `${y}-${pad(em)}-${pad(ld)}`,
+        label: `${y}년 ${q}분기 (${sm}~${em}월)`,
+      };
+    }
+    case 'semi-annual': {
+      const half = month <= 6 ? 1 : 2;
+      if (half === 1) {
+        return { from: `${y}-01-01`, to: `${y}-06-30`, label: `${y}년 상반기 (1~6월)` };
+      }
+      return { from: `${y}-07-01`, to: `${y}-12-31`, label: `${y}년 하반기 (7~12월)` };
+    }
+    case 'annual':
+      return { from: `${y}-01-01`, to: `${y}-12-31`, label: `${y}년 전체` };
+  }
+}
+
+/** 이전 동기간 범위 */
+function getPrevRange(
+  year: number,
+  month: number,
+  period: PeriodFilter
+): { from: string; to: string; label: string } {
+  switch (period) {
+    case 'monthly': {
+      const pm = month === 1 ? 12 : month - 1;
+      const py = month === 1 ? year - 1 : year;
+      return getDateRange(py, pm, 'monthly');
+    }
+    case 'quarterly': {
+      const q = Math.ceil(month / 3);
+      if (q === 1) {
+        // 전년 4분기
+        return getDateRange(year - 1, 12, 'quarterly');
+      }
+      return getDateRange(year, (q - 2) * 3 + 1, 'quarterly');
+    }
+    case 'semi-annual': {
+      const half = month <= 6 ? 1 : 2;
+      if (half === 1) return getDateRange(year - 1, 7, 'semi-annual');
+      return getDateRange(year, 1, 'semi-annual');
+    }
+    case 'annual':
+      return getDateRange(year - 1, 1, 'annual');
+  }
 }
 
 const CHART_COLORS = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#84cc16','#f97316','#6366f1','#14b8a6','#e11d48'];
@@ -89,39 +147,20 @@ export default function SettlementPage() {
   const supabase = createClient();
   const toast = useToast();
 
-  // Tab
   const [activeTab, setActiveTab] = useState<TabKey>('settlement');
 
   // ── Unit Price State ──
-  const [upMonth, setUpMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  });
   const [upFilterCompany, setUpFilterCompany] = useState('');
   const [upFilterProduct, setUpFilterProduct] = useState('');
   const [upFilterCollapsed, setUpFilterCollapsed] = useState(false);
-  const [confirmedMonths, setConfirmedMonths] = useState<Record<string, boolean>>({});
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
   const [editingPriceValue, setEditingPriceValue] = useState<number>(0);
-
-  // Loading states
   const [upLoading, setUpLoading] = useState(false);
-  const [stlLoading, setStlLoading] = useState(false);
-
-  // DB data
   const [unitPrices, setUnitPrices] = useState<UnitPriceDisplay[]>([]);
-  const [settlements, setSettlements] = useState<SettlementRow[]>([]);
-  const [prevMonthSettlements, setPrevMonthSettlements] = useState<SettlementRow[]>([]);
-
-  // Filter options derived from DB
-  const [companyOptions, setCompanyOptions] = useState<string[]>([]);
-  const [productOptions, setProductOptions] = useState<string[]>([]);
-  const [customerOptions, setCustomerOptions] = useState<string[]>([]);
-  const [transportTypeOptions, setTransportTypeOptions] = useState<string[]>([]);
 
   // ── Settlement State ──
-  const [stlYear, setStlYear] = useState(() => String(new Date().getFullYear()));
-  const [stlMonth, setStlMonth] = useState(() => String(new Date().getMonth() + 1).padStart(2, '0'));
+  const [stlYear, setStlYear] = useState(() => new Date().getFullYear());
+  const [stlMonth, setStlMonth] = useState(() => new Date().getMonth() + 1);
   const [stlPeriodFilter, setStlPeriodFilter] = useState<PeriodFilter>('monthly');
   const [stlFilterCompany, setStlFilterCompany] = useState('');
   const [stlFilterCustomer, setStlFilterCustomer] = useState('');
@@ -129,41 +168,19 @@ export default function SettlementPage() {
   const [stlFilterProduct, setStlFilterProduct] = useState('');
   const [stlFilterCollapsed, setStlFilterCollapsed] = useState(false);
   const [stlDetailOpen, setStlDetailOpen] = useState(false);
+  const [stlLoading, setStlLoading] = useState(false);
+  const [settlements, setSettlements] = useState<SettlementRow[]>([]);
+  const [prevSettlements, setPrevSettlements] = useState<SettlementRow[]>([]);
 
-  const isMonthConfirmed = confirmedMonths[upMonth] || false;
+  // Filter options
+  const [companyOptions, setCompanyOptions] = useState<string[]>([]);
+  const [productOptions, setProductOptions] = useState<string[]>([]);
+  const [customerOptions, setCustomerOptions] = useState<string[]>([]);
+  const [transportTypeOptions, setTransportTypeOptions] = useState<string[]>([]);
 
-  // ── Settlement: date range calculation ──
-  const stlDateRange = useMemo(() => {
-    const y = stlYear;
-    const m = stlMonth;
-    switch (stlPeriodFilter) {
-      case 'monthly':
-        return { from: `${y}-${m}-01`, to: `${y}-${m}-31` };
-      case 'quarterly': {
-        const q = Math.ceil(parseInt(m) / 3);
-        const startM = String((q - 1) * 3 + 1).padStart(2, '0');
-        const endM = String(q * 3).padStart(2, '0');
-        return { from: `${y}-${startM}-01`, to: `${y}-${endM}-31` };
-      }
-      case 'semi-annual': {
-        const half = parseInt(m) <= 6 ? 1 : 2;
-        return half === 1
-          ? { from: `${y}-01-01`, to: `${y}-06-30` }
-          : { from: `${y}-07-01`, to: `${y}-12-31` };
-      }
-      case 'annual':
-        return { from: `${y}-01-01`, to: `${y}-12-31` };
-    }
-  }, [stlYear, stlMonth, stlPeriodFilter]);
-
-  const prevMonthRange = useMemo(() => {
-    const m = parseInt(stlMonth);
-    const y = parseInt(stlYear);
-    const pm = m === 1 ? 12 : m - 1;
-    const py = m === 1 ? y - 1 : y;
-    const pmStr = String(pm).padStart(2, '0');
-    return { from: `${py}-${pmStr}-01`, to: `${py}-${pmStr}-31` };
-  }, [stlYear, stlMonth]);
+  // ── 기간 계산 ──
+  const dateRange = useMemo(() => getDateRange(stlYear, stlMonth, stlPeriodFilter), [stlYear, stlMonth, stlPeriodFilter]);
+  const prevRange = useMemo(() => getPrevRange(stlYear, stlMonth, stlPeriodFilter), [stlYear, stlMonth, stlPeriodFilter]);
 
   // ── Fetch unit prices ──
   const fetchUnitPrices = useCallback(async () => {
@@ -171,16 +188,12 @@ export default function SettlementPage() {
     try {
       const { data, error } = await supabase
         .from('unit_prices')
-        .select(`*,
-          transport_companies(id, name),
-          products(id, name)
-        `)
+        .select(`*, transport_companies(id, name), products(id, name)`)
         .eq('is_active', true)
         .order('company_id');
-
       if (error) throw error;
 
-      const rows: UnitPriceDisplay[] = (data as UnitPriceRow[] || []).map(r => ({
+      const rows: UnitPriceDisplay[] = ((data as UnitPriceRow[]) || []).map(r => ({
         id: r.id,
         company_id: r.company_id,
         company: r.transport_companies?.name ?? '(알수없음)',
@@ -190,694 +203,490 @@ export default function SettlementPage() {
         effective_date: r.effective_date,
         end_date: r.end_date,
         memo: r.memo,
-        is_active: r.is_active,
       }));
-
       setUnitPrices(rows);
-
-      // Build company/product options for filter
-      const companies = [...new Set(rows.map(r => r.company))].sort();
-      const products = [...new Set(rows.map(r => r.product))].sort();
-      setCompanyOptions(companies);
-      setProductOptions(products);
-    } catch (err) {
-      console.error('unit_prices fetch error:', err);
+      setCompanyOptions([...new Set(rows.map(r => r.company))].sort());
+      setProductOptions([...new Set(rows.map(r => r.product))].sort());
+    } catch {
       toast.error('단가 데이터를 불러오지 못했습니다.');
     } finally {
       setUpLoading(false);
     }
   }, [supabase]);
 
-  // ── Fetch settlements (v_shipments × unit_prices) ──
-  const fetchSettlements = useCallback(async (dateFrom: string, dateTo: string) => {
-    setStlLoading(true);
+  // ── Fetch settlements ──
+  const fetchSettlementRange = useCallback(async (from: string, to: string): Promise<SettlementRow[]> => {
     try {
-      // 1. Fetch shipments
       const { data: shipData, error: shipErr } = await supabase
         .from('v_shipments')
         .select('*')
-        .gte('shipment_date', dateFrom)
-        .lte('shipment_date', dateTo)
+        .gte('shipment_date', from)
+        .lte('shipment_date', to)
         .order('shipment_date');
-
       if (shipErr) throw shipErr;
 
-      const shipments: ShipmentRow[] = shipData || [];
-
-      // 2. Fetch all active unit prices for matching
       const { data: priceData, error: priceErr } = await supabase
         .from('unit_prices')
-        .select(`*,
-          transport_companies(id, name),
-          products(id, name)
-        `)
+        .select(`*, transport_companies(id, name), products(id, name)`)
         .eq('is_active', true);
-
       if (priceErr) throw priceErr;
 
-      const priceRows: UnitPriceRow[] = priceData || [];
-      // Build a lookup map: company_id + product_id → price
+      // company_id::product_id → price
       const priceMap = new Map<string, number>();
-      priceRows.forEach(p => {
-        const key = `${p.company_id}::${p.product_id}`;
-        if (!priceMap.has(key)) {
-          priceMap.set(key, p.price);
-        }
+      ((priceData as UnitPriceRow[]) || []).forEach(p => {
+        priceMap.set(`${p.company_id}::${p.product_id}`, p.price);
       });
 
-      // 3. Compute settlement rows
-      const rows: SettlementRow[] = shipments.map(s => {
-        const key = `${s.company_id}::${s.product_id}`;
-        const unitPrice = priceMap.get(key) ?? 0;
-        const weightNet = s.weight_net ?? 0;
-        const transportType = s.transport_type ?? '';
-
-        let transportFee: number;
-        if (transportType === '카고') {
-          transportFee = unitPrice; // 건당 고정 운임
-        } else {
-          transportFee = Math.round(unitPrice * weightNet); // 톤당 단가 × 중량
-        }
-        const tax = Math.round(transportFee * 0.1);
-        const totalFee = transportFee + tax;
-
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return ((shipData || []) as any[]).map((s: any) => {
+        const unitPrice = priceMap.get(`${s.company_id}::${s.product_id}`) ?? 0;
+        const wt = Number(s.weight_net) || 0;
+        const tt = s.transport_type ?? '';
+        const fee = tt === '카고' ? unitPrice : Math.round(unitPrice * wt);
+        const tax = Math.round(fee * 0.1);
         return {
           id: s.id,
           date: s.shipment_date,
-          company: s.company_name ?? '(알수없음)',
-          customer: s.customer_name ?? '(알수없음)',
-          transportType,
-          product: s.product_name ?? '(알수없음)',
-          weightNet,
+          company: s.company_name ?? '',
+          customer: s.customer_name ?? '',
+          transportType: tt,
+          product: s.product_name ?? '',
+          weightNet: wt,
           unitPrice,
-          transportFee,
+          transportFee: fee,
           tax,
-          totalFee,
+          totalFee: fee + tax,
         };
       });
-
-      return rows;
-    } catch (err) {
-      console.error('settlements fetch error:', err);
-      toast.error('정산 데이터를 불러오지 못했습니다.');
+    } catch {
       return [];
-    } finally {
-      setStlLoading(false);
     }
   }, [supabase]);
 
-  // ── Initial load ──
-  useEffect(() => {
-    fetchUnitPrices();
-  }, [fetchUnitPrices]);
-
-  // ── Load settlements when date range changes ──
-  useEffect(() => {
-    if (activeTab !== 'settlement') return;
-    (async () => {
+  const loadSettlements = useCallback(async () => {
+    setStlLoading(true);
+    try {
       const [curr, prev] = await Promise.all([
-        fetchSettlements(stlDateRange.from, stlDateRange.to),
-        fetchSettlements(prevMonthRange.from, prevMonthRange.to),
+        fetchSettlementRange(dateRange.from, dateRange.to),
+        fetchSettlementRange(prevRange.from, prevRange.to),
       ]);
       setSettlements(curr);
-      setPrevMonthSettlements(prev);
+      setPrevSettlements(prev);
 
-      // Build filter options from settlement data
-      const customers = [...new Set(curr.map(r => r.customer))].sort();
-      const transports = [...new Set(curr.map(r => r.transportType).filter(Boolean))].sort();
-      setCustomerOptions(customers);
-      setTransportTypeOptions(transports);
-    })();
-  }, [activeTab, stlDateRange, prevMonthRange]);
-
-  // ── Also load settlements when switching to settlement tab ──
-  useEffect(() => {
-    if (activeTab === 'settlement') {
-      (async () => {
-        const [curr, prev] = await Promise.all([
-          fetchSettlements(stlDateRange.from, stlDateRange.to),
-          fetchSettlements(prevMonthRange.from, prevMonthRange.to),
-        ]);
-        setSettlements(curr);
-        setPrevMonthSettlements(prev);
-      })();
+      // Build filter options
+      const allRows = [...curr, ...prev];
+      setCustomerOptions([...new Set(allRows.map(r => r.customer).filter(Boolean))].sort());
+      setTransportTypeOptions([...new Set(allRows.map(r => r.transportType).filter(Boolean))].sort());
+      if (companyOptions.length === 0) {
+        setCompanyOptions([...new Set(allRows.map(r => r.company).filter(Boolean))].sort());
+      }
+      if (productOptions.length === 0) {
+        setProductOptions([...new Set(allRows.map(r => r.product).filter(Boolean))].sort());
+      }
+    } catch {
+      toast.error('정산 데이터를 불러오지 못했습니다.');
+    } finally {
+      setStlLoading(false);
     }
-  }, [activeTab]);
+  }, [dateRange, prevRange, fetchSettlementRange]);
 
-  // ── Unit Price: filtered data ──
+  // ── Effects ──
+  useEffect(() => { fetchUnitPrices(); }, []);
+  useEffect(() => { if (activeTab === 'settlement') loadSettlements(); }, [activeTab, dateRange.from, dateRange.to]);
+
+  // ── Filtered data ──
   const filteredPrices = useMemo(() => {
-    let result = unitPrices;
-    if (upFilterCompany) result = result.filter(p => p.company === upFilterCompany);
-    if (upFilterProduct) result = result.filter(p => p.product === upFilterProduct);
-    return result;
+    let r = unitPrices;
+    if (upFilterCompany) r = r.filter(p => p.company === upFilterCompany);
+    if (upFilterProduct) r = r.filter(p => p.product === upFilterProduct);
+    return r;
   }, [unitPrices, upFilterCompany, upFilterProduct]);
 
-  const upTotalPrice = useMemo(() => filteredPrices.reduce((s, p) => s + p.price, 0), [filteredPrices]);
-
-  // ── Settlement: filtered data ──
   const filteredSettlements = useMemo(() => {
-    let result = settlements;
-    if (stlFilterCompany) result = result.filter(r => r.company === stlFilterCompany);
-    if (stlFilterCustomer) result = result.filter(r => r.customer === stlFilterCustomer);
-    if (stlFilterTransport) result = result.filter(r => r.transportType === stlFilterTransport);
-    if (stlFilterProduct) result = result.filter(r => r.product === stlFilterProduct);
-    return result;
+    let r = settlements;
+    if (stlFilterCompany) r = r.filter(s => s.company === stlFilterCompany);
+    if (stlFilterCustomer) r = r.filter(s => s.customer === stlFilterCustomer);
+    if (stlFilterTransport) r = r.filter(s => s.transportType === stlFilterTransport);
+    if (stlFilterProduct) r = r.filter(s => s.product === stlFilterProduct);
+    return r;
   }, [settlements, stlFilterCompany, stlFilterCustomer, stlFilterTransport, stlFilterProduct]);
 
-  const stlTotals = useMemo(() => {
-    const totalWeight = filteredSettlements.reduce((s, r) => s + r.weightNet, 0);
-    const totalFee = filteredSettlements.reduce((s, r) => s + r.transportFee, 0);
-    const totalTax = filteredSettlements.reduce((s, r) => s + r.tax, 0);
-    const totalAll = filteredSettlements.reduce((s, r) => s + r.totalFee, 0);
-    return { totalWeight, totalFee, totalTax, totalAll, count: filteredSettlements.length };
-  }, [filteredSettlements]);
+  const stlTotals = useMemo(() => ({
+    count: filteredSettlements.length,
+    totalWeight: filteredSettlements.reduce((s, r) => s + r.weightNet, 0),
+    totalFee: filteredSettlements.reduce((s, r) => s + r.transportFee, 0),
+    totalTax: filteredSettlements.reduce((s, r) => s + r.tax, 0),
+    totalAll: filteredSettlements.reduce((s, r) => s + r.totalFee, 0),
+  }), [filteredSettlements]);
 
-  const prevTotals = useMemo(() => {
-    const totalWeight = prevMonthSettlements.reduce((s, r) => s + r.weightNet, 0);
-    const totalFee = prevMonthSettlements.reduce((s, r) => s + r.transportFee, 0);
-    const totalAll = prevMonthSettlements.reduce((s, r) => s + r.totalFee, 0);
-    return { totalWeight, totalFee, totalAll, count: prevMonthSettlements.length };
-  }, [prevMonthSettlements]);
+  const prevTotals = useMemo(() => ({
+    count: prevSettlements.length,
+    totalWeight: prevSettlements.reduce((s, r) => s + r.weightNet, 0),
+    totalFee: prevSettlements.reduce((s, r) => s + r.transportFee, 0),
+    totalAll: prevSettlements.reduce((s, r) => s + r.totalFee, 0),
+  }), [prevSettlements]);
 
-  const dashCompany = useMemo(() => groupSettlementsByKey(filteredSettlements, 'company'), [filteredSettlements]);
-  const dashCustomer = useMemo(() => groupSettlementsByKey(filteredSettlements, 'customer'), [filteredSettlements]);
-  const dashProduct = useMemo(() => groupSettlementsByKey(filteredSettlements, 'product'), [filteredSettlements]);
-
-  const prevCompany = useMemo(() => groupSettlementsByKey(prevMonthSettlements, 'company'), [prevMonthSettlements]);
-  const prevCustomer = useMemo(() => groupSettlementsByKey(prevMonthSettlements, 'customer'), [prevMonthSettlements]);
-  const prevProduct = useMemo(() => groupSettlementsByKey(prevMonthSettlements, 'product'), [prevMonthSettlements]);
-
-  const currMonthLabel = useMemo(() => `${parseInt(stlMonth)}월`, [stlMonth]);
-  const prevMonthLabel = useMemo(() => {
-    const m = parseInt(stlMonth);
-    return `${m === 1 ? 12 : m - 1}월`;
-  }, [stlMonth]);
+  const dashCompany = useMemo(() => groupBy(filteredSettlements, 'company'), [filteredSettlements]);
+  const dashCustomer = useMemo(() => groupBy(filteredSettlements, 'customer'), [filteredSettlements]);
+  const dashProduct = useMemo(() => groupBy(filteredSettlements, 'product'), [filteredSettlements]);
+  const prevCompany = useMemo(() => groupBy(prevSettlements, 'company'), [prevSettlements]);
+  const prevCustomer = useMemo(() => groupBy(prevSettlements, 'customer'), [prevSettlements]);
+  const prevProduct = useMemo(() => groupBy(prevSettlements, 'product'), [prevSettlements]);
 
   // ── Handlers ──
-  const handleConfirm = () => {
-    setConfirmedMonths(prev => ({ ...prev, [upMonth]: true }));
-    toast.success(`${upMonth} 단가가 확정되었습니다.`);
-  };
-
-  const handleUnconfirm = () => {
-    setConfirmedMonths(prev => ({ ...prev, [upMonth]: false }));
-    toast.info(`${upMonth} 단가 확정이 취소되었습니다.`);
-  };
-
-  const handleCopyMonth = () => {
-    toast.info('월 복사 기능은 DB 연동 후 활성화됩니다.');
-  };
-
-  const startPriceEdit = (id: string, currentPrice: number) => {
-    if (isMonthConfirmed) {
-      toast.warning('확정된 월의 단가는 수정할 수 없습니다. 확정취소 후 수정하세요.');
-      return;
-    }
-    setEditingPriceId(id);
-    setEditingPriceValue(currentPrice);
-  };
-
   const savePriceEdit = async () => {
     if (!editingPriceId) return;
     try {
-      const { error } = await supabase
-        .from('unit_prices')
-        .update({ price: editingPriceValue })
-        .eq('id', editingPriceId);
-
+      const { error } = await supabase.from('unit_prices').update({ price: editingPriceValue }).eq('id', editingPriceId);
       if (error) throw error;
-
-      // Update local state
-      setUnitPrices(prev => prev.map(p =>
-        p.id === editingPriceId ? { ...p, price: editingPriceValue } : p
-      ));
+      setUnitPrices(prev => prev.map(p => p.id === editingPriceId ? { ...p, price: editingPriceValue } : p));
       toast.success('단가가 수정되었습니다.');
-    } catch (err) {
-      console.error('price update error:', err);
+    } catch {
       toast.error('단가 수정 중 오류가 발생했습니다.');
     } finally {
       setEditingPriceId(null);
     }
   };
 
-  const cancelPriceEdit = () => {
-    setEditingPriceId(null);
-  };
-
   const handleExcelUnitPrice = () => {
-    const cols = [
-      { key: 'company', header: '운송사' },
-      { key: 'product', header: '제품명' },
-      { key: 'price', header: '단가(원)' },
-      { key: 'effective_date', header: '적용시작일' },
-      { key: 'end_date', header: '적용종료일' },
-      { key: 'memo', header: '메모' },
-    ];
-    exportToExcel(filteredPrices as unknown as Record<string, unknown>[], cols, `단가관리_${upMonth}`);
+    exportToExcel(filteredPrices as unknown as Record<string, unknown>[], [
+      { key: 'company', header: '운송사' }, { key: 'product', header: '제품명' },
+      { key: 'price', header: '단가(원)' }, { key: 'effective_date', header: '적용시작일' },
+      { key: 'end_date', header: '적용종료일' }, { key: 'memo', header: '메모' },
+    ], `단가관리`);
   };
 
   const handleExcelSettlement = () => {
-    const cols = [
-      { key: 'date', header: '날짜' },
-      { key: 'company', header: '운송사' },
-      { key: 'customer', header: '거래처' },
-      { key: 'transportType', header: '운송구분' },
-      { key: 'product', header: '제품명' },
-      { key: 'weightNet', header: '계근수량' },
-      { key: 'unitPrice', header: '단가(원)' },
-      { key: 'transportFee', header: '운송료(원)' },
-      { key: 'tax', header: '세액(원)' },
-      { key: 'totalFee', header: '운송료 합계(원)' },
-    ];
-    exportToExcel(filteredSettlements as unknown as Record<string, unknown>[], cols, `정산관리_${stlYear}-${stlMonth}`);
+    exportToExcel(filteredSettlements as unknown as Record<string, unknown>[], [
+      { key: 'date', header: '날짜' }, { key: 'company', header: '운송사' },
+      { key: 'customer', header: '거래처' }, { key: 'transportType', header: '운송구분' },
+      { key: 'product', header: '제품명' }, { key: 'weightNet', header: '계근수량' },
+      { key: 'unitPrice', header: '단가(원)' }, { key: 'transportFee', header: '운송료(원)' },
+      { key: 'tax', header: '세액(원)' }, { key: 'totalFee', header: '운송료합계(원)' },
+    ], `정산관리_${dateRange.label}`);
   };
 
   const fmt = (n: number) => n.toLocaleString('ko-KR');
 
   // ── Styles ──
   const tabStyle = (active: boolean): React.CSSProperties => ({
-    padding: '8px 20px',
-    fontSize: 14,
-    fontWeight: active ? 700 : 500,
-    color: active ? '#2563eb' : '#6b7280',
-    borderBottom: active ? '3px solid #2563eb' : '3px solid transparent',
-    background: 'none',
-    border: 'none',
-    borderBottomWidth: 3,
-    borderBottomStyle: 'solid',
-    borderBottomColor: active ? '#2563eb' : 'transparent',
-    cursor: 'pointer',
-    transition: 'all 0.15s',
+    padding: '8px 20px', fontSize: 14, fontWeight: active ? 700 : 500,
+    color: active ? '#2563eb' : '#6b7280', background: 'none', border: 'none',
+    borderBottom: `3px solid ${active ? '#2563eb' : 'transparent'}`,
+    cursor: 'pointer', transition: 'all 0.15s',
   });
+  const filterLabelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 3 };
+  const filterSelectStyle: React.CSSProperties = { width: '100%', fontSize: 13, padding: '6px 8px', borderRadius: 6, border: '1px solid #d1d5db', outline: 'none', backgroundColor: '#fff' };
+  const thStyle: React.CSSProperties = { padding: '8px 10px', fontSize: 12, fontWeight: 700, color: '#475569', backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0', textAlign: 'left', whiteSpace: 'nowrap', position: 'sticky', top: 0, zIndex: 1 };
+  const tdStyle: React.CSSProperties = { padding: '7px 10px', fontSize: 13, color: '#1e293b', borderBottom: '1px solid #f1f5f9' };
+  const tdR: React.CSSProperties = { ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
+  const btnOutline: React.CSSProperties = { fontSize: 13, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontWeight: 500, background: '#fff', color: '#374151', border: '1px solid #d1d5db' };
+  const btnSuccess: React.CSSProperties = { fontSize: 13, padding: '6px 14px', borderRadius: 7, border: 'none', cursor: 'pointer', fontWeight: 600, background: '#16a34a', color: '#fff' };
 
-  const filterLabelStyle: React.CSSProperties = {
-    fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 3,
-  };
-
-  const filterSelectStyle: React.CSSProperties = {
-    width: '100%', fontSize: 13, padding: '6px 8px', borderRadius: 6,
-    border: '1px solid #d1d5db', outline: 'none', backgroundColor: '#fff',
-  };
-
-  const thStyle: React.CSSProperties = {
-    padding: '8px 10px', fontSize: 12, fontWeight: 700, color: '#475569',
-    backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0',
-    textAlign: 'left', whiteSpace: 'nowrap', position: 'sticky', top: 0, zIndex: 1,
-  };
-
-  const tdStyle: React.CSSProperties = {
-    padding: '7px 10px', fontSize: 13, color: '#1e293b', borderBottom: '1px solid #f1f5f9',
-  };
-
-  const tdRightStyle: React.CSSProperties = { ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
-
-  const btnPrimary: React.CSSProperties = {
-    fontSize: 13, padding: '6px 14px', borderRadius: 7, border: 'none', cursor: 'pointer',
-    fontWeight: 600, background: '#2563eb', color: '#fff',
-  };
-
-  const btnOutline: React.CSSProperties = {
-    fontSize: 13, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontWeight: 500,
-    background: '#fff', color: '#374151', border: '1px solid #d1d5db',
-  };
-
-  const btnDanger: React.CSSProperties = {
-    fontSize: 13, padding: '6px 14px', borderRadius: 7, border: 'none', cursor: 'pointer',
-    fontWeight: 600, background: '#ef4444', color: '#fff',
-  };
-
-  const btnSuccess: React.CSSProperties = {
-    fontSize: 13, padding: '6px 14px', borderRadius: 7, border: 'none', cursor: 'pointer',
-    fontWeight: 600, background: '#16a34a', color: '#fff',
-  };
-
-  const btnWarning: React.CSSProperties = {
-    fontSize: 13, padding: '6px 14px', borderRadius: 7, border: 'none', cursor: 'pointer',
-    fontWeight: 600, background: '#f59e0b', color: '#fff',
-  };
-
-  const kpiChipStyle = (bg: string, border: string): React.CSSProperties => ({
-    display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px',
-    borderRadius: 6, background: bg, border: `1px solid ${border}`,
-  });
-
-  // ── Loading spinner ──
-  const renderSpinner = () => (
+  const spinner = (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, gap: 10 }}>
-      <div style={{
-        width: 24, height: 24, borderRadius: '50%',
-        border: '3px solid #e5e7eb', borderTopColor: '#2563eb',
-        animation: 'spin 0.8s linear infinite',
-      }} />
+      <div style={{ width: 24, height: 24, borderRadius: '50%', border: '3px solid #e5e7eb', borderTopColor: '#2563eb', animation: 'spin 0.8s linear infinite' }} />
       <span style={{ fontSize: 14, color: '#6b7280' }}>데이터를 불러오는 중...</span>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 
-  // ── Unit Price Filter Panel ──
-  const renderUpFilterPanel = () => {
-    if (upFilterCollapsed) return null;
+  // ── 조회구분 선택 UI (분기/반기 선택) ──
+  const renderPeriodSelector = () => {
+    const periods: { value: PeriodFilter; label: string }[] = [
+      { value: 'monthly', label: '월별' },
+      { value: 'quarterly', label: '분기별' },
+      { value: 'semi-annual', label: '반기별' },
+      { value: 'annual', label: '연간' },
+    ];
+
     return (
-      <div style={{
-        width: 220, flexShrink: 0, borderRight: '1px solid #e5e7eb',
-        backgroundColor: '#fff', display: 'flex', flexDirection: 'column', overflow: 'auto',
-      }}>
-        <div style={{
-          padding: '10px 12px',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          background: 'linear-gradient(135deg, #1e293b, #334155)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <svg style={{ width: 14, height: 14, color: '#94a3b8' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 0 1-.659 1.591l-5.432 5.432a2.25 2.25 0 0 0-.659 1.591v2.927a2.25 2.25 0 0 1-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 0 0-.659-1.591L3.659 7.409A2.25 2.25 0 0 1 3 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0 1 12 3Z" />
-            </svg>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>조회 조건</span>
-          </div>
-          <button
-            onClick={() => setUpFilterCollapsed(true)}
-            style={{ fontSize: 12, color: '#94a3b8', cursor: 'pointer', background: 'none', border: 'none', fontWeight: 600 }}
-          >접기 ◀</button>
-        </div>
-
-        <div style={{ padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div>
-            <label style={filterLabelStyle}>월 선택</label>
-            <input
-              type="month"
-              value={upMonth}
-              onChange={e => setUpMonth(e.target.value)}
-              style={{ ...filterSelectStyle, padding: '6px 8px' }}
-            />
-          </div>
-
-          <div>
-            <label style={filterLabelStyle}>운송사</label>
-            <select value={upFilterCompany} onChange={e => setUpFilterCompany(e.target.value)} style={filterSelectStyle}>
-              <option value="">[전체]</option>
-              {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label style={filterLabelStyle}>제품명</label>
-            <select value={upFilterProduct} onChange={e => setUpFilterProduct(e.target.value)} style={filterSelectStyle}>
-              <option value="">[전체]</option>
-              {productOptions.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
-
-          <button onClick={fetchUnitPrices} style={{
-            width: '100%', fontSize: 13, padding: '8px 0', borderRadius: 7, border: 'none', cursor: 'pointer',
-            fontWeight: 700, background: '#2563eb', color: '#fff',
-          }}>새로고침</button>
-        </div>
-      </div>
-    );
-  };
-
-  // ── Settlement Filter Panel ──
-  const renderStlFilterPanel = () => {
-    if (stlFilterCollapsed) return null;
-    return (
-      <div style={{
-        width: 220, flexShrink: 0, borderRight: '1px solid #e5e7eb',
-        backgroundColor: '#fff', display: 'flex', flexDirection: 'column', overflow: 'auto',
-      }}>
-        <div style={{
-          padding: '10px 12px',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          background: 'linear-gradient(135deg, #1e293b, #334155)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <svg style={{ width: 14, height: 14, color: '#94a3b8' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 0 1-.659 1.591l-5.432 5.432a2.25 2.25 0 0 0-.659 1.591v2.927a2.25 2.25 0 0 1-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 0 0-.659-1.591L3.659 7.409A2.25 2.25 0 0 1 3 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0 1 12 3Z" />
-            </svg>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>조회 조건</span>
-          </div>
-          <button
-            onClick={() => setStlFilterCollapsed(true)}
-            style={{ fontSize: 12, color: '#94a3b8', cursor: 'pointer', background: 'none', border: 'none', fontWeight: 600 }}
-          >접기 ◀</button>
-        </div>
-
-        <div style={{ padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {/* Period type */}
-          <div>
-            <label style={filterLabelStyle}>조회구분</label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 10px' }}>
-              {([
-                { value: 'monthly' as PeriodFilter, label: '월별' },
-                { value: 'quarterly' as PeriodFilter, label: '분기별' },
-                { value: 'semi-annual' as PeriodFilter, label: '반기별' },
-                { value: 'annual' as PeriodFilter, label: '연간' },
-              ]).map(opt => (
-                <label key={opt.value} style={{
-                  display: 'flex', alignItems: 'center', gap: 3, fontSize: 13, cursor: 'pointer',
+      <>
+        {/* 조회구분 */}
+        <div>
+          <label style={filterLabelStyle}>조회구분</label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+            {periods.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setStlPeriodFilter(opt.value)}
+                style={{
+                  fontSize: 12, padding: '5px 0', borderRadius: 5, cursor: 'pointer', fontWeight: 600,
+                  border: stlPeriodFilter === opt.value ? '2px solid #2563eb' : '1px solid #d1d5db',
+                  background: stlPeriodFilter === opt.value ? '#eff6ff' : '#fff',
                   color: stlPeriodFilter === opt.value ? '#1d4ed8' : '#6b7280',
-                  fontWeight: stlPeriodFilter === opt.value ? 700 : 400,
-                }}>
-                  <input type="radio" name="stlPeriod" checked={stlPeriodFilter === opt.value}
-                    onChange={() => setStlPeriodFilter(opt.value)}
-                    style={{ width: 12, height: 12, accentColor: '#2563eb' }} />
-                  {opt.label}
-                </label>
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 년도 */}
+        <div>
+          <label style={filterLabelStyle}>년도</label>
+          <select value={stlYear} onChange={e => setStlYear(Number(e.target.value))} style={filterSelectStyle}>
+            {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}년</option>)}
+          </select>
+        </div>
+
+        {/* 월별: 월 선택 */}
+        {stlPeriodFilter === 'monthly' && (
+          <div>
+            <label style={filterLabelStyle}>월</label>
+            <select value={stlMonth} onChange={e => setStlMonth(Number(e.target.value))} style={filterSelectStyle}>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                <option key={m} value={m}>{m}월</option>
               ))}
+            </select>
+          </div>
+        )}
+
+        {/* 분기별: 분기 선택 */}
+        {stlPeriodFilter === 'quarterly' && (
+          <div>
+            <label style={filterLabelStyle}>분기</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+              {[
+                { q: 1, label: '1분기', months: '1~3월', m: 1 },
+                { q: 2, label: '2분기', months: '4~6월', m: 4 },
+                { q: 3, label: '3분기', months: '7~9월', m: 7 },
+                { q: 4, label: '4분기', months: '10~12월', m: 10 },
+              ].map(opt => {
+                const isActive = Math.ceil(stlMonth / 3) === opt.q;
+                return (
+                  <button
+                    key={opt.q}
+                    onClick={() => setStlMonth(opt.m)}
+                    style={{
+                      fontSize: 11, padding: '6px 4px', borderRadius: 5, cursor: 'pointer',
+                      border: isActive ? '2px solid #2563eb' : '1px solid #d1d5db',
+                      background: isActive ? '#eff6ff' : '#fff',
+                      color: isActive ? '#1d4ed8' : '#6b7280',
+                      fontWeight: isActive ? 700 : 500,
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+                    }}
+                  >
+                    <span>{opt.label}</span>
+                    <span style={{ fontSize: 9, opacity: 0.7 }}>{opt.months}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
+        )}
 
-          {/* Year / Month */}
+        {/* 반기별: 상/하반기 선택 */}
+        {stlPeriodFilter === 'semi-annual' && (
           <div>
-            <label style={filterLabelStyle}>년도</label>
-            <select value={stlYear} onChange={e => setStlYear(e.target.value)} style={filterSelectStyle}>
-              {[2024, 2025, 2026, 2027].map(y => (
-                <option key={y} value={String(y)}>{y}</option>
-              ))}
-            </select>
-          </div>
-          {stlPeriodFilter !== 'annual' && (
-            <div>
-              <label style={filterLabelStyle}>월</label>
-              <select value={stlMonth} onChange={e => setStlMonth(e.target.value)} style={filterSelectStyle}>
-                {Array.from({ length: 12 }, (_, i) => {
-                  const m = String(i + 1).padStart(2, '0');
-                  return <option key={m} value={m}>{i + 1}월</option>;
-                })}
-              </select>
+            <label style={filterLabelStyle}>반기</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+              {[
+                { half: 1, label: '상반기', months: '1~6월', m: 1 },
+                { half: 2, label: '하반기', months: '7~12월', m: 7 },
+              ].map(opt => {
+                const isActive = stlMonth <= 6 ? opt.half === 1 : opt.half === 2;
+                return (
+                  <button
+                    key={opt.half}
+                    onClick={() => setStlMonth(opt.m)}
+                    style={{
+                      fontSize: 12, padding: '8px 4px', borderRadius: 5, cursor: 'pointer',
+                      border: isActive ? '2px solid #2563eb' : '1px solid #d1d5db',
+                      background: isActive ? '#eff6ff' : '#fff',
+                      color: isActive ? '#1d4ed8' : '#6b7280',
+                      fontWeight: isActive ? 700 : 500,
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                    }}
+                  >
+                    <span>{opt.label}</span>
+                    <span style={{ fontSize: 10, opacity: 0.7 }}>{opt.months}</span>
+                  </button>
+                );
+              })}
             </div>
-          )}
-
-          <div>
-            <label style={filterLabelStyle}>운송사</label>
-            <select value={stlFilterCompany} onChange={e => setStlFilterCompany(e.target.value)} style={filterSelectStyle}>
-              <option value="">[전체]</option>
-              {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
           </div>
+        )}
 
-          <div>
-            <label style={filterLabelStyle}>거래처</label>
-            <select value={stlFilterCustomer} onChange={e => setStlFilterCustomer(e.target.value)} style={filterSelectStyle}>
-              <option value="">[전체]</option>
-              {customerOptions.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+        {/* 연간: 추가 선택 불필요 → 안내 표시 */}
+        {stlPeriodFilter === 'annual' && (
+          <div style={{ padding: '6px 8px', borderRadius: 6, background: '#f1f5f9', fontSize: 12, color: '#64748b', textAlign: 'center' }}>
+            {stlYear}년 1~12월 전체
           </div>
+        )}
 
-          <div>
-            <label style={filterLabelStyle}>운송구분</label>
-            <select value={stlFilterTransport} onChange={e => setStlFilterTransport(e.target.value)} style={filterSelectStyle}>
-              <option value="">[전체]</option>
-              {transportTypeOptions.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
+        {/* 현재 조회 범위 표시 */}
+        <div style={{
+          padding: '8px', borderRadius: 8, background: 'linear-gradient(135deg, #eff6ff, #f5f3ff)',
+          border: '1px solid #c7d2fe', textAlign: 'center',
+        }}>
+          <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 2 }}>조회 범위</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#1d4ed8' }}>{dateRange.label}</div>
+          <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>
+            {dateRange.from} ~ {dateRange.to}
           </div>
+        </div>
+      </>
+    );
+  };
 
-          <div>
-            <label style={filterLabelStyle}>제품명</label>
-            <select value={stlFilterProduct} onChange={e => setStlFilterProduct(e.target.value)} style={filterSelectStyle}>
-              <option value="">[전체]</option>
-              {productOptions.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
-
-          <button onClick={() => {
-            setStlFilterCompany('');
-            setStlFilterCustomer('');
-            setStlFilterTransport('');
-            setStlFilterProduct('');
-          }} style={{
-            width: '100%', fontSize: 13, padding: '8px 0', borderRadius: 7, border: 'none', cursor: 'pointer',
-            fontWeight: 700, background: '#6b7280', color: '#fff',
-          }}>필터 초기화</button>
+  // ── Bar chart ──
+  const renderHBarChart = (title: string, current: GroupSummary[], previous: GroupSummary[], mode: 'fee' | 'weight') => {
+    const getVal = (item: GroupSummary) => mode === 'fee' ? item.totalFee : item.totalWeight;
+    const top = [...current].sort((a, b) => getVal(b) - getVal(a)).slice(0, 10);
+    const allVals = [...top.map(getVal), ...top.map(t => { const p = previous.find(pp => pp.name === t.name); return p ? getVal(p) : 0; })];
+    const maxVal = Math.max(...allVals, 1);
+    return (
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 8 }}>
+          {title} {mode === 'fee' ? '(정산금액)' : '(계근수량)'}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {top.map(item => {
+            const prev = previous.find(p => p.name === item.name);
+            const cur = getVal(item), prv = prev ? getVal(prev) : 0;
+            const diff = prv > 0 ? ((cur - prv) / prv * 100) : 0;
+            return (
+              <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 65, fontSize: 11, fontWeight: 600, color: '#334155', textAlign: 'right', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <div style={{ height: 14, borderRadius: 3, background: '#3b82f6', width: `${Math.max((cur / maxVal) * 100, 1)}%`, transition: 'width 0.3s' }} />
+                    <span style={{ fontSize: 10, color: '#3b82f6', fontWeight: 600, whiteSpace: 'nowrap' }}>{mode === 'fee' ? fmt(Math.round(cur / 10000)) + '만' : cur.toFixed(1) + 't'}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <div style={{ height: 10, borderRadius: 3, background: '#cbd5e1', width: `${Math.max((prv / maxVal) * 100, 0.5)}%`, transition: 'width 0.3s' }} />
+                    <span style={{ fontSize: 9, color: '#94a3b8', whiteSpace: 'nowrap' }}>{mode === 'fee' ? fmt(Math.round(prv / 10000)) + '만' : prv.toFixed(1) + 't'}</span>
+                    {prv > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: diff >= 0 ? '#16a34a' : '#ef4444' }}>{diff >= 0 ? '▲' : '▼'}{Math.abs(diff).toFixed(0)}%</span>}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: 10, color: '#6b7280' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: '#3b82f6' }} /><span>당기</span></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: '#cbd5e1' }} /><span>전기 ({prevRange.label})</span></div>
         </div>
       </div>
     );
   };
+
+  // ── Pie chart ──
+  const renderPieChart = (title: string, data: GroupSummary[], mode: 'fee' | 'weight') => {
+    const getVal = (item: GroupSummary) => mode === 'fee' ? item.totalFee : item.totalWeight;
+    const sorted = [...data].sort((a, b) => getVal(b) - getVal(a));
+    const top8 = sorted.slice(0, 8);
+    const rest = sorted.slice(8);
+    const items = [...top8.map(d => ({ name: d.name, value: getVal(d) }))];
+    if (rest.length > 0) items.push({ name: '기타', value: rest.reduce((s, d) => s + getVal(d), 0) });
+    const total = items.reduce((s, i) => s + i.value, 0);
+    if (total === 0) return <div style={{ fontSize: 12, color: '#9ca3af', textAlign: 'center', padding: 20 }}>데이터 없음</div>;
+    let cumPct = 0;
+    const segs = items.map((item, i) => { const pct = (item.value / total) * 100; const s = `${CHART_COLORS[i % CHART_COLORS.length]} ${cumPct}% ${cumPct + pct}%`; cumPct += pct; return s; });
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 10 }}>{title}</div>
+        <div style={{ width: 140, height: 140, borderRadius: '50%', background: `conic-gradient(${segs.join(', ')})`, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 10px', marginTop: 10, maxWidth: 260, justifyContent: 'center' }}>
+          {items.map((item, i) => (
+            <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 2, background: CHART_COLORS[i % CHART_COLORS.length], flexShrink: 0 }} />
+              <span style={{ color: '#475569', whiteSpace: 'nowrap' }}>{item.name}</span>
+              <span style={{ color: '#9ca3af' }}>({((item.value / total) * 100).toFixed(0)}%)</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const cardBox: React.CSSProperties = { background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' };
 
   // ── Render ──
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Tab Bar */}
-      <div style={{
-        display: 'flex', alignItems: 'center', borderBottom: '1px solid #e5e7eb',
-        backgroundColor: '#fff', paddingLeft: 16,
-      }}>
-        <button style={tabStyle(activeTab === 'settlement')} onClick={() => setActiveTab('settlement')}>
-          정산관리
-        </button>
-        <button style={tabStyle(activeTab === 'unitprice')} onClick={() => setActiveTab('unitprice')}>
-          단가관리
-        </button>
+      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #e5e7eb', backgroundColor: '#fff', paddingLeft: 16 }}>
+        <button style={tabStyle(activeTab === 'settlement')} onClick={() => setActiveTab('settlement')}>정산관리</button>
+        <button style={tabStyle(activeTab === 'unitprice')} onClick={() => setActiveTab('unitprice')}>단가관리</button>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════ */}
-      {/* ═══ Unit Price Tab ═══ */}
-      {/* ═══════════════════════════════════════════════════════ */}
+      {/* ═══ 단가관리 탭 ═══ */}
       {activeTab === 'unitprice' && (
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-          {/* Filter Panel */}
-          {renderUpFilterPanel()}
-
-          {/* Main Content */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            {/* Title Bar */}
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '8px 16px', borderBottom: '1px solid #e5e7eb', backgroundColor: '#fff', gap: 8,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flexShrink: 1 }}>
-                {upFilterCollapsed && (
-                  <button onClick={() => setUpFilterCollapsed(false)} style={{
-                    fontSize: 13, padding: '5px 10px', background: '#f1f5f9', border: '1px solid #cbd5e1',
-                    borderRadius: 6, cursor: 'pointer', color: '#475569', fontWeight: 600,
-                  }}>필터 ▶</button>
-                )}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                  <div style={{ width: 4, height: 18, borderRadius: 2, background: '#2563eb' }} />
-                  <h1 style={{ fontSize: 16, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>단가관리</h1>
-                </div>
-
-                {/* Month badge */}
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 6, padding: '3px 10px',
-                  borderRadius: 6, background: '#eff6ff', border: '1px solid #bfdbfe',
-                }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#1d4ed8' }}>{upMonth}</span>
-                </div>
-
-                {/* Confirmed status badge */}
-                {isMonthConfirmed ? (
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px',
-                    borderRadius: 6, background: '#f0fdf4', border: '1px solid #bbf7d0',
-                  }}>
-                    <span style={{ fontSize: 12, color: '#16a34a', fontWeight: 700 }}>확정완료</span>
-                  </div>
-                ) : (
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px',
-                    borderRadius: 6, background: '#fefce8', border: '1px solid #fde68a',
-                  }}>
-                    <span style={{ fontSize: 12, color: '#b45309', fontWeight: 700 }}>미확정</span>
-                  </div>
-                )}
-
-                {/* KPI chips */}
-                <div style={{ display: 'flex', gap: 5, flexShrink: 0, marginLeft: 4 }}>
-                  <div style={kpiChipStyle('#eff6ff', '#bfdbfe')}>
-                    <span style={{ fontSize: 12, color: '#3b82f6', fontWeight: 600 }}>구간</span>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: '#1d4ed8' }}>{filteredPrices.length}</span>
-                    <span style={{ fontSize: 11, color: '#3b82f6' }}>건</span>
-                  </div>
-                  <div style={kpiChipStyle('#f5f3ff', '#c4b5fd')}>
-                    <span style={{ fontSize: 12, color: '#7c3aed', fontWeight: 600 }}>합계</span>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: '#6d28d9' }}>{fmt(upTotalPrice)}</span>
-                    <span style={{ fontSize: 11, color: '#7c3aed' }}>원</span>
-                  </div>
-                </div>
+          {!upFilterCollapsed && (
+            <div style={{ width: 220, flexShrink: 0, borderRight: '1px solid #e5e7eb', backgroundColor: '#fff', display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+              <div style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #1e293b, #334155)' }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>🔍 조회 조건</span>
+                <button onClick={() => setUpFilterCollapsed(true)} style={{ fontSize: 12, color: '#94a3b8', cursor: 'pointer', background: 'none', border: 'none' }}>접기 ◀</button>
               </div>
-
-              {/* Actions */}
-              <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
-                <button onClick={handleCopyMonth} style={btnWarning}>월 복사</button>
-                {isMonthConfirmed ? (
-                  <button onClick={handleUnconfirm} style={btnDanger}>확정취소</button>
-                ) : (
-                  <button onClick={handleConfirm} style={btnSuccess}>확정</button>
-                )}
+              <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <label style={filterLabelStyle}>운송사</label>
+                  <select value={upFilterCompany} onChange={e => setUpFilterCompany(e.target.value)} style={filterSelectStyle}>
+                    <option value="">[전체]</option>
+                    {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={filterLabelStyle}>제품명</label>
+                  <select value={upFilterProduct} onChange={e => setUpFilterProduct(e.target.value)} style={filterSelectStyle}>
+                    <option value="">[전체]</option>
+                    {productOptions.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+                <button onClick={fetchUnitPrices} style={{ ...btnSuccess, width: '100%', padding: '8px 0' }}>새로고침</button>
+              </div>
+            </div>
+          )}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', borderBottom: '1px solid #e5e7eb', backgroundColor: '#fff', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {upFilterCollapsed && <button onClick={() => setUpFilterCollapsed(false)} style={{ fontSize: 13, padding: '5px 10px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 6, cursor: 'pointer', color: '#475569', fontWeight: 600 }}>필터 ▶</button>}
+                <div style={{ width: 4, height: 18, borderRadius: 2, background: '#2563eb' }} />
+                <h1 style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>단가관리</h1>
+                <span style={{ fontSize: 13, padding: '3px 10px', borderRadius: 6, background: '#eff6ff', border: '1px solid #bfdbfe', fontWeight: 700, color: '#1d4ed8' }}>{filteredPrices.length}건</span>
+              </div>
+              <div style={{ display: 'flex', gap: 5 }}>
                 <button onClick={handleExcelUnitPrice} style={btnOutline}>엑셀내보내기</button>
               </div>
             </div>
-
-            {/* Data Grid */}
             <div style={{ flex: 1, overflow: 'auto' }}>
-              {upLoading ? renderSpinner() : (
+              {upLoading ? spinner : (
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
-                  <thead>
-                    <tr>
-                      <th style={{ ...thStyle, width: 40, textAlign: 'center' }}>#</th>
-                      <th style={{ ...thStyle, minWidth: 90 }}>운송사</th>
-                      <th style={{ ...thStyle, minWidth: 160 }}>제품명</th>
-                      <th style={{ ...thStyle, minWidth: 120, textAlign: 'right' }}>단가(원)</th>
-                      <th style={{ ...thStyle, minWidth: 100 }}>적용시작일</th>
-                      <th style={{ ...thStyle, minWidth: 100 }}>적용종료일</th>
-                      <th style={{ ...thStyle, minWidth: 160 }}>메모</th>
-                    </tr>
-                  </thead>
+                  <thead><tr>
+                    <th style={{ ...thStyle, width: 40, textAlign: 'center' }}>#</th>
+                    <th style={{ ...thStyle, minWidth: 90 }}>운송사</th>
+                    <th style={{ ...thStyle, minWidth: 160 }}>제품명</th>
+                    <th style={{ ...thStyle, minWidth: 120, textAlign: 'right' }}>단가(원)</th>
+                    <th style={{ ...thStyle, minWidth: 100 }}>적용시작일</th>
+                    <th style={{ ...thStyle, minWidth: 100 }}>적용종료일</th>
+                    <th style={{ ...thStyle, minWidth: 140 }}>메모</th>
+                  </tr></thead>
                   <tbody>
                     {filteredPrices.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', color: '#9ca3af', padding: 40 }}>
-                          단가 데이터가 없습니다. unit_prices 테이블에 데이터를 입력해주세요.
-                        </td>
-                      </tr>
+                      <tr><td colSpan={7} style={{ ...tdStyle, textAlign: 'center', color: '#9ca3af', padding: 40 }}>단가 데이터가 없습니다.</td></tr>
                     ) : filteredPrices.map((row, idx) => (
-                      <tr
-                        key={row.id}
-                        style={{
-                          backgroundColor: idx % 2 === 0 ? '#fff' : '#fafbfc',
-                          transition: 'background-color 0.1s',
-                        }}
+                      <tr key={row.id} style={{ backgroundColor: idx % 2 === 0 ? '#fff' : '#fafbfc' }}
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#f0f7ff'; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = idx % 2 === 0 ? '#fff' : '#fafbfc'; }}
-                      >
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = idx % 2 === 0 ? '#fff' : '#fafbfc'; }}>
                         <td style={{ ...tdStyle, textAlign: 'center', color: '#9ca3af', fontSize: 12 }}>{idx + 1}</td>
-                        <td style={tdStyle}>
-                          <span style={{
-                            display: 'inline-block', padding: '2px 8px', borderRadius: 4,
-                            background: '#f1f5f9', fontSize: 12, fontWeight: 600, color: '#334155',
-                          }}>{row.company}</span>
-                        </td>
+                        <td style={tdStyle}><span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, background: '#f1f5f9', fontSize: 12, fontWeight: 600, color: '#334155' }}>{row.company}</span></td>
                         <td style={tdStyle}>{row.product}</td>
-                        <td style={{ ...tdRightStyle, fontWeight: 600 }}>
+                        <td style={{ ...tdR, fontWeight: 600 }}>
                           {editingPriceId === row.id ? (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
-                              <input
-                                type="number"
-                                value={editingPriceValue}
-                                onChange={e => setEditingPriceValue(parseInt(e.target.value) || 0)}
-                                onKeyDown={e => { if (e.key === 'Enter') savePriceEdit(); if (e.key === 'Escape') cancelPriceEdit(); }}
-                                autoFocus
-                                style={{
-                                  width: 90, fontSize: 13, padding: '3px 6px', borderRadius: 4,
-                                  border: '2px solid #3b82f6', textAlign: 'right', outline: 'none',
-                                }}
-                              />
-                              <button onClick={savePriceEdit} style={{
-                                fontSize: 11, padding: '2px 6px', borderRadius: 4, border: 'none',
-                                background: '#16a34a', color: '#fff', cursor: 'pointer',
-                              }}>저장</button>
-                              <button onClick={cancelPriceEdit} style={{
-                                fontSize: 11, padding: '2px 6px', borderRadius: 4, border: '1px solid #d1d5db',
-                                background: '#fff', color: '#6b7280', cursor: 'pointer',
-                              }}>취소</button>
+                              <input type="number" value={editingPriceValue} onChange={e => setEditingPriceValue(parseInt(e.target.value) || 0)}
+                                onKeyDown={e => { if (e.key === 'Enter') savePriceEdit(); if (e.key === 'Escape') setEditingPriceId(null); }}
+                                autoFocus style={{ width: 90, fontSize: 13, padding: '3px 6px', borderRadius: 4, border: '2px solid #3b82f6', textAlign: 'right', outline: 'none' }} />
+                              <button onClick={savePriceEdit} style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, border: 'none', background: '#16a34a', color: '#fff', cursor: 'pointer' }}>저장</button>
+                              <button onClick={() => setEditingPriceId(null)} style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, border: '1px solid #d1d5db', background: '#fff', color: '#6b7280', cursor: 'pointer' }}>취소</button>
                             </div>
                           ) : (
-                            <span
-                              onClick={() => startPriceEdit(row.id, row.price)}
-                              style={{ cursor: isMonthConfirmed ? 'default' : 'pointer', color: row.price === 0 ? '#d1d5db' : '#1e293b' }}
-                              title={isMonthConfirmed ? '확정취소 후 수정 가능' : '클릭하여 수정'}
-                            >
-                              {fmt(row.price)}
-                            </span>
+                            <span onClick={() => { setEditingPriceId(row.id); setEditingPriceValue(row.price); }}
+                              style={{ cursor: 'pointer', color: row.price === 0 ? '#d1d5db' : '#1e293b' }} title="클릭하여 수정">{fmt(row.price)}</span>
                           )}
                         </td>
                         <td style={{ ...tdStyle, fontSize: 12, color: '#64748b' }}>{row.effective_date}</td>
@@ -885,15 +694,10 @@ export default function SettlementPage() {
                         <td style={{ ...tdStyle, fontSize: 12, color: '#64748b' }}>{row.memo ?? '-'}</td>
                       </tr>
                     ))}
-
                     {filteredPrices.length > 0 && (
                       <tr style={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #cbd5e1' }}>
-                        <td colSpan={3} style={{ ...tdStyle, fontWeight: 700, textAlign: 'center', color: '#334155' }}>
-                          합계 ({filteredPrices.length}건)
-                        </td>
-                        <td style={{ ...tdRightStyle, fontWeight: 700, fontSize: 14, color: '#1d4ed8' }}>
-                          {fmt(upTotalPrice)}
-                        </td>
+                        <td colSpan={3} style={{ ...tdStyle, fontWeight: 700, textAlign: 'center', color: '#334155' }}>합계 ({filteredPrices.length}건)</td>
+                        <td style={{ ...tdR, fontWeight: 700, fontSize: 14, color: '#1d4ed8' }}>{fmt(filteredPrices.reduce((s, p) => s + p.price, 0))}</td>
                         <td colSpan={3} />
                       </tr>
                     )}
@@ -905,367 +709,209 @@ export default function SettlementPage() {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════ */}
-      {/* ═══ Settlement Tab ═══ */}
-      {/* ═══════════════════════════════════════════════════════ */}
-      {activeTab === 'settlement' && (() => {
-        // ── Bar chart renderer ──
-        const renderHBarChart = (
-          title: string,
-          current: GroupSummary[],
-          previous: GroupSummary[],
-          mode: 'fee' | 'weight',
-        ) => {
-          const getValue = (item: GroupSummary) => mode === 'fee' ? item.totalFee : item.totalWeight;
-          const top = [...current].sort((a, b) => getValue(b) - getValue(a)).slice(0, 10);
-          const allVals = [
-            ...top.map(getValue),
-            ...top.map(t => {
-              const p = previous.find(pp => pp.name === t.name);
-              return p ? getValue(p) : 0;
-            }),
-          ];
-          const maxVal = Math.max(...allVals, 1);
-
-          return (
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 8 }}>
-                {title} {mode === 'fee' ? '(정산금액)' : '(계근수량)'}
+      {/* ═══ 정산관리 탭 ═══ */}
+      {activeTab === 'settlement' && (
+        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+          {/* Filter Panel */}
+          {!stlFilterCollapsed && (
+            <div style={{ width: 220, flexShrink: 0, borderRight: '1px solid #e5e7eb', backgroundColor: '#fff', display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+              <div style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #1e293b, #334155)' }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>🔍 조회 조건</span>
+                <button onClick={() => setStlFilterCollapsed(true)} style={{ fontSize: 12, color: '#94a3b8', cursor: 'pointer', background: 'none', border: 'none' }}>접기 ◀</button>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {top.map((item) => {
-                  const prev = previous.find(p => p.name === item.name);
-                  const curVal = getValue(item);
-                  const prvVal = prev ? getValue(prev) : 0;
-                  const curPct = (curVal / maxVal) * 100;
-                  const prvPct = (prvVal / maxVal) * 100;
-                  const diff = prvVal > 0 ? ((curVal - prvVal) / prvVal * 100) : 0;
+              <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {renderPeriodSelector()}
 
-                  return (
-                    <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 65, fontSize: 11, fontWeight: 600, color: '#334155', textAlign: 'right', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {item.name}
-                      </div>
-                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <div style={{ height: 14, borderRadius: 3, background: '#3b82f6', width: `${Math.max(curPct, 1)}%`, transition: 'width 0.3s' }} />
-                          <span style={{ fontSize: 10, color: '#3b82f6', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                            {mode === 'fee' ? fmt(Math.round(curVal / 10000)) + '만' : curVal.toFixed(1) + 't'}
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <div style={{ height: 10, borderRadius: 3, background: '#cbd5e1', width: `${Math.max(prvPct, 0.5)}%`, transition: 'width 0.3s' }} />
-                          <span style={{ fontSize: 9, color: '#94a3b8', whiteSpace: 'nowrap' }}>
-                            {mode === 'fee' ? fmt(Math.round(prvVal / 10000)) + '만' : prvVal.toFixed(1) + 't'}
-                          </span>
-                          {prvVal > 0 && (
-                            <span style={{ fontSize: 9, fontWeight: 700, color: diff >= 0 ? '#16a34a' : '#ef4444' }}>
-                              {diff >= 0 ? '▲' : '▼'}{Math.abs(diff).toFixed(0)}%
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {/* Legend */}
-              <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: 10, color: '#6b7280' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: 2, background: '#3b82f6' }} />
-                  <span>{currMonthLabel} (당월)</span>
+                <div style={{ height: 1, background: '#e5e7eb' }} />
+
+                <div>
+                  <label style={filterLabelStyle}>운송사</label>
+                  <select value={stlFilterCompany} onChange={e => setStlFilterCompany(e.target.value)} style={filterSelectStyle}>
+                    <option value="">[전체]</option>
+                    {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: 2, background: '#cbd5e1' }} />
-                  <span>{prevMonthLabel} (전월)</span>
+                <div>
+                  <label style={filterLabelStyle}>거래처</label>
+                  <select value={stlFilterCustomer} onChange={e => setStlFilterCustomer(e.target.value)} style={filterSelectStyle}>
+                    <option value="">[전체]</option>
+                    {customerOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 </div>
+                <div>
+                  <label style={filterLabelStyle}>운송구분</label>
+                  <select value={stlFilterTransport} onChange={e => setStlFilterTransport(e.target.value)} style={filterSelectStyle}>
+                    <option value="">[전체]</option>
+                    {transportTypeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={filterLabelStyle}>제품명</label>
+                  <select value={stlFilterProduct} onChange={e => setStlFilterProduct(e.target.value)} style={filterSelectStyle}>
+                    <option value="">[전체]</option>
+                    {productOptions.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+                <button onClick={() => { setStlFilterCompany(''); setStlFilterCustomer(''); setStlFilterTransport(''); setStlFilterProduct(''); }}
+                  style={{ width: '100%', fontSize: 13, padding: '8px 0', borderRadius: 7, border: 'none', cursor: 'pointer', fontWeight: 700, background: '#6b7280', color: '#fff' }}>필터 초기화</button>
               </div>
             </div>
-          );
-        };
+          )}
 
-        // ── Pie chart renderer ──
-        const renderPieChart = (
-          title: string,
-          data: GroupSummary[],
-          mode: 'fee' | 'weight',
-        ) => {
-          const getValue = (item: GroupSummary) => mode === 'fee' ? item.totalFee : item.totalWeight;
-          const sorted = [...data].sort((a, b) => getValue(b) - getValue(a));
-          const top8 = sorted.slice(0, 8);
-          const rest = sorted.slice(8);
-          const items: { name: string; value: number }[] = top8.map(d => ({ name: d.name, value: getValue(d) }));
-          if (rest.length > 0) {
-            items.push({ name: '기타', value: rest.reduce((s, d) => s + getValue(d), 0) });
-          }
-          const total = items.reduce((s, i) => s + i.value, 0);
-          if (total === 0) return <div style={{ fontSize: 12, color: '#9ca3af', textAlign: 'center', padding: 20 }}>데이터 없음</div>;
+          {/* Main Content */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {/* Title Bar */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', borderBottom: '1px solid #e5e7eb', backgroundColor: '#fff', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {stlFilterCollapsed && <button onClick={() => setStlFilterCollapsed(false)} style={{ fontSize: 13, padding: '5px 10px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 6, cursor: 'pointer', color: '#475569', fontWeight: 600 }}>필터 ▶</button>}
+                <div style={{ width: 4, height: 18, borderRadius: 2, background: '#2563eb' }} />
+                <h1 style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>정산 대시보드</h1>
+                <span style={{ fontSize: 13, padding: '3px 10px', borderRadius: 6, background: '#eff6ff', border: '1px solid #bfdbfe', fontWeight: 700, color: '#1d4ed8' }}>{dateRange.label}</span>
+                {stlLoading && <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #e5e7eb', borderTopColor: '#2563eb', animation: 'spin 0.8s linear infinite' }} />
+                  <span style={{ fontSize: 12, color: '#6b7280' }}>로딩...</span>
+                </div>}
+              </div>
+              <button onClick={handleExcelSettlement} style={btnOutline}>엑셀내보내기</button>
+            </div>
 
-          let cumPct = 0;
-          const segments: string[] = [];
-          items.forEach((item, i) => {
-            const pct = (item.value / total) * 100;
-            segments.push(`${CHART_COLORS[i % CHART_COLORS.length]} ${cumPct}% ${cumPct + pct}%`);
-            cumPct += pct;
-          });
-
-          return (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 10 }}>{title}</div>
-              <div style={{
-                width: 140, height: 140, borderRadius: '50%',
-                background: `conic-gradient(${segments.join(', ')})`,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-              }} />
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 10px', marginTop: 10, maxWidth: 260, justifyContent: 'center' }}>
-                {items.map((item, i) => (
-                  <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: 2, background: CHART_COLORS[i % CHART_COLORS.length], flexShrink: 0 }} />
-                    <span style={{ color: '#475569', whiteSpace: 'nowrap' }}>{item.name}</span>
-                    <span style={{ color: '#9ca3af' }}>({((item.value / total) * 100).toFixed(0)}%)</span>
+            {/* Dashboard */}
+            <div style={{ flex: 1, overflow: 'auto', padding: 16, backgroundColor: '#f8fafc' }}>
+              {/* KPI Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+                {[
+                  { label: '총 건수', value: `${fmt(stlTotals.count)}건`, prev: `전기 ${fmt(prevTotals.count)}건`, color: '#2563eb', bg: '#eff6ff', icon: '📋' },
+                  { label: '총 계근수량', value: `${stlTotals.totalWeight.toFixed(1)} 톤`, prev: `전기 ${prevTotals.totalWeight.toFixed(1)}톤`, color: '#16a34a', bg: '#f0fdf4', icon: '⚖️' },
+                  { label: '총 운송료 (공급가액)', value: `${fmt(stlTotals.totalFee)} 원`, prev: `전기 ${fmt(prevTotals.totalFee)}원`, color: '#d97706', bg: '#fefce8', icon: '💰' },
+                  { label: '총 합계 (세포함)', value: `${fmt(stlTotals.totalAll)} 원`, prev: `전기 ${fmt(prevTotals.totalAll)}원`, color: '#7c3aed', bg: '#f5f3ff', icon: '📊' },
+                ].map(card => (
+                  <div key={card.label} style={{ padding: '14px 16px', borderRadius: 12, background: card.bg, border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                      <span style={{ fontSize: 16 }}>{card.icon}</span>
+                      <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 500 }}>{card.label}</span>
+                    </div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: card.color, marginBottom: 2 }}>{card.value}</div>
+                    <div style={{ fontSize: 11, color: '#9ca3af' }}>{card.prev}</div>
                   </div>
                 ))}
               </div>
-            </div>
-          );
-        };
 
-        const cardBoxStyle: React.CSSProperties = {
-          background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 16,
-          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-        };
-
-        return (
-          <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-            {/* Filter Panel */}
-            {renderStlFilterPanel()}
-
-            {/* Main Content — Dashboard */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              {/* Title Bar */}
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '8px 16px', borderBottom: '1px solid #e5e7eb', backgroundColor: '#fff', gap: 8,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flexShrink: 1 }}>
-                  {stlFilterCollapsed && (
-                    <button onClick={() => setStlFilterCollapsed(false)} style={{
-                      fontSize: 13, padding: '5px 10px', background: '#f1f5f9', border: '1px solid #cbd5e1',
-                      borderRadius: 6, cursor: 'pointer', color: '#475569', fontWeight: 600,
-                    }}>필터 ▶</button>
-                  )}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                    <div style={{ width: 4, height: 18, borderRadius: 2, background: '#2563eb' }} />
-                    <h1 style={{ fontSize: 16, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>정산 대시보드</h1>
+              {stlLoading ? spinner : (
+                <>
+                  {/* Charts Row 1 */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                    <div style={cardBox}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, borderBottom: '1px solid #f1f5f9', paddingBottom: 8 }}>
+                        <span>🚛</span><span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>운송사별 정산현황</span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                        {renderHBarChart('운송사', dashCompany, prevCompany, 'fee')}
+                        {renderHBarChart('운송사', dashCompany, prevCompany, 'weight')}
+                      </div>
+                    </div>
+                    <div style={cardBox}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, borderBottom: '1px solid #f1f5f9', paddingBottom: 8 }}>
+                        <span>🏢</span><span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>거래처별 정산현황</span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                        {renderHBarChart('거래처', dashCustomer, prevCustomer, 'fee')}
+                        {renderHBarChart('거래처', dashCustomer, prevCustomer, 'weight')}
+                      </div>
+                    </div>
                   </div>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: 6, padding: '3px 10px',
-                    borderRadius: 6, background: '#eff6ff', border: '1px solid #bfdbfe',
-                  }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#1d4ed8' }}>
-                      {stlDateRange.from} ~ {stlDateRange.to}
-                    </span>
+
+                  {/* Charts Row 2 */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                    <div style={cardBox}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, borderBottom: '1px solid #f1f5f9', paddingBottom: 8 }}>
+                        <span>📦</span><span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>제품별 정산현황</span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                        {renderHBarChart('제품', dashProduct, prevProduct, 'fee')}
+                        {renderHBarChart('제품', dashProduct, prevProduct, 'weight')}
+                      </div>
+                    </div>
+                    <div style={cardBox}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, borderBottom: '1px solid #f1f5f9', paddingBottom: 8 }}>
+                        <span>🥧</span><span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>거래처별 구성비</span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                        {renderPieChart('정산금액 비율', dashCustomer, 'fee')}
+                        {renderPieChart('계근수량 비율', dashCustomer, 'weight')}
+                      </div>
+                    </div>
                   </div>
-                  {stlLoading && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{
-                        width: 16, height: 16, borderRadius: '50%',
-                        border: '2px solid #e5e7eb', borderTopColor: '#2563eb',
-                        animation: 'spin 0.8s linear infinite',
-                      }} />
-                      <span style={{ fontSize: 12, color: '#6b7280' }}>로딩중...</span>
+
+                  {/* Detail Table */}
+                  <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
+                    <div onClick={() => setStlDetailOpen(!stlDetailOpen)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', cursor: 'pointer', background: '#f8fafc', borderBottom: stlDetailOpen ? '1px solid #e5e7eb' : 'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 13, color: '#6b7280' }}>{stlDetailOpen ? '▼' : '▶'}</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: '#334155' }}>세부 데이터</span>
+                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: '#eff6ff', color: '#1d4ed8', fontWeight: 600 }}>{filteredSettlements.length}건</span>
+                      </div>
+                      <span style={{ fontSize: 12, color: '#9ca3af' }}>{stlDetailOpen ? '접기' : '펼치기'}</span>
                     </div>
-                  )}
-                </div>
-                <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
-                  <button onClick={handleExcelSettlement} style={btnOutline}>엑셀내보내기</button>
-                </div>
-              </div>
-
-              {/* Scrollable Dashboard Area */}
-              <div style={{ flex: 1, overflow: 'auto', padding: 16, backgroundColor: '#f8fafc' }}>
-
-                {/* ── KPI Summary Cards ── */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
-                  {[
-                    { label: '총 건수', value: `${fmt(stlTotals.count)}건`, prev: `전월 ${fmt(prevTotals.count)}건`, color: '#2563eb', bg: '#eff6ff', icon: '📋' },
-                    { label: '총 계근수량', value: `${stlTotals.totalWeight.toFixed(1)} 톤`, prev: `전월 ${prevTotals.totalWeight.toFixed(1)}톤`, color: '#16a34a', bg: '#f0fdf4', icon: '⚖️' },
-                    { label: '총 운송료 (공급가액)', value: `${fmt(stlTotals.totalFee)} 원`, prev: `전월 ${fmt(prevTotals.totalFee)}원`, color: '#d97706', bg: '#fefce8', icon: '💰' },
-                    { label: '총 합계 (세포함)', value: `${fmt(stlTotals.totalAll)} 원`, prev: `전월 ${fmt(prevTotals.totalAll)}원`, color: '#7c3aed', bg: '#f5f3ff', icon: '📊' },
-                  ].map(card => (
-                    <div key={card.label} style={{
-                      padding: '14px 16px', borderRadius: 12, background: card.bg,
-                      border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                        <span style={{ fontSize: 16 }}>{card.icon}</span>
-                        <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 500 }}>{card.label}</span>
-                      </div>
-                      <div style={{ fontSize: 20, fontWeight: 700, color: card.color, marginBottom: 2 }}>{card.value}</div>
-                      {card.prev && (
-                        <div style={{ fontSize: 11, color: '#9ca3af' }}>{card.prev}</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {stlLoading ? renderSpinner() : (
-                  <>
-                    {/* ── Row 1: 운송사별 + 거래처별 Bar Charts ── */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-                      <div style={cardBoxStyle}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, borderBottom: '1px solid #f1f5f9', paddingBottom: 8 }}>
-                          <span style={{ fontSize: 14 }}>🚛</span>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>운송사별 정산현황</span>
-                          <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 'auto' }}>전월 대비</span>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                          {renderHBarChart('운송사', dashCompany, prevCompany, 'fee')}
-                          {renderHBarChart('운송사', dashCompany, prevCompany, 'weight')}
-                        </div>
-                      </div>
-
-                      <div style={cardBoxStyle}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, borderBottom: '1px solid #f1f5f9', paddingBottom: 8 }}>
-                          <span style={{ fontSize: 14 }}>🏢</span>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>거래처별 정산현황</span>
-                          <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 'auto' }}>전월 대비 (상위 10)</span>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                          {renderHBarChart('거래처', dashCustomer, prevCustomer, 'fee')}
-                          {renderHBarChart('거래처', dashCustomer, prevCustomer, 'weight')}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* ── Row 2: 제품별 + 거래처 파이차트 ── */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-                      <div style={cardBoxStyle}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, borderBottom: '1px solid #f1f5f9', paddingBottom: 8 }}>
-                          <span style={{ fontSize: 14 }}>📦</span>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>제품별 정산현황</span>
-                          <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 'auto' }}>전월 대비</span>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                          {renderHBarChart('제품', dashProduct, prevProduct, 'fee')}
-                          {renderHBarChart('제품', dashProduct, prevProduct, 'weight')}
-                        </div>
-                      </div>
-
-                      <div style={cardBoxStyle}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, borderBottom: '1px solid #f1f5f9', paddingBottom: 8 }}>
-                          <span style={{ fontSize: 14 }}>🥧</span>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>거래처별 구성비</span>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                          {renderPieChart('정산금액 비율', dashCustomer, 'fee')}
-                          {renderPieChart('계근수량 비율', dashCustomer, 'weight')}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* ── Detail Data Table (Collapsible) ── */}
-                    <div style={{
-                      background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)', overflow: 'hidden',
-                    }}>
-                      <div
-                        onClick={() => setStlDetailOpen(!stlDetailOpen)}
-                        style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                          padding: '12px 16px', cursor: 'pointer', background: '#f8fafc',
-                          borderBottom: stlDetailOpen ? '1px solid #e5e7eb' : 'none',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 13, color: '#6b7280' }}>{stlDetailOpen ? '▼' : '▶'}</span>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: '#334155' }}>세부 데이터</span>
-                          <span style={{
-                            fontSize: 11, padding: '2px 8px', borderRadius: 10,
-                            background: '#eff6ff', color: '#1d4ed8', fontWeight: 600,
-                          }}>{filteredSettlements.length}건</span>
-                        </div>
-                        <span style={{ fontSize: 12, color: '#9ca3af' }}>{stlDetailOpen ? '접기' : '펼치기'}</span>
-                      </div>
-
-                      {stlDetailOpen && (
-                        <div style={{ maxHeight: 500, overflow: 'auto' }}>
-                          {filteredSettlements.length === 0 ? (
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 120, color: '#9ca3af', fontSize: 13 }}>
-                              조회된 데이터가 없습니다.
-                            </div>
-                          ) : (
-                            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1100 }}>
-                              <thead>
-                                <tr>
-                                  <th style={{ ...thStyle, width: 40, textAlign: 'center' }}>#</th>
-                                  <th style={{ ...thStyle, minWidth: 90 }}>날짜</th>
-                                  <th style={{ ...thStyle, minWidth: 70 }}>운송사</th>
-                                  <th style={{ ...thStyle, minWidth: 150 }}>거래처</th>
-                                  <th style={{ ...thStyle, minWidth: 60 }}>운송구분</th>
-                                  <th style={{ ...thStyle, minWidth: 130 }}>제품명</th>
-                                  <th style={{ ...thStyle, minWidth: 80, textAlign: 'right' }}>계근수량</th>
-                                  <th style={{ ...thStyle, minWidth: 90, textAlign: 'right' }}>단가(원)</th>
-                                  <th style={{ ...thStyle, minWidth: 110, textAlign: 'right' }}>운송료(원)</th>
-                                  <th style={{ ...thStyle, minWidth: 90, textAlign: 'right' }}>세액(원)</th>
-                                  <th style={{ ...thStyle, minWidth: 120, textAlign: 'right' }}>운송료 합계(원)</th>
+                    {stlDetailOpen && (
+                      <div style={{ maxHeight: 500, overflow: 'auto' }}>
+                        {filteredSettlements.length === 0 ? (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 120, color: '#9ca3af', fontSize: 13 }}>조회된 데이터가 없습니다.</div>
+                        ) : (
+                          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1100 }}>
+                            <thead><tr>
+                              <th style={{ ...thStyle, width: 40, textAlign: 'center' }}>#</th>
+                              <th style={{ ...thStyle, minWidth: 90 }}>날짜</th>
+                              <th style={{ ...thStyle, minWidth: 70 }}>운송사</th>
+                              <th style={{ ...thStyle, minWidth: 150 }}>거래처</th>
+                              <th style={{ ...thStyle, minWidth: 60 }}>운송구분</th>
+                              <th style={{ ...thStyle, minWidth: 130 }}>제품명</th>
+                              <th style={{ ...thStyle, minWidth: 80, textAlign: 'right' }}>계근수량</th>
+                              <th style={{ ...thStyle, minWidth: 90, textAlign: 'right' }}>단가(원)</th>
+                              <th style={{ ...thStyle, minWidth: 110, textAlign: 'right' }}>운송료(원)</th>
+                              <th style={{ ...thStyle, minWidth: 90, textAlign: 'right' }}>세액(원)</th>
+                              <th style={{ ...thStyle, minWidth: 120, textAlign: 'right' }}>합계(원)</th>
+                            </tr></thead>
+                            <tbody>
+                              {filteredSettlements.map((row, idx) => (
+                                <tr key={row.id} style={{ backgroundColor: idx % 2 === 0 ? '#fff' : '#fafbfc' }}
+                                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#f0f7ff'; }}
+                                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = idx % 2 === 0 ? '#fff' : '#fafbfc'; }}>
+                                  <td style={{ ...tdStyle, textAlign: 'center', color: '#9ca3af', fontSize: 12 }}>{idx + 1}</td>
+                                  <td style={{ ...tdStyle, fontSize: 12, color: '#475569' }}>{row.date}</td>
+                                  <td style={tdStyle}><span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, background: '#f1f5f9', fontSize: 12, fontWeight: 600, color: '#334155' }}>{row.company}</span></td>
+                                  <td style={tdStyle}>{row.customer}</td>
+                                  <td style={tdStyle}><span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 12, fontWeight: 600,
+                                    background: row.transportType === '탱크' ? '#dbeafe' : row.transportType === '카고' ? '#fef3c7' : '#fce7f3',
+                                    color: row.transportType === '탱크' ? '#1e40af' : row.transportType === '카고' ? '#92400e' : '#9d174d',
+                                  }}>{row.transportType}</span></td>
+                                  <td style={tdStyle}>{row.product}</td>
+                                  <td style={tdR}>{row.weightNet.toFixed(2)}</td>
+                                  <td style={tdR}>{fmt(row.unitPrice)}</td>
+                                  <td style={{ ...tdR, fontWeight: 600 }}>{fmt(row.transportFee)}</td>
+                                  <td style={tdR}>{fmt(row.tax)}</td>
+                                  <td style={{ ...tdR, fontWeight: 700, color: '#1d4ed8' }}>{fmt(row.totalFee)}</td>
                                 </tr>
-                              </thead>
-                              <tbody>
-                                {filteredSettlements.map((row, idx) => (
-                                  <tr
-                                    key={row.id}
-                                    style={{ backgroundColor: idx % 2 === 0 ? '#fff' : '#fafbfc' }}
-                                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#f0f7ff'; }}
-                                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = idx % 2 === 0 ? '#fff' : '#fafbfc'; }}
-                                  >
-                                    <td style={{ ...tdStyle, textAlign: 'center', color: '#9ca3af', fontSize: 12 }}>{idx + 1}</td>
-                                    <td style={{ ...tdStyle, fontSize: 12, color: '#475569' }}>{row.date}</td>
-                                    <td style={tdStyle}>
-                                      <span style={{
-                                        display: 'inline-block', padding: '2px 8px', borderRadius: 4,
-                                        background: '#f1f5f9', fontSize: 12, fontWeight: 600, color: '#334155',
-                                      }}>{row.company}</span>
-                                    </td>
-                                    <td style={tdStyle}>{row.customer}</td>
-                                    <td style={tdStyle}>
-                                      <span style={{
-                                        display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 12, fontWeight: 600,
-                                        background: row.transportType === '탱크' ? '#dbeafe' : row.transportType === '카고' ? '#fef3c7' : '#fce7f3',
-                                        color: row.transportType === '탱크' ? '#1e40af' : row.transportType === '카고' ? '#92400e' : '#9d174d',
-                                      }}>{row.transportType}</span>
-                                    </td>
-                                    <td style={tdStyle}>{row.product}</td>
-                                    <td style={tdRightStyle}>{row.weightNet.toFixed(2)}</td>
-                                    <td style={tdRightStyle}>{fmt(row.unitPrice)}</td>
-                                    <td style={{ ...tdRightStyle, fontWeight: 600 }}>{fmt(row.transportFee)}</td>
-                                    <td style={tdRightStyle}>{fmt(row.tax)}</td>
-                                    <td style={{ ...tdRightStyle, fontWeight: 700, color: '#1d4ed8' }}>{fmt(row.totalFee)}</td>
-                                  </tr>
-                                ))}
-                                <tr style={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #cbd5e1' }}>
-                                  <td colSpan={6} style={{ ...tdStyle, fontWeight: 700, textAlign: 'center', color: '#334155' }}>
-                                    합계 ({filteredSettlements.length}건)
-                                  </td>
-                                  <td style={{ ...tdRightStyle, fontWeight: 700 }}>{stlTotals.totalWeight.toFixed(2)}</td>
-                                  <td style={tdRightStyle}></td>
-                                  <td style={{ ...tdRightStyle, fontWeight: 700 }}>{fmt(stlTotals.totalFee)}</td>
-                                  <td style={{ ...tdRightStyle, fontWeight: 700 }}>{fmt(stlTotals.totalTax)}</td>
-                                  <td style={{ ...tdRightStyle, fontWeight: 700, fontSize: 14, color: '#1d4ed8' }}>{fmt(stlTotals.totalAll)}</td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
+                              ))}
+                              <tr style={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #cbd5e1' }}>
+                                <td colSpan={6} style={{ ...tdStyle, fontWeight: 700, textAlign: 'center', color: '#334155' }}>합계 ({filteredSettlements.length}건)</td>
+                                <td style={{ ...tdR, fontWeight: 700 }}>{stlTotals.totalWeight.toFixed(2)}</td>
+                                <td style={tdR} />
+                                <td style={{ ...tdR, fontWeight: 700 }}>{fmt(stlTotals.totalFee)}</td>
+                                <td style={{ ...tdR, fontWeight: 700 }}>{fmt(stlTotals.totalTax)}</td>
+                                <td style={{ ...tdR, fontWeight: 700, fontSize: 14, color: '#1d4ed8' }}>{fmt(stlTotals.totalAll)}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
     </div>
   );
 }
