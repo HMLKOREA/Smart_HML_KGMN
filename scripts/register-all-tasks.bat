@@ -24,7 +24,7 @@ schtasks /create ^
   /tn "SmartHML_Telegram_Daily" ^
   /tr "C:\SmartHML\web-app\scripts\daily-telegram-report.bat" ^
   /sc DAILY ^
-  /st 18:00 ^
+  /st 08:00 ^
   /ru "%USERNAME%" ^
   /f >nul 2>&1
 if %errorlevel% equ 0 (echo   OK: SmartHML_Telegram_Daily) else (echo   FAIL: SmartHML_Telegram_Daily)
@@ -34,7 +34,7 @@ echo ============================================
 echo  등록 완료!
 echo.
 echo  [1] 매시간 동기화: XX:05 마다 MySQL→Supabase 증분 동기화
-echo  [2] 일일보고: 매일 18:00 텔레그램 발송
+echo  [2] 일일보고: 매일 08:00 텔레그램 발송
 echo.
 echo  확인: schtasks /query /tn "SmartHML_*"
 echo  삭제: schtasks /delete /tn "SmartHML_Sync_Hourly" /f
