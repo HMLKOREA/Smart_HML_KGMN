@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-export async function middleware(_request: NextRequest) {
-  // 인증은 클라이언트 localStorage 기반 — 서버 미들웨어 패스스루
+export function proxy(_request: NextRequest) {
+  // 인증은 클라이언트 localStorage 기반 — 서버 프록시 패스스루
   return NextResponse.next();
 }
 
