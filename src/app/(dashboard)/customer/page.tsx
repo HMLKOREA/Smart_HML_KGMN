@@ -226,19 +226,19 @@ export default function CustomerPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Page Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)] bg-white">
-        <h1 className="text-xl font-bold text-[var(--color-text)]">거래처관리</h1>
+      <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-[var(--color-border)] bg-white">
+        <h1 className="text-lg sm:text-xl font-bold text-[var(--color-text)]">거래처관리</h1>
       </div>
 
       {/* Search Bar */}
-      <div className="flex flex-wrap items-center gap-2 px-6 py-3 bg-white border-b border-[var(--color-border)]">
+      <div className="flex flex-wrap items-center gap-2 px-4 sm:px-6 py-3 bg-white border-b border-[var(--color-border)]">
         <input
           type="text"
           placeholder="거래처명, 사업자번호, 대표자, 전화번호, 주소 검색"
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="px-3 py-1.5 border border-gray-300 rounded text-sm w-96 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="px-3 py-1.5 border border-gray-300 rounded text-sm w-full sm:w-96 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
         <button
           onClick={handleSearch}
@@ -249,7 +249,7 @@ export default function CustomerPage() {
       </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center gap-2 px-6 py-2 bg-gray-50 border-b border-[var(--color-border)]">
+      <div className="flex flex-wrap items-center gap-2 px-4 sm:px-6 py-2 bg-gray-50 border-b border-[var(--color-border)]">
         <button
           onClick={handleNew}
           className="px-3 py-1.5 bg-[var(--color-primary)] text-white text-sm rounded hover:bg-[var(--color-primary-dark)] transition-colors"
@@ -281,13 +281,13 @@ export default function CustomerPage() {
 
       {/* Error */}
       {error && (
-        <div className="mx-6 mt-2 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+        <div className="mx-4 sm:mx-6 mt-2 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
           {error}
         </div>
       )}
 
       {/* Data Table */}
-      <div className="flex-1 overflow-auto px-6 py-2">
+      <div className="flex-1 overflow-auto px-4 sm:px-6 py-2">
         {loading ? (
           <div className="flex items-center justify-center h-40 text-sm text-gray-500">
             데이터를 불러오는 중...
@@ -297,6 +297,7 @@ export default function CustomerPage() {
             조회된 데이터가 없습니다.
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="data-table">
             <thead>
               <tr>
@@ -349,15 +350,16 @@ export default function CustomerPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
       {/* Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-2 sm:mx-4 max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
               <h2 className="text-lg font-bold">
                 {isEditing ? '거래처 수정' : '거래처 신규등록'}
               </h2>
@@ -370,8 +372,8 @@ export default function CustomerPage() {
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 sm:p-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">거래처명 *</label>
                   <input
@@ -395,7 +397,7 @@ export default function CustomerPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">대표자</label>
                   <input
@@ -484,7 +486,7 @@ export default function CustomerPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-gray-200 bg-gray-50">
+            <div className="flex items-center justify-end gap-2 px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-200 bg-gray-50">
               <button
                 onClick={() => setModalOpen(false)}
                 className="px-4 py-2 bg-white text-gray-700 text-sm rounded border border-gray-300 hover:bg-gray-100"

@@ -49,21 +49,21 @@ export default function DetailTableView({ schedules, onCardClick, canEdit }: Pro
   return (
     <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
       {/* 탭 + 필터 */}
-      <div className="px-5 py-3 border-b border-gray-100 space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="flex gap-1">
+      <div className="px-3 sm:px-5 py-3 border-b border-gray-100 space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex gap-1 flex-wrap">
             {[
               { value: 'all' as TabValue, label: '전체' },
               ...TRANSPORT_CATEGORIES.map(c => ({ value: c.value as TabValue, label: c.label })),
             ].map(t => (
               <button key={t.value} onClick={() => { setTab(t.value); setSubFilter(''); }}
-                className={`px-4 py-1.5 text-sm font-bold rounded-lg transition ${tab === t.value ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
+                className={`px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-bold rounded-lg transition ${tab === t.value ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
                 {t.label}
               </button>
             ))}
           </div>
           <button onClick={handleExport} disabled={filtered.length === 0}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition disabled:opacity-40">
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition disabled:opacity-40">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
             </svg>
@@ -148,7 +148,7 @@ export default function DetailTableView({ schedules, onCardClick, canEdit }: Pro
 
       {/* 하단 합계 */}
       {filtered.length > 0 && (
-        <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center gap-6 text-sm">
+        <div className="px-3 sm:px-5 py-3 bg-gray-50 border-t border-gray-100 flex flex-wrap items-center gap-3 sm:gap-6 text-xs sm:text-sm">
           <span className="text-gray-500">총 <strong className="text-gray-800">{filtered.length}</strong>건</span>
           <span className="text-gray-500">계획 <strong className="text-gray-800">{filtered.reduce((s, r) => s + Number(r.planned_quantity || 0), 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}</strong>t</span>
           <span className="text-gray-500">실적 <strong className="text-blue-600">{filtered.reduce((s, r) => s + Number(r.actual_quantity || 0), 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}</strong>t</span>

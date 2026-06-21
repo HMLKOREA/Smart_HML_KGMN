@@ -117,12 +117,12 @@ export default function ProductionDashboard() {
   }
 
   return (
-    <div className={`max-w-[1600px] space-y-5 ${monitorMode ? 'text-lg' : ''}`}>
+    <div className={`max-w-[1600px] space-y-3 sm:space-y-5 ${monitorMode ? 'text-base sm:text-lg' : ''}`}>
       {/* 헤더 바 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 sm:gap-3">
           {userRole === 'monitor' && (
-            <span className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-full ring-1 ring-blue-200">
+            <span className="px-2 sm:px-3 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-full ring-1 ring-blue-200">
               모니터링 모드
             </span>
           )}
@@ -130,22 +130,23 @@ export default function ProductionDashboard() {
             <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {canEdit && !monitorMode && (
             <button onClick={() => { setModalSchedule(null); setModalDefaultDate(localDateStr(new Date())); setModalOpen(true); }}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition shadow-sm">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              className="flex items-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition shadow-sm">
+              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
               </svg>
               일정 등록
             </button>
           )}
           <button onClick={() => setMonitorMode(!monitorMode)}
-            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition ${monitorMode ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg transition ${monitorMode ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25h-13.5A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0V12a2.25 2.25 0 0 1-2.25 2.25h-13.5A2.25 2.25 0 0 1 3 12V5.25" />
             </svg>
-            {monitorMode ? '모니터 모드 OFF' : '모니터 모드'}
+            <span className="hidden xs:inline">{monitorMode ? '모니터 모드 OFF' : '모니터 모드'}</span>
+            <span className="xs:hidden">{monitorMode ? 'OFF' : '모니터'}</span>
           </button>
         </div>
       </div>

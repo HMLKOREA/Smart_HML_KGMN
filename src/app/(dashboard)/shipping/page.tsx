@@ -125,6 +125,7 @@ export default function ShippingPage() {
   const [waitingPassword, setWaitingPassword] = useState('');
   const [waitingPasswordError, setWaitingPasswordError] = useState('');
   const [waitingCompanyName, setWaitingCompanyName] = useState('');
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
   // ── Date Range Calculation ──
   const getDateRange = useCallback(() => {
@@ -524,15 +525,30 @@ export default function ShippingPage() {
   if (isTransporter) return <AccessDenied />;
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 7.5rem)' }}>
+    <div style={{ display: 'flex', height: 'calc(100vh - 7.5rem)', position: 'relative' }}>
+      {/* ═══ Mobile Filter Overlay Backdrop ═══ */}
+      {mobileFilterOpen && (
+        <div
+          onClick={() => setMobileFilterOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 90,
+            backgroundColor: 'rgba(0,0,0,0.35)',
+          }}
+          className="md:hidden"
+        />
+      )}
+
       {/* ═══ Left Filter Panel ═══ */}
-      {!filterCollapsed && (
+      {/* On desktop: shown/hidden via filterCollapsed. On mobile: slide-in overlay */}
+      {(!filterCollapsed || mobileFilterOpen) && (
         <div style={{
           width: 210, minWidth: 210,
           borderRight: '1px solid #e5e7eb',
           backgroundColor: '#fff',
           display: 'flex', flexDirection: 'column', overflow: 'auto',
-        }}>
+        }}
+          className={mobileFilterOpen ? 'fixed top-0 bottom-0 left-0 z-[95] shadow-xl md:relative md:z-auto md:shadow-none' : ''}
+        >
           <div style={{
             padding: '9px 14px', borderBottom: '1px solid #e5e7eb',
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -545,7 +561,7 @@ export default function ShippingPage() {
               <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>조회 조건</span>
             </div>
             <button
-              onClick={() => setFilterCollapsed(true)}
+              onClick={() => { setFilterCollapsed(true); setMobileFilterOpen(false); }}
               style={{ fontSize: 12, color: '#94a3b8', cursor: 'pointer', background: 'none', border: 'none', fontWeight: 600 }}
             >
               접기 ◀
@@ -676,14 +692,27 @@ export default function ShippingPage() {
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '8px 16px', borderBottom: '1px solid #e5e7eb', backgroundColor: '#fff', gap: 8,
+          flexWrap: 'wrap',
         }}>
           {/* Left: Title + KPI chips */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flexShrink: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flexShrink: 1, flexWrap: 'wrap' }}>
+            {/* Mobile: filter toggle button (shown when panel is closed) */}
+            <button
+              onClick={() => setMobileFilterOpen(true)}
+              style={{
+                fontSize: 13, padding: '5px 10px', background: '#f1f5f9', border: '1px solid #cbd5e1',
+                borderRadius: 6, cursor: 'pointer', color: '#475569', fontWeight: 600, flexShrink: 0,
+              }}
+              className="flex md:hidden"
+            >
+              ☰ 필터
+            </button>
+            {/* Desktop: expand collapsed filter */}
             {filterCollapsed && (
               <button onClick={() => setFilterCollapsed(false)} style={{
                 fontSize: 13, padding: '5px 10px', background: '#f1f5f9', border: '1px solid #cbd5e1',
                 borderRadius: 6, cursor: 'pointer', color: '#475569', fontWeight: 600, flexShrink: 0,
-              }}>
+              }} className="hidden md:flex">
                 필터 ▶
               </button>
             )}
@@ -692,8 +721,8 @@ export default function ShippingPage() {
               <h1 style={{ fontSize: 16, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>출하 관리</h1>
             </div>
 
-            {/* KPI Chips */}
-            <div style={{ display: 'flex', gap: 5, flexShrink: 0, marginLeft: 4 }}>
+            {/* KPI Chips — hidden on mobile (<768px), show all on tablet+ */}
+            <div className="hidden sm:flex" style={{ gap: 5, flexShrink: 0, marginLeft: 4, display: 'flex' }}>
               {[
                 { label: '전체', value: allRows.length, unit: '건', bg: '#eff6ff', border: '#bfdbfe', color: '#1d4ed8', accent: '#3b82f6' },
                 { label: '출하', value: shippedCount, unit: '건', bg: '#f0fdf4', border: '#bbf7d0', color: '#15803d', accent: '#16a34a' },
@@ -712,8 +741,8 @@ export default function ShippingPage() {
             </div>
           </div>
 
-          {/* Right: Primary actions */}
-          <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+          {/* Right: Primary actions — wrap on mobile */}
+          <div style={{ display: 'flex', gap: 4, flexShrink: 0, flexWrap: 'wrap' }}>
             <button onClick={() => fetchData()} style={{
               fontSize: 13, padding: '6px 14px', borderRadius: 7, border: 'none', cursor: 'pointer', fontWeight: 600,
               background: '#2563eb', color: '#fff', display: 'flex', alignItems: 'center', gap: 5,
@@ -747,15 +776,15 @@ export default function ShippingPage() {
               fontSize: 13, padding: '6px 14px', borderRadius: 7, cursor: 'pointer', fontWeight: 600,
               background: '#fff', color: '#dc2626', border: '1px solid #fca5a5',
             }}>삭제</button>
-            <div style={{ width: 1, height: 22, background: '#e5e7eb', margin: '0 2px' }} />
+            <div style={{ width: 1, height: 22, background: '#e5e7eb', margin: '0 2px' }} className="hidden sm:block" />
             <button onClick={() => toast.info('엑셀 가져오기 기능은 준비 중입니다.')} style={{
               fontSize: 13, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontWeight: 500,
               background: '#fff', color: '#374151', border: '1px solid #d1d5db',
-            }}>엑셀가져오기</button>
+            }} className="hidden sm:block">엑셀가져오기</button>
             <button onClick={handleExcel} style={{
               fontSize: 13, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontWeight: 500,
               background: '#fff', color: '#374151', border: '1px solid #d1d5db',
-            }}>엑셀내보내기</button>
+            }} className="hidden sm:block">엑셀내보내기</button>
           </div>
         </div>
 
@@ -763,8 +792,9 @@ export default function ShippingPage() {
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '5px 16px', backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', gap: 4,
+          flexWrap: 'wrap',
         }}>
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
             <button onClick={toggleSelectAll} style={{
               fontSize: 13, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 600,
               background: '#fff', color: '#475569', border: '1px solid #cbd5e1',
@@ -838,7 +868,7 @@ export default function ShippingPage() {
         )}
 
         {/* ── Data Grid ── */}
-        <div style={{ flex: 1, overflow: 'auto' }}>
+        <div style={{ flex: 1, overflow: 'auto', overflowX: 'auto' }}>
           {loading ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: '#6b7280', fontSize: 13 }}>
               데이터를 불러오는 중...
@@ -906,16 +936,20 @@ export default function ShippingPage() {
         </div>
 
         {/* ── Bottom Summary Bar ── */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 0,
-          padding: '0 16px', borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc', height: 48,
-        }}>
+        {/* Desktop/tablet: horizontal flex row. Mobile: show compact 2-item summary */}
+        <div
+          className="hidden sm:flex"
+          style={{
+            alignItems: 'center', gap: 0,
+            padding: '0 16px', borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc', height: 48,
+          }}
+        >
           {[
-            { label: '총 건수', value: allRows.length, unit: '건', color: '#475569', bg: '#f1f5f9', borderColor: '#cbd5e1' },
-            { label: '출하완료', value: shippedCount, unit: '건', color: '#15803d', bg: '#f0fdf4', borderColor: '#86efac' },
-            { label: '출하대기', value: pendingCount, unit: '건', color: '#b45309', bg: '#fffbeb', borderColor: '#fcd34d' },
-            { label: '운송사', value: companyCount, unit: '개사', color: '#1d4ed8', bg: '#eff6ff', borderColor: '#93c5fd' },
-            { label: '계근합계', value: totalWeight.toFixed(2), unit: '톤', color: '#6d28d9', bg: '#f5f3ff', borderColor: '#a78bfa' },
+            { label: '총 건수', value: allRows.length, unit: '건', color: '#475569' },
+            { label: '출하완료', value: shippedCount, unit: '건', color: '#15803d' },
+            { label: '출하대기', value: pendingCount, unit: '건', color: '#b45309' },
+            { label: '운송사', value: companyCount, unit: '개사', color: '#1d4ed8' },
+            { label: '계근합계', value: totalWeight.toFixed(2), unit: '톤', color: '#6d28d9' },
           ].map((item, i) => (
             <div key={item.label} style={{
               flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -928,6 +962,19 @@ export default function ShippingPage() {
             </div>
           ))}
         </div>
+        {/* Mobile summary: compact single-line */}
+        <div
+          className="flex sm:hidden"
+          style={{
+            alignItems: 'center', justifyContent: 'space-around',
+            padding: '6px 12px', borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc',
+          }}
+        >
+          <span style={{ fontSize: 12, color: '#64748b' }}>총 <strong style={{ color: '#475569' }}>{allRows.length}</strong>건</span>
+          <span style={{ fontSize: 12, color: '#64748b' }}>출하 <strong style={{ color: '#15803d' }}>{shippedCount}</strong>건</span>
+          <span style={{ fontSize: 12, color: '#64748b' }}>대기 <strong style={{ color: '#b45309' }}>{pendingCount}</strong>건</span>
+          <span style={{ fontSize: 12, color: '#64748b' }}>계근 <strong style={{ color: '#6d28d9' }}>{totalWeight.toFixed(1)}</strong>톤</span>
+        </div>
       </div>
 
       {/* ═══ 배차통보 Popup ═══ */}
@@ -937,8 +984,8 @@ export default function ShippingPage() {
         const toNotify = selected.filter(d => !d.dispatch_notified);
         return (
           <div className="modal-overlay" style={{ zIndex: 150 }}>
-            <div className="modal-content" style={{ maxWidth: 720, margin: '20px auto', maxHeight: 'calc(100vh - 40px)' }}>
-              <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div className="modal-content" style={{ maxWidth: 720, margin: '10px auto', maxHeight: 'calc(100vh - 20px)', width: '95vw' }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }} className="sm:!p-[16px_24px]">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2}>
@@ -955,8 +1002,8 @@ export default function ShippingPage() {
                 </button>
               </div>
 
-              <div style={{ padding: '20px 24px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 20 }}>
+              <div style={{ padding: '16px 16px' }} className="sm:!p-[20px_24px]">
+                <div className="grid grid-cols-1 sm:grid-cols-3" style={{ gap: 12, marginBottom: 20 }}>
                   <div style={{ padding: '14px 16px', borderRadius: 10, background: '#eff6ff', border: '1px solid #bfdbfe' }}>
                     <div style={{ fontSize: 11, color: '#3b82f6', fontWeight: 600, marginBottom: 4 }}>선택 건수</div>
                     <div style={{ fontSize: 22, fontWeight: 800, color: '#1d4ed8' }}>{selected.length}<span style={{ fontSize: 13, fontWeight: 500 }}>건</span></div>
@@ -1010,7 +1057,7 @@ export default function ShippingPage() {
 
                 <div style={{ padding: '16px 20px', borderRadius: 10, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 12 }}>통보 방법 선택</div>
-                  <div style={{ display: 'flex', gap: 12 }}>
+                  <div className="flex flex-col sm:flex-row" style={{ gap: 12 }}>
                     <label style={{
                       flex: 1, display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 10, cursor: 'pointer',
                       border: notifyMethod === 'email' ? '2px solid #3b82f6' : '2px solid #e5e7eb',
@@ -1121,19 +1168,19 @@ export default function ShippingPage() {
                 {/* Header */}
                 <div style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '0 32px', height: 70, backgroundColor: '#1e293b', color: '#fff', flexShrink: 0,
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <svg style={{ width: 28, height: 28, color: '#38bdf8' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  padding: '0 16px', height: 60, backgroundColor: '#1e293b', color: '#fff', flexShrink: 0,
+                }} className="sm:!p-[0_32px] sm:!h-[70px]">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <svg style={{ width: 22, height: 22, color: '#38bdf8' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} className="hidden sm:block">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 0 0-.879-2.121l-2.246-2.245A2.999 2.999 0 0 0 16.875 9H14.25m0 0V5.625c0-.621-.504-1.125-1.125-1.125H5.25c-.621 0-1.125.504-1.125 1.125v12.249" />
                     </svg>
-                    <h2 style={{ fontSize: 22, fontWeight: 700 }}>출하증 대기화면</h2>
-                    <span style={{ fontSize: 14, color: '#94a3b8', marginLeft: 8 }}>운송사를 선택하세요</span>
+                    <h2 style={{ fontSize: 18, fontWeight: 700 }} className="sm:!text-[22px]">출하증 대기화면</h2>
+                    <span style={{ fontSize: 13, color: '#94a3b8' }} className="hidden sm:inline">운송사를 선택하세요</span>
                   </div>
                   <button
                     onClick={closeWaitingScreen}
                     style={{
-                      padding: '10px 24px', fontSize: 16, fontWeight: 600,
+                      padding: '8px 16px', fontSize: 14, fontWeight: 600,
                       backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: 8,
                       cursor: 'pointer',
                     }}
@@ -1145,12 +1192,15 @@ export default function ShippingPage() {
                 {/* Company Buttons Grid */}
                 <div style={{
                   flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  padding: '40px 60px',
-                }}>
-                  <div style={{
-                    display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20,
-                    width: '100%', maxWidth: 900,
-                  }}>
+                  padding: '20px 20px',
+                }} className="sm:!p-[40px_60px]">
+                  <div
+                    className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
+                    style={{
+                      gap: 16,
+                      width: '100%', maxWidth: 900,
+                    }}
+                  >
                     {sortedCompanies.map((company, idx) => {
                       const color = btnColors[idx % btnColors.length];
                       return (
@@ -1163,12 +1213,14 @@ export default function ShippingPage() {
                             setWaitingPassword('');
                             setWaitingPasswordError('');
                           }}
+                          className="py-6 sm:!py-9"
                           style={{
-                            padding: '36px 24px',
+                            padding: undefined,
+                            paddingLeft: 16, paddingRight: 16,
                             backgroundColor: color.bg,
                             border: `2px solid ${color.border}`,
                             borderRadius: 16,
-                            fontSize: 22, fontWeight: 700, color: '#1e293b',
+                            fontSize: 18, fontWeight: 700, color: '#1e293b',
                             cursor: 'pointer', textAlign: 'center',
                             transition: 'all 0.15s',
                           }}
@@ -1200,10 +1252,10 @@ export default function ShippingPage() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 <div style={{
-                  backgroundColor: '#fff', borderRadius: 20, padding: '40px 48px',
+                  backgroundColor: '#fff', borderRadius: 20, padding: '28px 24px',
                   boxShadow: '0 8px 32px rgba(0,0,0,0.2)', textAlign: 'center',
-                  minWidth: 380,
-                }}>
+                  width: '90vw', maxWidth: 420,
+                }} className="sm:!p-[40px_48px]">
                   <div style={{
                     width: 56, height: 56, borderRadius: '50%', backgroundColor: '#1e40af',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1294,17 +1346,17 @@ export default function ShippingPage() {
                 {/* Header */}
                 <div style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '0 32px', height: 70, backgroundColor: '#1e293b', color: '#fff', flexShrink: 0,
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <svg style={{ width: 28, height: 28, color: '#38bdf8' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  padding: '0 16px', height: 60, backgroundColor: '#1e293b', color: '#fff', flexShrink: 0,
+                }} className="sm:!p-[0_32px] sm:!h-[70px]">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <svg style={{ width: 22, height: 22, color: '#38bdf8' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} className="hidden sm:block">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 0 0-.879-2.121l-2.246-2.245A2.999 2.999 0 0 0 16.875 9H14.25m0 0V5.625c0-.621-.504-1.125-1.125-1.125H5.25c-.621 0-1.125.504-1.125 1.125v12.249" />
                     </svg>
-                    <h2 style={{ fontSize: 22, fontWeight: 700 }}>{waitingCompanyName}</h2>
-                    <span style={{ fontSize: 15, color: '#94a3b8', marginLeft: 4 }}>출하 대기 목록</span>
+                    <h2 style={{ fontSize: 18, fontWeight: 700 }} className="sm:!text-[22px]">{waitingCompanyName}</h2>
+                    <span style={{ fontSize: 13, color: '#94a3b8' }} className="hidden sm:inline">출하 대기 목록</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <span style={{ fontSize: 16, color: '#94a3b8' }}>{selectedDate}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 13, color: '#94a3b8' }} className="hidden sm:inline">{selectedDate}</span>
                     <button
                       onClick={() => {
                         setWaitingStep('select');
@@ -1313,12 +1365,12 @@ export default function ShippingPage() {
                         setWaitingPassword('');
                       }}
                       style={{
-                        padding: '10px 24px', fontSize: 16, fontWeight: 600,
+                        padding: '8px 16px', fontSize: 14, fontWeight: 600,
                         backgroundColor: '#475569', color: '#fff', border: 'none', borderRadius: 8,
                         cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
                       }}
                     >
-                      <svg style={{ width: 18, height: 18 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <svg style={{ width: 16, height: 16 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
                       </svg>
                       뒤로
@@ -1327,7 +1379,7 @@ export default function ShippingPage() {
                 </div>
 
                 {/* Data Table — 큰 폰트 */}
-                <div style={{ flex: 1, overflow: 'auto', padding: '20px 32px' }}>
+                <div style={{ flex: 1, overflow: 'auto', padding: '12px 12px' }} className="sm:!p-[20px_32px]">
                   {waitingRows.length === 0 ? (
                     <div style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'center',

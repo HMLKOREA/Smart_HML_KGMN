@@ -170,29 +170,29 @@ export default function DailyReportPage() {
   const dayName = dayNames[d.getDay()];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* 헤더 */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">일일 배차결과 보고</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">일일 배차결과 보고</h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-1">
             {selectedDate} ({dayName}) 출하 현황 요약
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <input
             type="date"
             value={selectedDate}
             onChange={e => setSelectedDate(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="flex-1 min-w-0 sm:flex-none px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
           <button
             onClick={sendTelegram}
             disabled={sending || !telegramStatus?.configured}
-            className="flex items-center gap-2 px-4 py-2 bg-[#0088cc] text-white rounded-lg text-sm font-medium hover:bg-[#006fa8] disabled:opacity-50 disabled:cursor-not-allowed transition"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-[#0088cc] text-white rounded-lg text-sm font-medium hover:bg-[#006fa8] disabled:opacity-50 disabled:cursor-not-allowed transition whitespace-nowrap"
             title={!telegramStatus?.configured ? '텔레그램 설정이 필요합니다 (.env.local)' : '텔레그램으로 보고 전송'}
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+            <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
               <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
             </svg>
             {sending ? '전송중...' : '텔레그램 전송'}
@@ -208,7 +208,7 @@ export default function DailyReportPage() {
       )}
 
       {/* 빠른 날짜 선택 (최근 7일) */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1">
         {weekDates.map(date => {
           const dd = new Date(date);
           const isSelected = date === selectedDate;
@@ -217,7 +217,7 @@ export default function DailyReportPage() {
             <button
               key={date}
               onClick={() => setSelectedDate(date)}
-              className={`flex-shrink-0 px-3 py-2 rounded-lg text-sm font-medium border transition
+              className={`flex-shrink-0 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium border transition
                 ${isSelected
                   ? 'bg-blue-600 text-white border-blue-600'
                   : isWeekend
@@ -247,7 +247,7 @@ export default function DailyReportPage() {
       ) : (
         <>
           {/* 요약 카드 */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <SummaryCard
               title="총 출하"
               value={`${report.summary.totalCount}건`}
@@ -279,9 +279,9 @@ export default function DailyReportPage() {
           </div>
 
           {/* 운송유형별 바 */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5">
             <h3 className="text-sm font-semibold text-gray-700 mb-3">운송유형별 현황</h3>
-            <div className="flex gap-4 flex-wrap">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {report.byTransportType.map(t => {
                 const pct = report!.summary.totalWeight > 0
                   ? Math.round((t.weight / report!.summary.totalWeight) * 100)
@@ -290,10 +290,10 @@ export default function DailyReportPage() {
                   '탱크': 'bg-blue-500', '덤프': 'bg-amber-500', '카고': 'bg-green-500',
                 };
                 return (
-                  <div key={t.name} className="flex-1 min-w-[120px]">
+                  <div key={t.name}>
                     <div className="flex justify-between text-sm mb-1">
                       <span className="font-medium text-gray-700">{t.name}</span>
-                      <span className="text-gray-500">{t.count}건 / {fmt(t.weight)}t</span>
+                      <span className="text-gray-500 text-xs sm:text-sm">{t.count}건 / {fmt(t.weight)}t</span>
                     </div>
                     <div className="w-full bg-gray-100 rounded-full h-3">
                       <div
@@ -309,8 +309,8 @@ export default function DailyReportPage() {
           </div>
 
           {/* 탭 선택 */}
-          <div className="border-b border-gray-200">
-            <div className="flex gap-1">
+          <div className="border-b border-gray-200 overflow-x-auto">
+            <div className="flex gap-0 min-w-max">
               {([
                 { key: 'company', label: '운송사별' },
                 { key: 'product', label: '제품별' },
@@ -320,7 +320,7 @@ export default function DailyReportPage() {
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`px-4 py-2.5 text-sm font-medium border-b-2 transition
+                  className={`px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-medium border-b-2 transition whitespace-nowrap
                     ${activeTab === tab.key
                       ? 'text-blue-600 border-blue-600'
                       : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'}
@@ -358,74 +358,76 @@ function SummaryCard({ title, value, sub, icon, color }: {
     amber: 'bg-amber-50 border-amber-100',
   };
   return (
-    <div className={`rounded-xl border p-4 ${colors[color]}`}>
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-xl">{icon}</span>
+    <div className={`rounded-xl border p-3 sm:p-4 ${colors[color]}`}>
+      <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
+        <span className="text-lg sm:text-xl">{icon}</span>
         <span className="text-xs font-medium text-gray-500 uppercase">{title}</span>
       </div>
-      <div className="text-2xl font-bold text-gray-900">{value}</div>
-      <div className="text-sm text-gray-500 mt-0.5">{sub}</div>
+      <div className="text-xl sm:text-2xl font-bold text-gray-900">{value}</div>
+      <div className="text-xs sm:text-sm text-gray-500 mt-0.5">{sub}</div>
     </div>
   );
 }
 
 function AggTable({ rows, total }: { rows: SummaryRow[]; total: { totalCount: number; totalWeight: number } }) {
   return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="bg-gray-50 border-b border-gray-200">
-          <th className="text-left px-4 py-3 font-semibold text-gray-600">구분</th>
-          <th className="text-right px-4 py-3 font-semibold text-gray-600">건수</th>
-          <th className="text-right px-4 py-3 font-semibold text-gray-600">중량(톤)</th>
-          <th className="text-right px-4 py-3 font-semibold text-gray-600 w-32">비중</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r, i) => {
-          const pct = total.totalWeight > 0 ? Math.round((r.weight / total.totalWeight) * 100) : 0;
-          return (
-            <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
-              <td className="px-4 py-3 font-medium text-gray-900">{r.name}</td>
-              <td className="px-4 py-3 text-right text-gray-600">{r.count}</td>
-              <td className="px-4 py-3 text-right font-medium text-gray-900">{fmt(r.weight)}</td>
-              <td className="px-4 py-3 text-right">
-                <div className="flex items-center justify-end gap-2">
-                  <div className="w-16 bg-gray-100 rounded-full h-2">
-                    <div className="h-2 rounded-full bg-blue-500" style={{ width: `${pct}%` }} />
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs sm:text-sm min-w-[400px]">
+        <thead>
+          <tr className="bg-gray-50 border-b border-gray-200">
+            <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 font-semibold text-gray-600">구분</th>
+            <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 font-semibold text-gray-600">건수</th>
+            <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 font-semibold text-gray-600">중량(톤)</th>
+            <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 font-semibold text-gray-600 w-24 sm:w-32">비중</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => {
+            const pct = total.totalWeight > 0 ? Math.round((r.weight / total.totalWeight) * 100) : 0;
+            return (
+              <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
+                <td className="px-3 sm:px-4 py-2 sm:py-3 font-medium text-gray-900">{r.name}</td>
+                <td className="px-3 sm:px-4 py-2 sm:py-3 text-right text-gray-600">{r.count}</td>
+                <td className="px-3 sm:px-4 py-2 sm:py-3 text-right font-medium text-gray-900">{fmt(r.weight)}</td>
+                <td className="px-3 sm:px-4 py-2 sm:py-3 text-right">
+                  <div className="flex items-center justify-end gap-1 sm:gap-2">
+                    <div className="w-12 sm:w-16 bg-gray-100 rounded-full h-2">
+                      <div className="h-2 rounded-full bg-blue-500" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-gray-500 w-7 sm:w-8 text-right">{pct}%</span>
                   </div>
-                  <span className="text-gray-500 w-8 text-right">{pct}%</span>
-                </div>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-      <tfoot>
-        <tr className="bg-gray-50 font-semibold">
-          <td className="px-4 py-3 text-gray-700">합계</td>
-          <td className="px-4 py-3 text-right text-gray-700">{total.totalCount}</td>
-          <td className="px-4 py-3 text-right text-gray-900">{fmt(total.totalWeight)}</td>
-          <td className="px-4 py-3 text-right text-gray-500">100%</td>
-        </tr>
-      </tfoot>
-    </table>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+        <tfoot>
+          <tr className="bg-gray-50 font-semibold">
+            <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700">합계</td>
+            <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right text-gray-700">{total.totalCount}</td>
+            <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right text-gray-900">{fmt(total.totalWeight)}</td>
+            <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right text-gray-500">100%</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
   );
 }
 
 function DetailTable({ rows }: { rows: ReportData['details'] }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="w-full text-xs sm:text-sm min-w-[600px]">
         <thead>
           <tr className="bg-gray-50 border-b border-gray-200">
-            <th className="text-left px-3 py-2.5 font-semibold text-gray-600">#</th>
-            <th className="text-left px-3 py-2.5 font-semibold text-gray-600">운송사</th>
-            <th className="text-left px-3 py-2.5 font-semibold text-gray-600">거래처</th>
-            <th className="text-left px-3 py-2.5 font-semibold text-gray-600">제품</th>
-            <th className="text-left px-3 py-2.5 font-semibold text-gray-600">차량</th>
-            <th className="text-left px-3 py-2.5 font-semibold text-gray-600">유형</th>
-            <th className="text-right px-3 py-2.5 font-semibold text-gray-600">중량</th>
-            <th className="text-center px-3 py-2.5 font-semibold text-gray-600">상태</th>
+            <th className="text-left px-2 sm:px-3 py-2 sm:py-2.5 font-semibold text-gray-600">#</th>
+            <th className="text-left px-2 sm:px-3 py-2 sm:py-2.5 font-semibold text-gray-600">운송사</th>
+            <th className="text-left px-2 sm:px-3 py-2 sm:py-2.5 font-semibold text-gray-600">거래처</th>
+            <th className="text-left px-2 sm:px-3 py-2 sm:py-2.5 font-semibold text-gray-600">제품</th>
+            <th className="text-left px-2 sm:px-3 py-2 sm:py-2.5 font-semibold text-gray-600">차량</th>
+            <th className="text-left px-2 sm:px-3 py-2 sm:py-2.5 font-semibold text-gray-600">유형</th>
+            <th className="text-right px-2 sm:px-3 py-2 sm:py-2.5 font-semibold text-gray-600">중량</th>
+            <th className="text-center px-2 sm:px-3 py-2 sm:py-2.5 font-semibold text-gray-600">상태</th>
           </tr>
         </thead>
         <tbody>
@@ -433,15 +435,15 @@ function DetailTable({ rows }: { rows: ReportData['details'] }) {
             const st = getStatusLabel(r.status);
             return (
               <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
-                <td className="px-3 py-2 text-gray-400">{i + 1}</td>
-                <td className="px-3 py-2 font-medium text-gray-800">{r.company}</td>
-                <td className="px-3 py-2 text-gray-700">{r.customer}</td>
-                <td className="px-3 py-2 text-gray-700">{r.product}</td>
-                <td className="px-3 py-2 text-gray-500 font-mono text-xs">{r.vehicle}</td>
-                <td className="px-3 py-2 text-gray-500">{r.type}</td>
-                <td className="px-3 py-2 text-right font-medium">{r.weight > 0 ? fmt(r.weight) : '-'}</td>
-                <td className="px-3 py-2 text-center">
-                  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>
+                <td className="px-2 sm:px-3 py-1.5 sm:py-2 text-gray-400">{i + 1}</td>
+                <td className="px-2 sm:px-3 py-1.5 sm:py-2 font-medium text-gray-800">{r.company}</td>
+                <td className="px-2 sm:px-3 py-1.5 sm:py-2 text-gray-700">{r.customer}</td>
+                <td className="px-2 sm:px-3 py-1.5 sm:py-2 text-gray-700">{r.product}</td>
+                <td className="px-2 sm:px-3 py-1.5 sm:py-2 text-gray-500 font-mono text-xs">{r.vehicle}</td>
+                <td className="px-2 sm:px-3 py-1.5 sm:py-2 text-gray-500">{r.type}</td>
+                <td className="px-2 sm:px-3 py-1.5 sm:py-2 text-right font-medium">{r.weight > 0 ? fmt(r.weight) : '-'}</td>
+                <td className="px-2 sm:px-3 py-1.5 sm:py-2 text-center">
+                  <span className={`inline-block px-1.5 sm:px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>
                     {st.label}
                   </span>
                 </td>

@@ -107,6 +107,15 @@ export default function DispatchPage() {
   const [periodTo, setPeriodTo] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [filterCompanyId, setFilterCompanyId] = useState('');
   const [filterCollapsed, setFilterCollapsed] = useState(false);
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+
+  // Auto-collapse filter on mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      if (window.innerWidth < 768) setFilterCollapsed(true);
+    };
+    checkMobile();
+  }, []);
 
   // ── Editing State ──
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -335,14 +344,30 @@ export default function DispatchPage() {
 
   // ── Render ──
   return (
-    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+    <div className="flex h-full overflow-hidden relative">
+
+      {/* ═══ Mobile Filter Overlay ═══ */}
+      {mobileFilterOpen && (
+        <div
+          className="fixed inset-0 z-40 md:hidden"
+          style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
+          onClick={() => setMobileFilterOpen(false)}
+        />
+      )}
 
       {/* ═══ Filter Panel (Left) ═══ */}
-      {!filterCollapsed && (
-        <div style={{
-          width: 220, flexShrink: 0, borderRight: '1px solid #e5e7eb',
-          backgroundColor: '#fff', display: 'flex', flexDirection: 'column', overflow: 'auto',
-        }}>
+      {/* Desktop: hidden when filterCollapsed; Mobile: slide-in overlay */}
+      {(!filterCollapsed || mobileFilterOpen) && (
+        <div
+          className={
+            mobileFilterOpen
+              ? 'fixed top-0 left-0 h-full z-50 md:hidden flex flex-col overflow-auto'
+              : 'hidden md:flex flex-col overflow-auto'
+          }
+          style={{
+            width: 220, flexShrink: 0, borderRight: '1px solid #e5e7eb',
+            backgroundColor: '#fff',
+          }}>
           {/* Filter Header */}
           <div style={{
             padding: '10px 12px',
@@ -356,7 +381,7 @@ export default function DispatchPage() {
               <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>조회 조건</span>
             </div>
             <button
-              onClick={() => setFilterCollapsed(true)}
+              onClick={() => { setFilterCollapsed(true); setMobileFilterOpen(false); }}
               style={{ fontSize: 12, color: '#94a3b8', cursor: 'pointer', background: 'none', border: 'none', fontWeight: 600 }}
             >접기 ◀</button>
           </div>
@@ -437,21 +462,31 @@ export default function DispatchPage() {
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '8px 16px', borderBottom: '1px solid #e5e7eb', backgroundColor: '#fff', gap: 8,
+          flexWrap: 'wrap',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flexShrink: 1 }}>
-            {filterCollapsed && (
-              <button onClick={() => setFilterCollapsed(false)} style={{
+            {/* Mobile: show filter toggle always; Desktop: show only when collapsed */}
+            <button
+              onClick={() => {
+                if (window.innerWidth < 768) {
+                  setMobileFilterOpen(true);
+                } else {
+                  setFilterCollapsed(false);
+                }
+              }}
+              className={filterCollapsed ? 'flex md:flex' : 'flex md:hidden'}
+              style={{
                 fontSize: 13, padding: '5px 10px', background: '#f1f5f9', border: '1px solid #cbd5e1',
                 borderRadius: 6, cursor: 'pointer', color: '#475569', fontWeight: 600,
-              }}>필터 ▶</button>
-            )}
+              }}
+            >필터 ▶</button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
               <div style={{ width: 4, height: 18, borderRadius: 2, background: '#d97706' }} />
               <h1 style={{ fontSize: 16, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>배차 관리</h1>
             </div>
 
-            {/* KPI */}
-            <div style={{ display: 'flex', gap: 5, flexShrink: 0, marginLeft: 4 }}>
+            {/* KPI — hidden on mobile, visible on tablet+ */}
+            <div className="hidden sm:flex" style={{ gap: 5, flexShrink: 0, marginLeft: 4 }}>
               {[
                 { label: '전체', value: data.length, unit: '건', bg: '#eff6ff', border: '#bfdbfe', color: '#1d4ed8', accent: '#3b82f6' },
                 { label: '배차', value: assignedCount, unit: '건', bg: '#f0fdf4', border: '#bbf7d0', color: '#15803d', accent: '#16a34a' },
@@ -471,7 +506,7 @@ export default function DispatchPage() {
           </div>
 
           {/* Actions */}
-          <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+          <div className="flex flex-wrap" style={{ gap: 5, flexShrink: 0 }}>
             <button onClick={() => fetchData()} style={{
               fontSize: 13, padding: '6px 14px', borderRadius: 7, border: 'none', cursor: 'pointer', fontWeight: 600,
               background: '#2563eb', color: '#fff', display: 'flex', alignItems: 'center', gap: 5,
@@ -495,7 +530,7 @@ export default function DispatchPage() {
         </div>
 
         {/* ── Data Grid ── */}
-        <div style={{ flex: 1, overflow: 'auto' }}>
+        <div style={{ flex: 1, overflow: 'auto', overflowX: 'auto' }}>
           {loading ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: '#6b7280', fontSize: 13 }}>
               데이터를 불러오는 중...
@@ -718,8 +753,8 @@ export default function DispatchPage() {
         </div>
 
         {/* ── Bottom Summary ── */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 0,
+        <div className="hidden sm:flex" style={{
+          alignItems: 'center', gap: 0,
           padding: '0 16px', borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc', height: 48,
         }}>
           {[
@@ -738,6 +773,18 @@ export default function DispatchPage() {
               <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>{item.unit}</span>
             </div>
           ))}
+        </div>
+
+        {/* ── Mobile-only compact summary ── */}
+        <div className="flex sm:hidden" style={{
+          padding: '6px 12px', borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc',
+          gap: 12, alignItems: 'center', flexWrap: 'wrap',
+        }}>
+          <span style={{ fontSize: 12, color: '#64748b' }}>
+            총 <strong style={{ color: '#1d4ed8' }}>{data.length}</strong>건 &nbsp;·&nbsp;
+            배차 <strong style={{ color: '#15803d' }}>{assignedCount}</strong>건 &nbsp;·&nbsp;
+            계근 <strong style={{ color: '#6d28d9' }}>{totalWeight.toFixed(1)}</strong>톤
+          </span>
         </div>
       </div>
     </div>

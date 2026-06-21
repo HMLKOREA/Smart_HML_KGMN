@@ -57,69 +57,71 @@ export default function WeeklyCalendarView({
   return (
     <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
       {/* 네비게이션 */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-3 sm:px-5 py-3 border-b border-gray-100">
+        <div className="flex items-center gap-1 sm:gap-2">
           <button onClick={onPrevWeek} className="p-1.5 rounded-lg hover:bg-gray-100 transition">
-            <svg className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
             </svg>
           </button>
-          <h3 className={`font-bold text-gray-800 ${monitorMode ? 'text-xl' : 'text-base'}`}>{weekLabel}</h3>
+          <h3 className={`font-bold text-gray-800 ${monitorMode ? 'text-base sm:text-xl' : 'text-sm sm:text-base'}`}>{weekLabel}</h3>
           <button onClick={onNextWeek} className="p-1.5 rounded-lg hover:bg-gray-100 transition">
-            <svg className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
             </svg>
           </button>
         </div>
-        <button onClick={onToday} className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition">
+        <button onClick={onToday} className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition">
           오늘
         </button>
       </div>
 
-      {/* 주간 그리드 */}
-      <div className="grid grid-cols-7 divide-x divide-gray-100">
-        {days.map(d => {
-          const dateStr = localDateStr(d);
-          const isToday = dateStr === todayDate;
-          const isSunday = d.getDay() === 0;
-          const isSaturday = d.getDay() === 6;
-          const items = byDate.get(dateStr) || [];
+      {/* 주간 그리드 - 모바일에서 가로 스크롤 */}
+      <div className="overflow-x-auto">
+        <div className="grid grid-cols-7 divide-x divide-gray-100 min-w-[560px]">
+          {days.map(d => {
+            const dateStr = localDateStr(d);
+            const isToday = dateStr === todayDate;
+            const isSunday = d.getDay() === 0;
+            const isSaturday = d.getDay() === 6;
+            const items = byDate.get(dateStr) || [];
 
-          return (
-            <div
-              key={dateStr}
-              className={`min-h-[200px] ${isToday ? 'bg-blue-50/40 ring-2 ring-inset ring-blue-300' : ''} ${monitorMode ? 'min-h-[300px]' : ''}`}
-            >
-              {/* 헤더 */}
-              <div className={`flex items-center justify-between px-2 py-2 border-b border-gray-50 ${isToday ? 'bg-blue-100/50' : ''}`}>
-                <div className="flex items-center gap-1.5">
-                  <span className={`text-xs font-bold ${isSunday ? 'text-red-500' : isSaturday ? 'text-blue-500' : 'text-gray-500'}`}>
-                    {DAY_LABELS[d.getDay()]}
-                  </span>
-                  <span className={`text-sm font-bold ${isToday ? 'bg-blue-600 text-white px-1.5 py-0.5 rounded-md' : 'text-gray-700'}`}>
-                    {d.getDate()}
-                  </span>
+            return (
+              <div
+                key={dateStr}
+                className={`min-h-[160px] sm:min-h-[200px] ${isToday ? 'bg-blue-50/40 ring-2 ring-inset ring-blue-300' : ''} ${monitorMode ? 'sm:min-h-[300px]' : ''}`}
+              >
+                {/* 헤더 */}
+                <div className={`flex items-center justify-between px-1.5 sm:px-2 py-1.5 sm:py-2 border-b border-gray-50 ${isToday ? 'bg-blue-100/50' : ''}`}>
+                  <div className="flex items-center gap-1 sm:gap-1.5">
+                    <span className={`text-[10px] sm:text-xs font-bold ${isSunday ? 'text-red-500' : isSaturday ? 'text-blue-500' : 'text-gray-500'}`}>
+                      {DAY_LABELS[d.getDay()]}
+                    </span>
+                    <span className={`text-xs sm:text-sm font-bold ${isToday ? 'bg-blue-600 text-white px-1 sm:px-1.5 py-0.5 rounded-md' : 'text-gray-700'}`}>
+                      {d.getDate()}
+                    </span>
+                  </div>
+                  {canEdit && !monitorMode && (
+                    <button
+                      onClick={() => onAddClick(dateStr)}
+                      className="w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition"
+                    >
+                      <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
-                {canEdit && !monitorMode && (
-                  <button
-                    onClick={() => onAddClick(dateStr)}
-                    className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                  </button>
-                )}
+                {/* 카드 목록 */}
+                <div className="p-1 sm:p-1.5 space-y-1">
+                  {items.map(s => (
+                    <ScheduleCard key={s.id} schedule={s} onClick={onCardClick} compact={monitorMode} />
+                  ))}
+                </div>
               </div>
-              {/* 카드 목록 */}
-              <div className="p-1.5 space-y-1">
-                {items.map(s => (
-                  <ScheduleCard key={s.id} schedule={s} onClick={onCardClick} compact={monitorMode} />
-                ))}
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );

@@ -115,23 +115,56 @@ export default function MultiCustomerPanel({
 
   return (
     <div className="modal-overlay" style={{ zIndex: 160 }}>
-      <div className="modal-content" style={{ maxWidth: 900, margin: '20px auto', maxHeight: 'calc(100vh - 40px)' }}>
+      {/* Modal container: full-screen on mobile, max-900px on larger screens */}
+      <div
+        className="modal-content"
+        style={{
+          maxWidth: 900,
+          width: '100%',
+          margin: '0 auto',
+          maxHeight: '100dvh',
+          borderRadius: 0,
+        }}
+        /* On sm+ screens add margin and rounded corners via a class override below */
+      >
+        <style>{`
+          @media (min-width: 640px) {
+            .multi-customer-modal {
+              margin: 20px auto !important;
+              max-height: calc(100vh - 40px) !important;
+              border-radius: 8px !important;
+            }
+          }
+        `}</style>
+        {/* Re-apply class for sm breakpoint overrides */}
+        <div
+          className="multi-customer-modal"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+            maxHeight: '100dvh',
+          }}
+        >
         {/* Header */}
         <div style={{
-          padding: '16px 24px',
+          padding: '12px 16px',
           borderBottom: '2px solid #2563eb',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           background: '#f8fafc',
+          flexShrink: 0,
+          gap: 8,
+          flexWrap: 'wrap',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 4, height: 20, borderRadius: 2, background: '#2563eb' }} />
-            <span style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>거래처 다중 등록</span>
+            <div style={{ width: 4, height: 20, borderRadius: 2, background: '#2563eb', flexShrink: 0 }} />
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>거래처 다중 등록</span>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button
               onClick={onClose}
               style={{
-                padding: '7px 20px', borderRadius: 6, border: '1px solid #d1d5db',
+                padding: '7px 16px', borderRadius: 6, border: '1px solid #d1d5db',
                 background: '#fff', color: '#374151', fontSize: 13, fontWeight: 600, cursor: 'pointer',
               }}
             >
@@ -141,7 +174,7 @@ export default function MultiCustomerPanel({
               onClick={handleRegister}
               disabled={selectedEntries.length === 0}
               style={{
-                padding: '7px 20px', borderRadius: 6, border: 'none',
+                padding: '7px 16px', borderRadius: 6, border: 'none',
                 background: selectedEntries.length === 0 ? '#94a3b8' : '#2563eb',
                 color: '#fff', fontSize: 13, fontWeight: 700, cursor: selectedEntries.length === 0 ? 'not-allowed' : 'pointer',
               }}
@@ -152,7 +185,11 @@ export default function MultiCustomerPanel({
         </div>
 
         {/* Date selector */}
-        <div style={{ padding: '12px 24px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{
+          padding: '10px 16px', borderBottom: '1px solid #e5e7eb',
+          display: 'flex', alignItems: 'center', gap: 10,
+          flexShrink: 0, flexWrap: 'wrap',
+        }}>
           <label style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>출하일자</label>
           <input
             type="date"
@@ -166,7 +203,7 @@ export default function MultiCustomerPanel({
               style={{
                 fontSize: 12, padding: '4px 12px', borderRadius: 5,
                 border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer',
-                color: '#6b7280', fontWeight: 600,
+                color: '#6b7280', fontWeight: 600, whiteSpace: 'nowrap',
               }}
             >
               {entries.every(e => e.selected) ? '전체해제' : '전체선택/해제'}
@@ -174,12 +211,12 @@ export default function MultiCustomerPanel({
           </div>
         </div>
 
-        {/* Table */}
-        <div style={{ overflow: 'auto', maxHeight: 'calc(100vh - 240px)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        {/* Table — horizontally scrollable on small screens */}
+        <div style={{ overflow: 'auto', flex: 1, minHeight: 0, WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ backgroundColor: '#f1f5f9' }}>
-                <th style={{ width: 40, padding: '10px 8px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#475569', borderBottom: '2px solid #cbd5e1' }}>
+                <th style={{ width: 36, padding: '9px 6px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#475569', borderBottom: '2px solid #cbd5e1' }}>
                   <input
                     type="checkbox"
                     checked={entries.length > 0 && entries.every(e => e.selected)}
@@ -187,13 +224,13 @@ export default function MultiCustomerPanel({
                     style={{ width: 16, height: 16, cursor: 'pointer' }}
                   />
                 </th>
-                <th style={{ width: 36, padding: '10px 8px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#475569', borderBottom: '2px solid #cbd5e1' }}>#</th>
-                <th style={{ width: 80, padding: '10px 12px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#475569', borderBottom: '2px solid #cbd5e1' }}>운송구분</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: '#475569', borderBottom: '2px solid #cbd5e1' }}>거래처</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: '#475569', borderBottom: '2px solid #cbd5e1' }}>제품명</th>
-                <th style={{ width: 90, padding: '10px 12px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#475569', borderBottom: '2px solid #cbd5e1' }}>거래처 코드</th>
-                <th style={{ width: 80, padding: '10px 12px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#475569', borderBottom: '2px solid #cbd5e1' }}>창고 코드</th>
-                <th style={{ width: 70, padding: '10px 12px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#475569', borderBottom: '2px solid #cbd5e1' }}>대수</th>
+                <th style={{ width: 30, padding: '9px 6px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#475569', borderBottom: '2px solid #cbd5e1' }}>#</th>
+                <th style={{ width: 72, padding: '9px 8px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#475569', borderBottom: '2px solid #cbd5e1' }}>운송구분</th>
+                <th style={{ padding: '9px 8px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: '#475569', borderBottom: '2px solid #cbd5e1' }}>거래처</th>
+                <th style={{ padding: '9px 8px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: '#475569', borderBottom: '2px solid #cbd5e1' }}>제품명</th>
+                <th style={{ width: 80, padding: '9px 8px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#475569', borderBottom: '2px solid #cbd5e1' }}>거래처 코드</th>
+                <th style={{ width: 70, padding: '9px 8px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#475569', borderBottom: '2px solid #cbd5e1' }}>창고 코드</th>
+                <th style={{ width: 64, padding: '9px 8px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#475569', borderBottom: '2px solid #cbd5e1' }}>대수</th>
               </tr>
             </thead>
             <tbody>
@@ -214,7 +251,7 @@ export default function MultiCustomerPanel({
                       transition: 'background-color 0.1s',
                     }}
                   >
-                    <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '8px 6px', textAlign: 'center', borderBottom: '1px solid #f1f5f9' }}>
                       <input
                         type="checkbox"
                         checked={entry.selected}
@@ -223,25 +260,25 @@ export default function MultiCustomerPanel({
                         style={{ width: 16, height: 16, cursor: 'pointer' }}
                       />
                     </td>
-                    <td style={{ padding: '8px', textAlign: 'center', fontSize: 13, color: '#6b7280', borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '8px 6px', textAlign: 'center', fontSize: 12, color: '#6b7280', borderBottom: '1px solid #f1f5f9' }}>
                       {idx + 1}
                     </td>
-                    <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: 13, color: '#374151', fontWeight: 500, borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '8px', textAlign: 'center', fontSize: 12, color: '#374151', fontWeight: 500, borderBottom: '1px solid #f1f5f9' }}>
                       {entry.transport_type}
                     </td>
-                    <td style={{ padding: '8px 12px', fontSize: 14, color: '#1d4ed8', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '8px', fontSize: 13, color: '#1d4ed8', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>
                       {entry.customer_name}
                     </td>
-                    <td style={{ padding: '8px 12px', fontSize: 13, color: '#374151', borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '8px', fontSize: 12, color: '#374151', borderBottom: '1px solid #f1f5f9' }}>
                       {entry.product_name}
                     </td>
-                    <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: 13, color: '#6b7280', borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '8px', textAlign: 'center', fontSize: 12, color: '#6b7280', borderBottom: '1px solid #f1f5f9' }}>
                       {entry.customer_code}
                     </td>
-                    <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: 13, color: '#6b7280', borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '8px', textAlign: 'center', fontSize: 12, color: '#6b7280', borderBottom: '1px solid #f1f5f9' }}>
                       {entry.silo}
                     </td>
-                    <td style={{ padding: '6px 8px', textAlign: 'center', borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 6px', textAlign: 'center', borderBottom: '1px solid #f1f5f9' }}>
                       <input
                         type="number"
                         min={1}
@@ -250,8 +287,8 @@ export default function MultiCustomerPanel({
                         onClick={e => e.stopPropagation()}
                         onChange={e => updateCount(idx, parseInt(e.target.value) || 1)}
                         style={{
-                          width: 50, textAlign: 'center', fontSize: 14, fontWeight: 700,
-                          padding: '4px 4px', border: '1px solid #d1d5db', borderRadius: 4,
+                          width: 46, textAlign: 'center', fontSize: 14, fontWeight: 700,
+                          padding: '4px 2px', border: '1px solid #d1d5db', borderRadius: 4,
                           outline: 'none', color: '#1e293b',
                         }}
                       />
@@ -265,9 +302,9 @@ export default function MultiCustomerPanel({
 
         {/* Footer summary */}
         <div style={{
-          padding: '12px 24px', borderTop: '2px solid #e5e7eb',
+          padding: '10px 16px', borderTop: '2px solid #e5e7eb',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          background: '#f8fafc',
+          background: '#f8fafc', flexShrink: 0, flexWrap: 'wrap', gap: 8,
         }}>
           <span style={{ fontSize: 13, color: '#6b7280' }}>
             선택: <strong style={{ color: '#1d4ed8' }}>{selectedEntries.length}</strong>개 거래처
@@ -275,6 +312,7 @@ export default function MultiCustomerPanel({
           <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>
             총 등록 건수: <span style={{ color: '#2563eb', fontSize: 16 }}>{totalCount}</span>건
           </span>
+        </div>
         </div>
       </div>
     </div>

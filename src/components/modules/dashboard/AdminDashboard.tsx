@@ -103,10 +103,10 @@ function renderPieLabel(props: any) {
 /* ── 섹션 헤더 컴포넌트 ── */
 function SectionHeader({ color, title, subtitle }: { color: string; title: string; subtitle?: string }) {
   return (
-    <div className="flex items-center gap-3 mb-3">
-      <div className={`w-1.5 h-7 rounded-full ${color}`} />
-      <h3 className="text-lg font-bold text-gray-800 tracking-tight">{title}</h3>
-      {subtitle && <span className="text-sm font-normal text-gray-400 bg-gray-50 px-2.5 py-0.5 rounded-full">{subtitle}</span>}
+    <div className="flex items-center gap-2 sm:gap-3 mb-3">
+      <div className={`w-1.5 h-6 sm:h-7 rounded-full ${color}`} />
+      <h3 className="text-base sm:text-lg font-bold text-gray-800 tracking-tight">{title}</h3>
+      {subtitle && <span className="text-xs sm:text-sm font-normal text-gray-400 bg-gray-50 px-2 sm:px-2.5 py-0.5 rounded-full">{subtitle}</span>}
     </div>
   );
 }
@@ -118,29 +118,29 @@ function ChartModeToggle({ mode, onChange }: { mode: ChartMode; onChange: (m: Ch
     <div className="inline-flex items-center bg-gray-100 rounded-xl p-1 gap-1">
       <button
         onClick={() => onChange('ton')}
-        className={`flex items-center gap-2 px-5 py-2.5 text-sm font-bold rounded-lg transition-all ${
+        className={`flex items-center gap-1 sm:gap-2 px-2.5 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold rounded-lg transition-all ${
           mode === 'ton'
             ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
             : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
         }`}
       >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0 0 12 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52 2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 0 1-2.031.352 5.988 5.988 0 0 1-2.031-.352c-.483-.174-.711-.703-.59-1.202L18.75 4.971Zm-16.5.52c.99-.203 1.99-.377 3-.52m0 0 2.62 10.726c.122.499-.106 1.028-.589 1.202a5.989 5.989 0 0 1-2.031.352 5.989 5.989 0 0 1-2.031-.352c-.483-.174-.711-.703-.59-1.202L5.25 4.971Z" />
         </svg>
-        출하량 (ton)
+        <span className="hidden xs:inline">출하량 </span>(ton)
       </button>
       <button
         onClick={() => onChange('count')}
-        className={`flex items-center gap-2 px-5 py-2.5 text-sm font-bold rounded-lg transition-all ${
+        className={`flex items-center gap-1 sm:gap-2 px-2.5 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold rounded-lg transition-all ${
           mode === 'count'
             ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
             : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
         }`}
       >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
         </svg>
-        차량대수 (건)
+        <span className="hidden xs:inline">차량대수 </span>(건)
       </button>
     </div>
   );
@@ -297,51 +297,51 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
   const inProgress = todayStats.total - todayStats.pending - todayStats.completed;
 
   return (
-    <div className="max-w-[1600px]">
+    <div className="max-w-[1600px] px-0">
 
       {/* ── 인사말 헤더 ── */}
-      <div className="bg-gradient-to-r from-slate-800 via-slate-700 to-blue-900 rounded-xl px-8 py-5 text-white shadow-lg">
-        <h2 className="text-xl font-bold tracking-tight">
+      <div className="bg-gradient-to-r from-slate-800 via-slate-700 to-blue-900 rounded-xl px-4 py-4 sm:px-8 sm:py-5 text-white shadow-lg">
+        <h2 className="text-base sm:text-xl font-bold tracking-tight">
           안녕하세요, <span className="text-blue-300">{userName}</span>님 👋
         </h2>
-        <p className="text-slate-300 text-sm mt-1.5">{today} 현재 시스템 현황을 확인하세요.</p>
+        <p className="text-slate-300 text-xs sm:text-sm mt-1 sm:mt-1.5">{today} 현재 시스템 현황을 확인하세요.</p>
       </div>
 
       {/* ── 역할별 배너 ── */}
       {userRole === 'monitor' && (
-        <div className="mt-4 px-5 py-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2">
-          <svg className="w-5 h-5 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <div className="mt-3 sm:mt-4 px-3 sm:px-5 py-2.5 sm:py-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2">
+          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
           </svg>
-          <span className="text-sm font-medium text-blue-800">모니터링 모드 - 조회 전용으로 시스템 현황을 확인합니다.</span>
+          <span className="text-xs sm:text-sm font-medium text-blue-800">모니터링 모드 - 조회 전용으로 시스템 현황을 확인합니다.</span>
         </div>
       )}
       {userRole === 'field' && (
-        <div className="mt-4 px-5 py-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2">
-          <svg className="w-5 h-5 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <div className="mt-3 sm:mt-4 px-3 sm:px-5 py-2.5 sm:py-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2">
+          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
           </svg>
-          <span className="text-sm font-medium text-emerald-800">현장 모드 - 오늘의 출하 및 계근 현황을 확인합니다.</span>
+          <span className="text-xs sm:text-sm font-medium text-emerald-800">현장 모드 - 오늘의 출하 및 계근 현황을 확인합니다.</span>
         </div>
       )}
 
       {/* ═══════ Section 1: 배차현황 ═══════ */}
-      <section className="mt-6">
+      <section className="mt-4 sm:mt-6">
         <SectionHeader color="bg-blue-500" title="배차현황" subtitle="오늘" />
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-3">
 
           {/* 오늘 출하 */}
-          <div className="bg-white rounded-2xl border border-gray-100 pl-5 pr-4 py-4 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5">
+          <div className="bg-white rounded-2xl border border-gray-100 pl-4 sm:pl-5 pr-3 sm:pr-4 py-3 sm:py-4 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5">
             <div className="flex items-center justify-between">
               <div style={{ paddingLeft: 3 }}>
-                <p className="text-sm font-semibold text-gray-400 tracking-wide">오늘 출하</p>
-                <p className="text-3xl font-extrabold text-gray-900 mt-2">
-                  {todayStats.total}<span className="text-base font-medium text-gray-400 ml-1">건</span>
+                <p className="text-xs sm:text-sm font-semibold text-gray-400 tracking-wide">오늘 출하</p>
+                <p className="text-2xl sm:text-3xl font-extrabold text-gray-900 mt-1.5 sm:mt-2">
+                  {todayStats.total}<span className="text-sm sm:text-base font-medium text-gray-400 ml-1">건</span>
                 </p>
               </div>
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 shrink-0">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 shrink-0">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
                 </svg>
               </div>
@@ -349,16 +349,16 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
           </div>
 
           {/* 대기중 */}
-          <div className="bg-white rounded-2xl border border-gray-100 pl-5 pr-4 py-4 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5">
+          <div className="bg-white rounded-2xl border border-gray-100 pl-4 sm:pl-5 pr-3 sm:pr-4 py-3 sm:py-4 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5">
             <div className="flex items-center justify-between">
               <div style={{ paddingLeft: 3 }}>
-                <p className="text-sm font-semibold text-gray-400 tracking-wide">대기중</p>
-                <p className="text-3xl font-extrabold text-amber-500 mt-2">
-                  {todayStats.pending}<span className="text-base font-medium text-gray-400 ml-1">건</span>
+                <p className="text-xs sm:text-sm font-semibold text-gray-400 tracking-wide">대기중</p>
+                <p className="text-2xl sm:text-3xl font-extrabold text-amber-500 mt-1.5 sm:mt-2">
+                  {todayStats.pending}<span className="text-sm sm:text-base font-medium text-gray-400 ml-1">건</span>
                 </p>
               </div>
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white shadow-md shadow-amber-500/20 shrink-0">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white shadow-md shadow-amber-500/20 shrink-0">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                 </svg>
               </div>
@@ -366,12 +366,12 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
           </div>
 
           {/* 완료 */}
-          <div className="bg-white rounded-2xl border border-gray-100 pl-5 pr-4 py-4 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5">
+          <div className="bg-white rounded-2xl border border-gray-100 pl-4 sm:pl-5 pr-3 sm:pr-4 py-3 sm:py-4 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5">
             <div className="flex items-center justify-between">
               <div style={{ paddingLeft: 3 }}>
-                <p className="text-sm font-semibold text-gray-400 tracking-wide">완료</p>
-                <p className="text-3xl font-extrabold text-emerald-500 mt-2">
-                  {todayStats.completed}<span className="text-base font-medium text-gray-400 ml-1">건</span>
+                <p className="text-xs sm:text-sm font-semibold text-gray-400 tracking-wide">완료</p>
+                <p className="text-2xl sm:text-3xl font-extrabold text-emerald-500 mt-1.5 sm:mt-2">
+                  {todayStats.completed}<span className="text-sm sm:text-base font-medium text-gray-400 ml-1">건</span>
                 </p>
                 {inProgress > 0 && (
                   <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1">
@@ -380,8 +380,8 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
                   </p>
                 )}
               </div>
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 shrink-0">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 shrink-0">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                 </svg>
               </div>
@@ -389,16 +389,16 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
           </div>
 
           {/* 금일 누적 정산금액 */}
-          <div className="bg-white rounded-2xl border border-gray-100 pl-5 pr-4 py-4 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5">
+          <div className="bg-white rounded-2xl border border-gray-100 pl-4 sm:pl-5 pr-3 sm:pr-4 py-3 sm:py-4 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5">
             <div className="flex items-center justify-between">
               <div style={{ paddingLeft: 3 }}>
-                <p className="text-sm font-semibold text-gray-400 tracking-wide">금일 정산</p>
-                <p className="text-3xl font-extrabold text-violet-600 mt-2">
-                  {todaySettlement.toLocaleString()}<span className="text-base font-medium text-gray-400 ml-1">원</span>
+                <p className="text-xs sm:text-sm font-semibold text-gray-400 tracking-wide">금일 정산</p>
+                <p className="text-xl sm:text-3xl font-extrabold text-violet-600 mt-1.5 sm:mt-2 break-all">
+                  {todaySettlement.toLocaleString()}<span className="text-sm sm:text-base font-medium text-gray-400 ml-1">원</span>
                 </p>
               </div>
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white shadow-md shadow-violet-500/20 shrink-0">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white shadow-md shadow-violet-500/20 shrink-0">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
                 </svg>
               </div>
@@ -409,45 +409,45 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
       </section>
 
       {/* ═══════ Section 2: 월간 분석 ═══════ */}
-      <section className="mt-8">
+      <section className="mt-6 sm:mt-8">
         <SectionHeader color="bg-emerald-500" title="월간 분석" subtitle={today.substring(0, 7)} />
 
         {/* KPI 카드 2개 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
-          <div className="bg-white rounded-xl border border-gray-100 px-6 py-5 relative overflow-hidden">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-3">
+          <div className="bg-white rounded-xl border border-gray-100 px-4 sm:px-6 py-4 sm:py-5 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-28 h-28 bg-blue-50 rounded-full -translate-y-10 translate-x-10 opacity-50" />
-            <p className="text-sm font-semibold text-gray-400 tracking-wider uppercase relative z-10" style={{ paddingLeft: 3 }}>월간 총 출하량</p>
-            <p className="text-2xl font-extrabold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mt-2 relative z-10" style={{ paddingLeft: 3 }}>
+            <p className="text-xs sm:text-sm font-semibold text-gray-400 tracking-wider uppercase relative z-10" style={{ paddingLeft: 3 }}>월간 총 출하량</p>
+            <p className="text-xl sm:text-2xl font-extrabold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mt-1.5 sm:mt-2 relative z-10" style={{ paddingLeft: 3 }}>
               {monthly.totalQuantity.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-              <span className="text-base font-semibold text-gray-400 ml-2">ton</span>
+              <span className="text-sm sm:text-base font-semibold text-gray-400 ml-2">ton</span>
             </p>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-100 px-6 py-5 relative overflow-hidden">
+          <div className="bg-white rounded-xl border border-gray-100 px-4 sm:px-6 py-4 sm:py-5 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-28 h-28 bg-emerald-50 rounded-full -translate-y-10 translate-x-10 opacity-50" />
-            <p className="text-sm font-semibold text-gray-400 tracking-wider uppercase relative z-10" style={{ paddingLeft: 3 }}>월간 정산 누적</p>
-            <p className="text-2xl font-extrabold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent mt-2 relative z-10" style={{ paddingLeft: 3 }}>
+            <p className="text-xs sm:text-sm font-semibold text-gray-400 tracking-wider uppercase relative z-10" style={{ paddingLeft: 3 }}>월간 정산 누적</p>
+            <p className="text-xl sm:text-2xl font-extrabold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent mt-1.5 sm:mt-2 relative z-10 break-all" style={{ paddingLeft: 3 }}>
               {monthly.settlementAmount.toLocaleString()}
-              <span className="text-base font-semibold text-gray-400 ml-2">원</span>
+              <span className="text-sm sm:text-base font-semibold text-gray-400 ml-2">원</span>
             </p>
-            <p className="text-xs text-gray-400 mt-2 relative z-10">
+            <p className="text-xs text-gray-400 mt-1.5 sm:mt-2 relative z-10">
               {monthStart} ~ {today} 누적
             </p>
           </div>
         </div>
 
         {/* 차트 영역 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mt-3 sm:mt-4">
           {/* 파이차트 */}
-          <div className="bg-white rounded-xl border border-gray-100 px-6 py-5">
-            <p className="text-sm font-bold text-gray-700 mb-4" style={{ paddingLeft: 3 }}>운송사별 운송량</p>
+          <div className="bg-white rounded-xl border border-gray-100 px-4 sm:px-6 py-4 sm:py-5">
+            <p className="text-sm font-bold text-gray-700 mb-3 sm:mb-4" style={{ paddingLeft: 3 }}>운송사별 운송량</p>
             {monthly.companyVolumes.length > 0 ? (
-              <ResponsiveContainer width="100%" height={260}>
+              <ResponsiveContainer width="100%" height={240}>
                 <PieChart>
                   <Pie
                     data={monthly.companyVolumes}
                     cx="50%" cy="50%"
-                    outerRadius={95} innerRadius={45}
+                    outerRadius={90} innerRadius={40}
                     paddingAngle={2}
                     dataKey="value"
                     label={renderPieLabel}
@@ -460,35 +460,35 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-[260px] text-gray-300 text-sm">
+              <div className="flex items-center justify-center h-[240px] text-gray-300 text-sm">
                 데이터가 없습니다
               </div>
             )}
           </div>
 
           {/* 막대차트 - 전환 가능 */}
-          <div className="bg-white rounded-xl border border-gray-100 px-6 py-5">
-            <div className="flex items-start justify-between mb-4 flex-wrap gap-2">
+          <div className="bg-white rounded-xl border border-gray-100 px-4 sm:px-6 py-4 sm:py-5">
+            <div className="flex items-start justify-between mb-3 sm:mb-4 flex-wrap gap-2">
               <div style={{ paddingLeft: 3 }}>
-                <p className="text-base font-bold text-gray-700">거래처별 출하 수량</p>
-                <p className="text-sm text-gray-400 mt-1.5">당월 vs 전월 비교</p>
+                <p className="text-sm sm:text-base font-bold text-gray-700">거래처별 출하 수량</p>
+                <p className="text-xs sm:text-sm text-gray-400 mt-1 sm:mt-1.5">당월 vs 전월 비교</p>
               </div>
               <ChartModeToggle mode={chartMode} onChange={setChartMode} />
             </div>
             {monthly.customerVolumes.length > 0 ? (
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={monthly.customerVolumes} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={monthly.customerVolumes} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#9CA3AF' }} interval={0} angle={-30} textAnchor="end" height={60} />
-                  <YAxis tick={{ fontSize: 11, fill: '#9CA3AF' }} />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#9CA3AF' }} interval={0} angle={-30} textAnchor="end" height={55} />
+                  <YAxis tick={{ fontSize: 10, fill: '#9CA3AF' }} width={40} />
                   <Tooltip content={<BarTooltip unit={barUnit} />} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Bar dataKey={barPrevKey} name="전월" fill="#E2E8F0" radius={[4, 4, 0, 0]} />
                   <Bar dataKey={barCurrentKey} name="당월" fill="#3B82F6" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-[260px] text-gray-300 text-sm">
+              <div className="flex items-center justify-center h-[240px] text-gray-300 text-sm">
                 데이터가 없습니다
               </div>
             )}
@@ -497,11 +497,11 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
       </section>
 
       {/* ═══════ Section 3: 최근 출하내역 ═══════ */}
-      <section className="mt-8">
+      <section className="mt-6 sm:mt-8">
         <SectionHeader color="bg-violet-500" title="최근 출하내역" subtitle="최근 10건" />
         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm mt-3">
-          <div className="overflow-x-auto">
-            <table className="data-table">
+          <div className="overflow-x-auto -mx-0">
+            <table className="data-table min-w-[640px] w-full">
               <thead>
                 <tr>
                   <th>출하일자</th>
@@ -554,7 +554,7 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
       </section>
 
       {/* 하단 여백 */}
-      <div className="h-10" />
+      <div className="h-6 sm:h-10" />
     </div>
   );
 }

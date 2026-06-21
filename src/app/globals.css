@@ -68,6 +68,16 @@ body {
   background-color: inherit;
 }
 
+@media (max-width: 640px) {
+  .data-table th { padding: 7px 8px; font-size: 11px; }
+  .data-table td { padding: 7px 8px; font-size: 13px; }
+}
+
+@media (min-width: 641px) and (max-width: 1023px) {
+  .data-table th { padding: 8px 10px; font-size: 12px; }
+  .data-table td { padding: 9px 10px; font-size: 14px; }
+}
+
 .data-table tbody tr {
   background-color: #ffffff;
   transition: background-color 0.1s;
@@ -218,6 +228,13 @@ body {
   max-height: 90vh;
   overflow-y: auto;
   width: 100%;
+  margin: 0 8px;
+}
+
+@media (min-width: 640px) {
+  .modal-content {
+    margin: 0 auto;
+  }
 }
 
 /* ── Toolbar ── */
@@ -240,4 +257,51 @@ body {
 @media print {
   .no-print { display: none !important; }
   body { background: white; }
+}
+
+/* ── Responsive Utilities ── */
+
+/* Search input: full-width on mobile, fixed 320px on sm+ */
+.search-input-responsive {
+  width: 100%;
+}
+@media (min-width: 640px) {
+  .search-input-responsive {
+    width: 320px;
+  }
+}
+
+/* Modal grid: 1 col on mobile, 2 cols on sm+ */
+.grid-cols-1-sm-2 {
+  grid-template-columns: 1fr;
+}
+@media (min-width: 640px) {
+  .grid-cols-1-sm-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Modal grid: 1 col on mobile, 2 cols on sm, 3 cols on md+ */
+.grid-cols-1-sm-2-md-3 {
+  grid-template-columns: 1fr;
+}
+@media (min-width: 640px) {
+  .grid-cols-1-sm-2-md-3 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (min-width: 768px) {
+  .grid-cols-1-sm-2-md-3 {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* Modal grid: 2 cols on mobile, 4 cols on sm+ */
+.grid-cols-2-sm-4 {
+  grid-template-columns: 1fr 1fr;
+}
+@media (min-width: 640px) {
+  .grid-cols-2-sm-4 {
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+  }
 }

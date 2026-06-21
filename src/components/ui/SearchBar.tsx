@@ -94,7 +94,7 @@ export function SearchBar({
           value={searchText}
           onChange={(e) => onSearchTextChange?.(e.target.value)}
           onKeyDown={handleKeyDown}
-          containerClassName="min-w-[200px]"
+          containerClassName="w-full sm:w-auto sm:min-w-[200px]"
           prefix={
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path

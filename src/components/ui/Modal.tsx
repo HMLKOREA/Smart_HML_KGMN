@@ -123,8 +123,8 @@ export function Modal({
       >
         {/* Header */}
         {title && (
-          <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-            <h2 id="modal-title" className="text-lg font-semibold text-gray-900">
+          <div className="flex items-center justify-between border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4">
+            <h2 id="modal-title" className="text-base sm:text-lg font-semibold text-gray-900">
               {title}
             </h2>
             <button
@@ -146,7 +146,7 @@ export function Modal({
         )}
 
         {/* Body */}
-        <div className="px-6 py-4 max-h-[70vh] overflow-y-auto">{children}</div>
+        <div className="px-4 sm:px-6 py-3 sm:py-4 max-h-[70vh] overflow-y-auto">{children}</div>
 
         {/* Footer */}
         {!hideFooter && (

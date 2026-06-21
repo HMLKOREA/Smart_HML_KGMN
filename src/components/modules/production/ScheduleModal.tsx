@@ -127,10 +127,10 @@ export default function ScheduleModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg mx-3 sm:mx-4 max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-bold text-gray-800">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100">
+          <h2 className="text-base sm:text-lg font-bold text-gray-800">
             {isNew ? '생산 일정 등록' : canEdit ? '생산 일정 수정' : '생산 일정 상세'}
           </h2>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100">
@@ -141,7 +141,7 @@ export default function ScheduleModal({
         </div>
 
         {/* Body */}
-        <div className="px-6 py-4 space-y-4">
+        <div className="px-4 sm:px-6 py-4 space-y-4">
           {error && <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
 
           {/* 날짜 */}
@@ -251,7 +251,7 @@ export default function ScheduleModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-xl">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-xl">
           <div>
             {!isNew && canDelete && (
               <button onClick={handleDelete} disabled={saving}

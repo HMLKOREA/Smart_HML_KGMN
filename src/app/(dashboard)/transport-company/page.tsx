@@ -289,45 +289,48 @@ export default function TransportCompanyPage() {
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
           onKeyDown={handleKeyDown}
+          className="search-input-responsive"
           style={{
             padding: '7px 12px', border: '1px solid #d1d5db', borderRadius: 6,
-            fontSize: 14, width: 320, outline: 'none',
+            fontSize: 14, outline: 'none', minWidth: 0,
           }}
         />
-        <button onClick={handleSearch} style={{
-          padding: '7px 16px', background: '#2563eb', color: '#fff',
-          fontSize: 13, fontWeight: 600, border: 'none', borderRadius: 6, cursor: 'pointer',
-        }}>조회</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={handleSearch} style={{
+            padding: '7px 16px', background: '#2563eb', color: '#fff',
+            fontSize: 13, fontWeight: 600, border: 'none', borderRadius: 6, cursor: 'pointer',
+          }}>조회</button>
 
-        <div style={{ width: 1, height: 24, background: '#e2e8f0', margin: '0 8px' }} />
+          <div style={{ width: 1, height: 24, background: '#e2e8f0', margin: '0 4px' }} />
 
-        {isAdmin && (
-          <>
-            <button onClick={handleNew} style={{
+          {isAdmin && (
+            <>
+              <button onClick={handleNew} style={{
+                padding: '7px 14px', background: '#2563eb', color: '#fff',
+                fontSize: 13, fontWeight: 600, border: 'none', borderRadius: 6, cursor: 'pointer',
+              }}>신규등록</button>
+              <button onClick={() => handleEdit()} style={{
+                padding: '7px 14px', background: '#fff', color: '#334155',
+                fontSize: 13, fontWeight: 600, border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer',
+              }}>수정</button>
+              <button onClick={handleDelete} style={{
+                padding: '7px 14px', background: '#fff', color: '#dc2626',
+                fontSize: 13, fontWeight: 600, border: '1px solid #fca5a5', borderRadius: 6, cursor: 'pointer',
+              }}>삭제</button>
+            </>
+          )}
+          {isTransporter && (
+            <button onClick={() => { if (data[0]) { setSelectedId(data[0].id); handleEdit(data[0].id); } }} style={{
               padding: '7px 14px', background: '#2563eb', color: '#fff',
               fontSize: 13, fontWeight: 600, border: 'none', borderRadius: 6, cursor: 'pointer',
-            }}>신규등록</button>
-            <button onClick={() => handleEdit()} style={{
-              padding: '7px 14px', background: '#fff', color: '#334155',
-              fontSize: 13, fontWeight: 600, border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer',
-            }}>수정</button>
-            <button onClick={handleDelete} style={{
-              padding: '7px 14px', background: '#fff', color: '#dc2626',
-              fontSize: 13, fontWeight: 600, border: '1px solid #fca5a5', borderRadius: 6, cursor: 'pointer',
-            }}>삭제</button>
-          </>
-        )}
-        {isTransporter && (
-          <button onClick={() => { if (data[0]) { setSelectedId(data[0].id); handleEdit(data[0].id); } }} style={{
-            padding: '7px 14px', background: '#2563eb', color: '#fff',
-            fontSize: 13, fontWeight: 600, border: 'none', borderRadius: 6, cursor: 'pointer',
-          }}>내 정보 수정</button>
-        )}
+            }}>내 정보 수정</button>
+          )}
 
-        <button onClick={handleExcel} style={{
-          padding: '7px 14px', background: '#16a34a', color: '#fff',
-          fontSize: 13, fontWeight: 600, border: 'none', borderRadius: 6, cursor: 'pointer', marginLeft: 'auto',
-        }}>엑셀</button>
+          <button onClick={handleExcel} style={{
+            padding: '7px 14px', background: '#16a34a', color: '#fff',
+            fontSize: 13, fontWeight: 600, border: 'none', borderRadius: 6, cursor: 'pointer',
+          }}>엑셀</button>
+        </div>
       </div>
 
       {/* ── 에러 ── */}
@@ -477,7 +480,7 @@ export default function TransportCompanyPage() {
       {/* ── 모달 ── */}
       {modalOpen && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }}>
-          <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 680, margin: '0 16px', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+          <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 'min(680px, calc(100vw - 32px))', margin: '0 16px', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
             {/* 모달 헤더 */}
             <div style={{
               padding: '16px 24px', borderBottom: '1px solid #e2e8f0',
@@ -505,7 +508,7 @@ export default function TransportCompanyPage() {
                   </svg>
                   로그인 정보
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="grid-cols-1-sm-2" style={{ display: 'grid', gap: 12 }}>
                   <div>
                     <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
                       로그인 ID {isTransporter && <span style={{ color: '#94a3b8', fontWeight: 400 }}>(변경 불가)</span>}
@@ -538,7 +541,7 @@ export default function TransportCompanyPage() {
               </div>
 
               {/* ── 기본 정보 ── */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="grid-cols-1-sm-2" style={{ display: 'grid', gap: 12 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 5 }}>운송사명 *</label>
                   <input type="text" value={formData.name}
@@ -556,7 +559,7 @@ export default function TransportCompanyPage() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <div className="grid-cols-1-sm-2-md-3" style={{ display: 'grid', gap: 12 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 5 }}>대표자</label>
                   <input type="text" value={formData.representative}
@@ -596,7 +599,7 @@ export default function TransportCompanyPage() {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
+              <div className="grid-cols-2-sm-4" style={{ display: 'grid', gap: 12 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 5 }}>기본차량종류</label>
                   <select value={formData.default_vehicle_type}
@@ -632,7 +635,7 @@ export default function TransportCompanyPage() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <div className="grid-cols-1-sm-2-md-3" style={{ display: 'grid', gap: 12 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 5 }}>은행명</label>
                   <input type="text" value={formData.bank_name}

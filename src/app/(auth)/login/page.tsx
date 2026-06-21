@@ -58,8 +58,8 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-200 via-stone-200 to-slate-300">
 
       {/* ─── Centered Card (6:4 ratio) ─── */}
-      <div className="w-full max-w-[920px] mx-6 flex rounded-2xl overflow-hidden shadow-2xl shadow-slate-500/25"
-           style={{ minHeight: '520px', maxHeight: '600px' }}>
+      <div className="w-full max-w-[920px] mx-4 sm:mx-6 flex rounded-2xl overflow-hidden shadow-2xl shadow-slate-500/25"
+           style={{ minHeight: '480px' }}>
 
         {/* ── Left: Branding Panel ── */}
         <div className="hidden md:flex w-[54%] relative overflow-hidden">
@@ -111,8 +111,8 @@ export default function LoginPage() {
         </div>
 
         {/* ── Right: Login Form Panel ── */}
-        <div className="flex-1 bg-white flex flex-col items-center justify-center" style={{ padding: '40px 24px' }}>
-          <div style={{ width: '100%', maxWidth: 300 }}>
+        <div className="flex-1 bg-white flex flex-col items-center justify-center px-5 py-8 sm:px-6 sm:py-10">
+          <div className="w-full max-w-[300px]">
 
             {/* Logo & Title */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: 32 }}>

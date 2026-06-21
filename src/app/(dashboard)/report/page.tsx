@@ -311,25 +311,25 @@ export default function ReportPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Page Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)] bg-white">
-        <h1 className="text-xl font-bold text-[var(--color-text)]">성적서관리</h1>
+      <div className="flex items-center justify-between px-3 sm:px-6 py-4 border-b border-[var(--color-border)] bg-white">
+        <h1 className="text-lg sm:text-xl font-bold text-[var(--color-text)]">성적서관리</h1>
       </div>
 
       {/* Search Bar */}
-      <div className="flex flex-wrap items-center gap-2 px-6 py-3 bg-white border-b border-[var(--color-border)]">
+      <div className="flex flex-wrap items-center gap-2 px-3 sm:px-6 py-3 bg-white border-b border-[var(--color-border)]">
         <label className="text-sm font-medium text-[var(--color-text-secondary)]">기간</label>
         <input
           type="date"
           value={dateFrom}
           onChange={(e) => setDateFrom(e.target.value)}
-          className="px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-0"
         />
         <span className="text-sm text-gray-400">~</span>
         <input
           type="date"
           value={dateTo}
           onChange={(e) => setDateTo(e.target.value)}
-          className="px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-0"
         />
         <input
           type="text"
@@ -337,69 +337,69 @@ export default function ReportPage() {
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="px-3 py-1.5 border border-gray-300 rounded text-sm w-72 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="px-3 py-1.5 border border-gray-300 rounded text-sm w-full sm:w-64 md:w-72 focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-0"
         />
         <button
           onClick={handleSearch}
-          className="px-4 py-1.5 bg-[var(--color-primary)] text-white text-sm rounded hover:bg-[var(--color-primary-dark)] transition-colors"
+          className="px-4 py-1.5 bg-[var(--color-primary)] text-white text-sm rounded hover:bg-[var(--color-primary-dark)] transition-colors whitespace-nowrap"
         >
           조회
         </button>
       </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center gap-2 px-6 py-2 bg-gray-50 border-b border-[var(--color-border)]">
+      <div className="flex flex-wrap items-center gap-2 px-3 sm:px-6 py-2 bg-gray-50 border-b border-[var(--color-border)]">
         <button
           onClick={handleNew}
-          className="px-3 py-1.5 bg-[var(--color-primary)] text-white text-sm rounded hover:bg-[var(--color-primary-dark)] transition-colors"
+          className="px-3 py-1.5 bg-[var(--color-primary)] text-white text-sm rounded hover:bg-[var(--color-primary-dark)] transition-colors whitespace-nowrap"
         >
           신규등록
         </button>
         <button
           onClick={() => handleEdit()}
-          className="px-3 py-1.5 bg-white text-[var(--color-text)] text-sm rounded border border-gray-300 hover:bg-gray-100 transition-colors"
+          className="px-3 py-1.5 bg-white text-[var(--color-text)] text-sm rounded border border-gray-300 hover:bg-gray-100 transition-colors whitespace-nowrap"
         >
           수정
         </button>
         <button
           onClick={handleDelete}
-          className="px-3 py-1.5 bg-white text-[var(--color-danger)] text-sm rounded border border-red-300 hover:bg-red-50 transition-colors"
+          className="px-3 py-1.5 bg-white text-[var(--color-danger)] text-sm rounded border border-red-300 hover:bg-red-50 transition-colors whitespace-nowrap"
         >
           삭제
         </button>
-        <div className="w-px h-5 bg-gray-300 mx-1" />
+        <div className="w-px h-5 bg-gray-300 mx-1 hidden sm:block" />
         <button
           onClick={handleApprove}
-          className="px-3 py-1.5 bg-[var(--color-info)] text-white text-sm rounded hover:opacity-90 transition-colors"
+          className="px-3 py-1.5 bg-[var(--color-info)] text-white text-sm rounded hover:opacity-90 transition-colors whitespace-nowrap"
         >
           승인
         </button>
         <button
           onClick={handlePrint}
-          className="px-3 py-1.5 bg-white text-[var(--color-text)] text-sm rounded border border-gray-300 hover:bg-gray-100 transition-colors"
+          className="px-3 py-1.5 bg-white text-[var(--color-text)] text-sm rounded border border-gray-300 hover:bg-gray-100 transition-colors whitespace-nowrap"
         >
           성적서 출력
         </button>
         <button
           onClick={handleExcel}
-          className="px-3 py-1.5 bg-[var(--color-secondary)] text-white text-sm rounded hover:opacity-90 transition-colors"
+          className="px-3 py-1.5 bg-[var(--color-secondary)] text-white text-sm rounded hover:opacity-90 transition-colors whitespace-nowrap"
         >
           엑셀
         </button>
-        <span className="ml-auto text-sm text-[var(--color-text-secondary)]">
+        <span className="ml-auto text-sm text-[var(--color-text-secondary)] whitespace-nowrap">
           총 {data.length}건
         </span>
       </div>
 
       {/* Error */}
       {error && (
-        <div className="mx-6 mt-2 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+        <div className="mx-3 sm:mx-6 mt-2 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
           {error}
         </div>
       )}
 
       {/* Data Table */}
-      <div className="flex-1 overflow-auto px-6 py-2">
+      <div className="flex-1 overflow-auto px-3 sm:px-6 py-2">
         {loading ? (
           <div className="flex items-center justify-center h-40 text-sm text-gray-500">
             데이터를 불러오는 중...
@@ -409,48 +409,50 @@ export default function ReportPage() {
             조회된 데이터가 없습니다.
           </div>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>성적서번호</th>
-                <th>발행일자</th>
-                <th>제품명</th>
-                <th>거래처</th>
-                <th>템플릿</th>
-                <th>검사자</th>
-                <th>승인자</th>
-                <th>상태</th>
-                <th>비고</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((row) => (
-                <tr
-                  key={row.id}
-                  className={`cursor-pointer ${selectedId === row.id ? 'selected' : ''}`}
-                  onClick={() => setSelectedId(row.id)}
-                  onDoubleClick={() => {
-                    setSelectedId(row.id);
-                    handleEdit(row.id);
-                  }}
-                >
-                  <td className="font-mono text-xs">{row.report_number}</td>
-                  <td>{row.report_date}</td>
-                  <td>{row.product_name}</td>
-                  <td>{row.customer_name}</td>
-                  <td>템플릿 {row.template_type}</td>
-                  <td>{row.inspector}</td>
-                  <td>{row.approved_by}</td>
-                  <td>
-                    <span className={`badge badge-${row.status}`}>
-                      {STATUS_MAP[row.status] || row.status}
-                    </span>
-                  </td>
-                  <td className="max-w-[150px] truncate">{row.memo}</td>
+          <div className="overflow-x-auto">
+            <table className="data-table min-w-[700px] w-full">
+              <thead>
+                <tr>
+                  <th className="whitespace-nowrap">성적서번호</th>
+                  <th className="whitespace-nowrap">발행일자</th>
+                  <th className="whitespace-nowrap">제품명</th>
+                  <th className="whitespace-nowrap">거래처</th>
+                  <th className="whitespace-nowrap hidden sm:table-cell">템플릿</th>
+                  <th className="whitespace-nowrap hidden md:table-cell">검사자</th>
+                  <th className="whitespace-nowrap hidden md:table-cell">승인자</th>
+                  <th className="whitespace-nowrap">상태</th>
+                  <th className="whitespace-nowrap hidden lg:table-cell">비고</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {data.map((row) => (
+                  <tr
+                    key={row.id}
+                    className={`cursor-pointer ${selectedId === row.id ? 'selected' : ''}`}
+                    onClick={() => setSelectedId(row.id)}
+                    onDoubleClick={() => {
+                      setSelectedId(row.id);
+                      handleEdit(row.id);
+                    }}
+                  >
+                    <td className="font-mono text-xs whitespace-nowrap">{row.report_number}</td>
+                    <td className="whitespace-nowrap">{row.report_date}</td>
+                    <td className="max-w-[120px] sm:max-w-none truncate">{row.product_name}</td>
+                    <td className="max-w-[100px] sm:max-w-none truncate">{row.customer_name}</td>
+                    <td className="hidden sm:table-cell">템플릿 {row.template_type}</td>
+                    <td className="hidden md:table-cell">{row.inspector}</td>
+                    <td className="hidden md:table-cell">{row.approved_by}</td>
+                    <td>
+                      <span className={`badge badge-${row.status}`}>
+                        {STATUS_MAP[row.status] || row.status}
+                      </span>
+                    </td>
+                    <td className="max-w-[150px] truncate hidden lg:table-cell">{row.memo}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
@@ -480,11 +482,11 @@ export default function ReportPage() {
 
       {/* Modal */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-bold">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200">
+              <h2 className="text-base sm:text-lg font-bold">
                 {isEditing ? '성적서 수정' : '성적서 신규등록'}
               </h2>
               <button
@@ -496,9 +498,9 @@ export default function ReportPage() {
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 space-y-4">
+            <div className="p-4 sm:p-6 space-y-4">
               {/* Row 1 */}
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     발행일자 *
@@ -543,7 +545,7 @@ export default function ReportPage() {
               </div>
 
               {/* Row 2 */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">제품</label>
                   <select
@@ -577,7 +579,7 @@ export default function ReportPage() {
               </div>
 
               {/* Row 3 */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">검사자</label>
                   <input
@@ -607,7 +609,7 @@ export default function ReportPage() {
                   value={formData.test_results}
                   onChange={(e) => setFormData({ ...formData, test_results: e.target.value })}
                   rows={6}
-                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-xs sm:text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
                   placeholder='{"항목1": "결과값", "항목2": "결과값"}'
                 />
               </div>
@@ -625,7 +627,7 @@ export default function ReportPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-gray-200 bg-gray-50">
+            <div className="flex items-center justify-end gap-2 px-4 sm:px-6 py-4 border-t border-gray-200 bg-gray-50">
               <button
                 onClick={() => setModalOpen(false)}
                 className="px-4 py-2 bg-white text-gray-700 text-sm rounded border border-gray-300 hover:bg-gray-100"

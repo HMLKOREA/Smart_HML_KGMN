@@ -231,19 +231,19 @@ export default function DriverPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Page Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)] bg-white">
-        <h1 className="text-xl font-bold text-[var(--color-text)]">기사관리</h1>
+      <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-[var(--color-border)] bg-white">
+        <h1 className="text-lg sm:text-xl font-bold text-[var(--color-text)]">기사관리</h1>
       </div>
 
       {/* Search Bar */}
-      <div className="flex flex-wrap items-center gap-2 px-6 py-3 bg-white border-b border-[var(--color-border)]">
+      <div className="flex flex-wrap items-center gap-2 px-4 sm:px-6 py-3 bg-white border-b border-[var(--color-border)]">
         <input
           type="text"
           placeholder="기사명, 전화번호, 차량번호, 운송사, 면허번호 검색"
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="px-3 py-1.5 border border-gray-300 rounded text-sm w-96 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="px-3 py-1.5 border border-gray-300 rounded text-sm w-full sm:w-80 md:w-96 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
         <button
           onClick={handleSearch}
@@ -257,7 +257,7 @@ export default function DriverPage() {
       {isTransporter && <ReadOnlyBanner message="운송사 계정은 기사 정보를 수정할 수 없습니다." />}
 
       {/* Action Buttons */}
-      <div className="flex items-center gap-2 px-6 py-2 bg-gray-50 border-b border-[var(--color-border)]">
+      <div className="flex flex-wrap items-center gap-2 px-4 sm:px-6 py-2 bg-gray-50 border-b border-[var(--color-border)]">
         {!isTransporter && (
           <>
             <button
@@ -293,13 +293,13 @@ export default function DriverPage() {
 
       {/* Error */}
       {error && (
-        <div className="mx-6 mt-2 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+        <div className="mx-4 sm:mx-6 mt-2 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
           {error}
         </div>
       )}
 
       {/* Data Table */}
-      <div className="flex-1 overflow-auto px-6 py-2">
+      <div className="flex-1 overflow-auto px-4 sm:px-6 py-2">
         {loading ? (
           <div className="flex items-center justify-center h-40 text-sm text-gray-500">
             데이터를 불러오는 중...
@@ -309,6 +309,7 @@ export default function DriverPage() {
             조회된 데이터가 없습니다.
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="data-table">
             <thead>
               <tr>
@@ -355,16 +356,17 @@ export default function DriverPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
       {/* Modal */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-2 sm:px-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-bold">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+              <h2 className="text-base sm:text-lg font-bold">
                 {isEditing ? '기사 수정' : '기사 신규등록'}
               </h2>
               <button
@@ -376,8 +378,8 @@ export default function DriverPage() {
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 sm:p-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">기사명 *</label>
                   <input
@@ -399,7 +401,7 @@ export default function DriverPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     차량번호 *
@@ -445,7 +447,7 @@ export default function DriverPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">운송사</label>
                   <select
@@ -499,7 +501,7 @@ export default function DriverPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-gray-200 bg-gray-50">
+            <div className="flex items-center justify-end gap-2 px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-200 bg-gray-50">
               <button
                 onClick={() => setModalOpen(false)}
                 className="px-4 py-2 bg-white text-gray-700 text-sm rounded border border-gray-300 hover:bg-gray-100"

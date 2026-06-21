@@ -126,7 +126,8 @@ function getWorkflowStatus(row: Shipment): { label: string; bg: string; color: s
   return { label: '입력중', bg: '#f3f4f6', color: '#6b7280' };
 }
 
-const cellPad = '6px 8px';
+// Responsive padding: compact on mobile (tight screens), normal on desktop
+const cellPad = 'clamp(4px, 1vw, 8px) clamp(4px, 1vw, 8px)';
 const inputStyle: React.CSSProperties = {
   width: '100%',
   fontSize: 12,
@@ -205,7 +206,7 @@ export default function InlineShipmentRow({
     return (
       <tr
         ref={rowRef}
-        style={{ cursor: 'pointer', backgroundColor: bgColor }}
+        style={{ cursor: 'pointer', backgroundColor: bgColor, touchAction: 'manipulation' }}
         onClick={() => onToggleSelect(row.id)}
         onDoubleClick={() => { if (!isLocked) onStartEdit(row.id); }}
       >
@@ -282,7 +283,7 @@ export default function InlineShipmentRow({
   return (
     <tr
       ref={rowRef}
-      style={{ backgroundColor: bgEdit, borderLeft }}
+      style={{ backgroundColor: bgEdit, borderLeft, touchAction: 'manipulation' }}
       onKeyDown={handleKeyDown}
     >
       <td style={{ textAlign: 'center', padding: cellPad }}>

@@ -204,14 +204,14 @@ export default function ProductCodePage() {
       </div>
 
       {/* Search Bar */}
-      <div className="flex flex-wrap items-center gap-2 px-6 py-3 bg-white border-b border-[var(--color-border)]">
+      <div className="flex flex-wrap items-center gap-2 px-4 sm:px-6 py-3 bg-white border-b border-[var(--color-border)]">
         <input
           type="text"
           placeholder="제품코드, 제품명, 규격, 분류 검색"
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="px-3 py-1.5 border border-gray-300 rounded text-sm w-80 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="px-3 py-1.5 border border-gray-300 rounded text-sm w-full sm:w-64 md:w-80 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
         <button
           onClick={handleSearch}
@@ -222,7 +222,7 @@ export default function ProductCodePage() {
       </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center gap-2 px-6 py-2 bg-gray-50 border-b border-[var(--color-border)]">
+      <div className="flex flex-wrap items-center gap-2 px-4 sm:px-6 py-2 bg-gray-50 border-b border-[var(--color-border)]">
         <button
           onClick={handleNew}
           className="px-3 py-1.5 bg-[var(--color-primary)] text-white text-sm rounded hover:bg-[var(--color-primary-dark)] transition-colors"
@@ -260,7 +260,7 @@ export default function ProductCodePage() {
       )}
 
       {/* Data Table */}
-      <div className="flex-1 overflow-auto px-6 py-2">
+      <div className="flex-1 overflow-auto px-2 sm:px-4 md:px-6 py-2">
         {loading ? (
           <div className="flex items-center justify-center h-40 text-sm text-gray-500">
             데이터를 불러오는 중...
@@ -270,7 +270,8 @@ export default function ProductCodePage() {
             조회된 데이터가 없습니다.
           </div>
         ) : (
-          <table className="data-table">
+          <div className="overflow-x-auto w-full">
+          <table className="data-table min-w-[640px]">
             <thead>
               <tr>
                 <th>제품코드</th>
@@ -319,13 +320,14 @@ export default function ProductCodePage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
       {/* Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-[95vw] sm:max-w-lg md:max-w-xl mx-2 sm:mx-auto max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <h2 className="text-lg font-bold">
@@ -341,7 +343,7 @@ export default function ProductCodePage() {
 
             {/* Modal Body */}
             <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     제품코드 *
@@ -377,7 +379,7 @@ export default function ProductCodePage() {
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">단위</label>
                   <select

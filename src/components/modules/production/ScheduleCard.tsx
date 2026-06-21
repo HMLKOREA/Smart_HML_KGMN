@@ -22,7 +22,7 @@ export default function ScheduleCard({ schedule: s, onClick, compact }: Props) {
     <button
       type="button"
       onClick={() => onClick?.(s)}
-      className={`w-full text-left rounded-lg border-l-[3px] ${colors.border} bg-white hover:shadow-md transition-all px-2 py-1.5 group ${compact ? 'text-[11px]' : 'text-xs'}`}
+      className={`w-full text-left rounded-lg border-l-[3px] ${colors.border} bg-white hover:shadow-md active:scale-[0.98] transition-all px-2 py-1.5 sm:py-1.5 group ${compact ? 'text-[11px]' : 'text-xs'}`}
     >
       {/* 1줄: 뱃지 + 상태 */}
       <div className="flex items-center gap-1 mb-0.5">

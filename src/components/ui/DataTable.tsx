@@ -211,7 +211,7 @@ export function DataTable<T>({
       className={`overflow-auto rounded-lg border border-gray-200 bg-white ${className}`}
       style={maxHeight ? { maxHeight } : undefined}
     >
-      <table className="w-full border-collapse text-sm">
+      <table className="w-full border-collapse text-xs sm:text-sm">
         <thead
           className={
             stickyHeader ? 'sticky top-0 z-10 bg-gray-50 shadow-[0_1px_0_0_theme(colors.gray.200)]' : 'bg-gray-50'
@@ -235,7 +235,7 @@ export function DataTable<T>({
               <th
                 key={col.key}
                 className={[
-                  'border-b border-gray-200 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-600',
+                  'border-b border-gray-200 px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-gray-600 whitespace-nowrap',
                   col.sortable ? 'cursor-pointer select-none hover:text-gray-900' : '',
                   col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left',
                 ]
@@ -338,7 +338,7 @@ export function DataTable<T>({
                     <td
                       key={col.key}
                       className={[
-                        'px-4 py-3 text-gray-700',
+                        'px-2 sm:px-4 py-2 sm:py-3 text-gray-700',
                         col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left',
                       ]
                         .filter(Boolean)

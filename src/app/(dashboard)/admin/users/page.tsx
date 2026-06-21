@@ -134,11 +134,130 @@ export default function UserManagementPage() {
 
   return (
     <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* ── 반응형 CSS ── */}
+      <style>{`
+        .users-page-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+        .users-page-title-group {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .users-page-title {
+          font-size: 18px;
+          font-weight: 700;
+          color: #1e293b;
+          margin: 0;
+        }
+        .users-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 14px;
+        }
+        .users-table th {
+          padding: 10px 12px;
+          font-size: 13px;
+          font-weight: 700;
+          color: #475569;
+          white-space: nowrap;
+          border-bottom: 2px solid #e2e8f0;
+        }
+        .users-table td {
+          padding: 9px 12px;
+        }
+        .users-action-btns {
+          display: flex;
+          gap: 4px;
+          flex-wrap: wrap;
+        }
+        .users-modal-inner {
+          background: #fff;
+          border-radius: 14px;
+          width: 100%;
+          max-width: 520px;
+          margin: 0 16px;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+          max-height: 90vh;
+          display: flex;
+          flex-direction: column;
+        }
+        .users-modal-body {
+          padding: 20px 24px;
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+          overflow-y: auto;
+        }
+        .users-modal-header {
+          padding: 16px 24px;
+          border-bottom: 1px solid #e2e8f0;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-shrink: 0;
+        }
+        .users-modal-footer {
+          padding: 14px 24px;
+          border-top: 1px solid #e2e8f0;
+          display: flex;
+          justify-content: flex-end;
+          gap: 8px;
+          flex-shrink: 0;
+        }
+        .users-form-grid-2 {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+        @media (max-width: 640px) {
+          .users-page-title {
+            font-size: 16px;
+          }
+          .users-table {
+            font-size: 12px;
+          }
+          .users-table th {
+            padding: 8px 8px;
+            font-size: 11px;
+          }
+          .users-table td {
+            padding: 7px 8px;
+          }
+          .users-form-grid-2 {
+            grid-template-columns: 1fr;
+          }
+          .users-modal-inner {
+            margin: 0 8px;
+            border-radius: 10px;
+          }
+          .users-modal-body {
+            padding: 14px 16px;
+            gap: 12px;
+          }
+          .users-modal-header {
+            padding: 12px 16px;
+          }
+          .users-modal-footer {
+            padding: 12px 16px;
+          }
+        }
+        @media (max-width: 480px) {
+          .users-modal-inner {
+            margin: 0 4px;
+          }
+        }
+      `}</style>
+
       {/* ── 헤더 ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div className="users-page-header">
+        <div className="users-page-title-group">
           <div style={{ width: 4, height: 22, background: '#2563eb', borderRadius: 2 }} />
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', margin: 0 }}>사용자 관리</h2>
+          <h2 className="users-page-title">사용자 관리</h2>
           <span style={{
             fontSize: 12, color: '#64748b', background: '#f1f5f9',
             padding: '2px 10px', borderRadius: 10, marginLeft: 4,
@@ -153,6 +272,7 @@ export default function UserManagementPage() {
               padding: '8px 18px', background: '#2563eb', color: '#fff',
               fontSize: 14, fontWeight: 600, border: 'none', borderRadius: 8,
               cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+              whiteSpace: 'nowrap',
             }}
           >
             <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -169,16 +289,12 @@ export default function UserManagementPage() {
         boxShadow: '0 1px 3px rgba(0,0,0,0.06)', overflow: 'hidden',
       }}>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+          <table className="users-table">
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                 {['No', '이름', '분류', '권한', 'ID', 'PW', '이메일', '연락처', '상태', '관리'].map((h, i) => (
                   <th key={h} style={{
-                    padding: '10px 12px',
-                    fontSize: 13, fontWeight: 700, color: '#475569',
                     textAlign: i === 0 ? 'center' : 'left',
-                    whiteSpace: 'nowrap',
-                    borderBottom: '2px solid #e2e8f0',
                     ...(i === 0 ? { width: 50 } : {}),
                     ...(h === 'PW' ? { width: 100 } : {}),
                   }}>{h}</th>
@@ -199,15 +315,15 @@ export default function UserManagementPage() {
                   onMouseLeave={(e) => { e.currentTarget.style.background = !user.isActive ? '#fafafa' : (idx % 2 === 0 ? '#fff' : '#fafcff'); }}
                 >
                   {/* No */}
-                  <td style={{ padding: '9px 12px', textAlign: 'center', color: '#94a3b8', fontSize: 13, fontWeight: 600 }}>
+                  <td style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, fontWeight: 600 }}>
                     {user.no}
                   </td>
                   {/* 이름 */}
-                  <td style={{ padding: '9px 12px', fontWeight: 600, color: '#1e293b', fontSize: 14, whiteSpace: 'nowrap' }}>
+                  <td style={{ fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap' }}>
                     {user.name}
                   </td>
                   {/* 분류 */}
-                  <td style={{ padding: '9px 12px' }}>
+                  <td>
                     <span style={{
                       display: 'inline-block',
                       padding: '3px 10px', borderRadius: 6,
@@ -221,15 +337,15 @@ export default function UserManagementPage() {
                     </span>
                   </td>
                   {/* 권한 */}
-                  <td style={{ padding: '9px 12px', fontSize: 13, color: '#475569', maxWidth: 240 }}>
+                  <td style={{ color: '#475569', maxWidth: 240 }}>
                     {user.permission}
                   </td>
                   {/* ID */}
-                  <td style={{ padding: '9px 12px', fontFamily: 'monospace', fontSize: 13, color: '#334155', fontWeight: 600 }}>
+                  <td style={{ fontFamily: 'monospace', color: '#334155', fontWeight: 600 }}>
                     {user.loginId}
                   </td>
                   {/* PW */}
-                  <td style={{ padding: '9px 12px' }}>
+                  <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#64748b' }}>
                         {showPassword[user.no] ? user.password : '••••'}
@@ -256,7 +372,7 @@ export default function UserManagementPage() {
                     </div>
                   </td>
                   {/* 이메일 */}
-                  <td style={{ padding: '9px 12px', fontSize: 13, color: user.email ? '#2563eb' : '#cbd5e1' }}>
+                  <td style={{ color: user.email ? '#2563eb' : '#cbd5e1' }}>
                     {user.email ? (
                       <a href={`mailto:${user.email}`} style={{ color: '#2563eb', textDecoration: 'none' }}>
                         {user.email}
@@ -264,11 +380,11 @@ export default function UserManagementPage() {
                     ) : '-'}
                   </td>
                   {/* 연락처 */}
-                  <td style={{ padding: '9px 12px', fontSize: 13, color: user.phone ? '#334155' : '#cbd5e1', whiteSpace: 'nowrap' }}>
+                  <td style={{ color: user.phone ? '#334155' : '#cbd5e1', whiteSpace: 'nowrap' }}>
                     {user.phone || '-'}
                   </td>
                   {/* 상태 */}
-                  <td style={{ padding: '9px 12px' }}>
+                  <td>
                     <span style={{
                       display: 'inline-flex', alignItems: 'center', gap: 5,
                       padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
@@ -284,8 +400,8 @@ export default function UserManagementPage() {
                     </span>
                   </td>
                   {/* 관리 */}
-                  <td style={{ padding: '9px 12px' }}>
-                    <div style={{ display: 'flex', gap: 4 }}>
+                  <td>
+                    <div className="users-action-btns">
                       <button
                         onClick={() => {
                           // visibleUsers 인덱스 → users 인덱스로 변환
@@ -348,15 +464,9 @@ export default function UserManagementPage() {
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
           zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <div style={{
-            background: '#fff', borderRadius: 14, width: '100%', maxWidth: 520,
-            margin: '0 16px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
-          }}>
+          <div className="users-modal-inner">
             {/* 모달 헤더 */}
-            <div style={{
-              padding: '16px 24px', borderBottom: '1px solid #e2e8f0',
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            }}>
+            <div className="users-modal-header">
               <h3 style={{ fontSize: 17, fontWeight: 700, color: '#1e293b', margin: 0 }}>
                 {isSelfOnly ? '내 정보 수정' : (editingIdx !== null ? '사용자 수정' : '신규 사용자 등록')}
               </h3>
@@ -371,9 +481,9 @@ export default function UserManagementPage() {
             </div>
 
             {/* 모달 본문 */}
-            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="users-modal-body">
               {/* 이름 + 분류 */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="users-form-grid-2">
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 5 }}>이름 *</label>
                   <input
@@ -422,7 +532,7 @@ export default function UserManagementPage() {
               </div>
 
               {/* ID + PW */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="users-form-grid-2">
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 5 }}>
                     ID * {isSelfOnly && <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: 11 }}>(변경 불가)</span>}
@@ -453,7 +563,7 @@ export default function UserManagementPage() {
               </div>
 
               {/* 이메일 + 연락처 */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="users-form-grid-2">
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 5 }}>이메일</label>
                   <input
@@ -491,10 +601,7 @@ export default function UserManagementPage() {
             </div>
 
             {/* 모달 푸터 */}
-            <div style={{
-              padding: '14px 24px', borderTop: '1px solid #e2e8f0',
-              display: 'flex', justifyContent: 'flex-end', gap: 8,
-            }}>
+            <div className="users-modal-footer">
               <button
                 onClick={() => setShowModal(false)}
                 style={{
