@@ -452,14 +452,79 @@ export default function ShippingPage() {
 
   const handleDispatchNotifyConfirm = async () => {
     setNotifyLoading(true);
-    const result = await crud.batchUpdate(Array.from(selectedIds), { dispatch_notified: true });
-    if (result.success) {
-      const methodLabel = notifyMethod === 'email' ? '이메일' : '카카오톡';
-      toast.success(`배차통보가 완료되었습니다. (${methodLabel} 발송)`);
+    try {
+      const selected = data.filter(d => selectedIds.has(d.id));
+      if (selected.length === 0) { toast.warning('통보 대상이 없습니다.'); setNotifyLoading(false); return; }
+
+      // 거래처 연락처 조회 (이메일/전화번호)
+      const customerIds = [...new Set(selected.map(s => s.customer_id).filter((id): id is string => !!id))];
+      const { data: custData } = await supabase
+        .from('customers')
+        .select('id, name, email, phone')
+        .in('id', customerIds);
+
+      const customerMap: Record<string, { name: string; email: string; phone: string }> = {};
+      (custData || []).forEach((c: { id: string; name: string; email?: string; phone?: string }) => {
+        customerMap[c.id] = { name: c.name, email: c.email || '', phone: c.phone || '' };
+      });
+
+      // 발송 대상 정보 구성
+      const shipmentPayload = selected.map(s => ({
+        id: s.id,
+        shipment_date: s.shipment_date,
+        customer_id: s.customer_id,
+        customer_name: s.customer_name,
+        product_name: s.product_name,
+        company_name: s.company_name,
+        vehicle_number: s.vehicle_number,
+        driver_name: s.driver_name,
+        quantity: s.quantity,
+        unit: s.unit,
+        delivery_address: s.delivery_address,
+        notes: s.notes,
+      }));
+
+      // 선택된 방법으로 발송
+      const endpoint = notifyMethod === 'email' ? '/api/notify/email' : '/api/notify/kakao';
+      const contactMap: Record<string, { name: string; email: string; phone: string }> = {};
+      for (const cid of customerIds) {
+        if (customerMap[cid]) contactMap[cid] = customerMap[cid];
+      }
+
+      const notifyRes = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shipments: shipmentPayload, customerMap: contactMap }),
+      });
+
+      const notifyResult = await notifyRes.json();
+
+      if (!notifyRes.ok && notifyRes.status === 400) {
+        // 설정 미완료
+        const methodLabel = notifyMethod === 'email' ? 'SMTP' : 'Solapi';
+        toast.error(`${methodLabel} 설정이 필요합니다. 관리자에게 문의하세요.`);
+        setNotifyLoading(false);
+        return;
+      }
+
+      // DB 플래그 업데이트
+      const dbResult = await crud.batchUpdate(Array.from(selectedIds), { dispatch_notified: true });
+
+      if (notifyResult.success || notifyRes.ok) {
+        toast.success(notifyResult.message || '배차통보가 완료되었습니다.');
+      } else {
+        // 발송 실패해도 DB 플래그는 업데이트, 사용자에게 부분 실패 알림
+        toast.warning(notifyResult.message || notifyResult.error || '일부 통보가 실패했습니다. 연락처를 확인해주세요.');
+      }
+
+      if (!dbResult.success) {
+        toast.error('통보 상태 업데이트 실패');
+      }
+
       setShowDispatchNotify(false);
       fetchData();
-    } else {
-      toast.error(result.error || '배차통보 실패');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '배차통보 중 오류가 발생했습니다.');
     }
     setNotifyLoading(false);
   };
