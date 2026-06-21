@@ -114,11 +114,26 @@ export default function TransporterDashboard({ userName, companyName }: { userNa
           }
           return { data: allRows, error: null };
         })(),
-        // 월간 단가 (정산 추정용)
-        supabase.from('unit_prices')
-          .select('price,transport_type')
-          .eq('company_id', companyId)
-          .eq('effective_date', monthStart),
+        // 월간 단가 (정산 추정용) - pagination
+        (async () => {
+          const PAGE_SIZE = 1000;
+          const all: any[] = [];
+          let pg = 0;
+          let more = true;
+          while (more) {
+            const { data, error } = await supabase.from('unit_prices')
+              .select('price,transport_type')
+              .eq('company_id', companyId)
+              .eq('effective_date', monthStart)
+              .range(pg * PAGE_SIZE, (pg + 1) * PAGE_SIZE - 1);
+            if (error) throw error;
+            const rows = data || [];
+            all.push(...rows);
+            more = rows.length === PAGE_SIZE;
+            pg++;
+          }
+          return { data: all, error: null };
+        })(),
       ]);
 
       const todayData = (todayShipmentsRes.data || []) as TodayRequest[];

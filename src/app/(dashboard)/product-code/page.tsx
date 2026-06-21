@@ -70,21 +70,28 @@ export default function ProductCodePage() {
     setLoading(true);
     setError(null);
     try {
-      let query = supabase
-        .from('products')
-        .select('*')
-        .order('code');
-
-      if (searchText) {
-        const safeSearch = sanitizeFilterValue(searchText.trim());
-        query = query.or(
-          `code.ilike.%${safeSearch}%,name.ilike.%${safeSearch}%,specification.ilike.%${safeSearch}%,category.ilike.%${safeSearch}%`
-        );
+      const PAGE_SIZE = 1000;
+      const allRows: Product[] = [];
+      let page = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const start = page * PAGE_SIZE;
+        const end = start + PAGE_SIZE - 1;
+        let query = supabase.from('products').select('*').order('code').range(start, end);
+        if (searchText) {
+          const safeSearch = sanitizeFilterValue(searchText.trim());
+          query = query.or(
+            `code.ilike.%${safeSearch}%,name.ilike.%${safeSearch}%,specification.ilike.%${safeSearch}%,category.ilike.%${safeSearch}%`
+          );
+        }
+        const { data, error: fetchError } = await query;
+        if (fetchError) throw fetchError;
+        const rows = data || [];
+        allRows.push(...rows);
+        hasMore = rows.length === PAGE_SIZE;
+        page++;
       }
-
-      const { data: result, error: fetchError } = await query;
-      if (fetchError) throw fetchError;
-      setData(result || []);
+      setData(allRows);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '데이터를 불러오는 중 오류가 발생했습니다.';
       setError(message);

@@ -49,12 +49,31 @@ export default function ScheduleModal({
   useEffect(() => {
     if (!open) return;
     const load = async () => {
-      const [c, p] = await Promise.all([
-        supabase.from('customers').select('id, name').eq('is_active', true).order('name'),
-        supabase.from('products').select('id, name, code').eq('is_active', true).order('code'),
+      const PAGE_SIZE = 1000;
+      async function fetchAll(table: string, cols: string, filter: { field: string; value: unknown }) {
+        const all: DropdownItem[] = [];
+        let pg = 0;
+        let more = true;
+        while (more) {
+          const { data, error } = await supabase
+            .from(table).select(cols)
+            .eq(filter.field, filter.value)
+            .order(cols.includes('code') ? 'code' : 'name')
+            .range(pg * PAGE_SIZE, (pg + 1) * PAGE_SIZE - 1);
+          if (error) break;
+          const rows = ((data as unknown) as DropdownItem[]) || [];
+          all.push(...rows);
+          more = rows.length === PAGE_SIZE;
+          pg++;
+        }
+        return all;
+      }
+      const [cList, pList] = await Promise.all([
+        fetchAll('customers', 'id, name', { field: 'is_active', value: true }),
+        fetchAll('products', 'id, name, code', { field: 'is_active', value: true }),
       ]);
-      setCustomers((c.data as DropdownItem[]) || []);
-      setProducts((p.data as DropdownItem[]) || []);
+      setCustomers(cList);
+      setProducts(pList);
     };
     load();
   }, [open, supabase]);

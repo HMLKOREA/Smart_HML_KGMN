@@ -50,18 +50,31 @@ export default function ProductionDashboard() {
       const startStr = localDateStr(weekStart);
       const endStr = localDateStr(weekEnd);
 
-      const { data, error } = await supabase
-        .from('v_production_schedules')
-        .select('*')
-        .gte('schedule_date', startStr)
-        .lte('schedule_date', endStr)
-        .order('schedule_date', { ascending: true });
+      const PAGE_SIZE = 1000;
+      const allRows: ProductionSchedule[] = [];
+      let page = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const start = page * PAGE_SIZE;
+        const end = start + PAGE_SIZE - 1;
+        const { data, error } = await supabase
+          .from('v_production_schedules')
+          .select('*')
+          .gte('schedule_date', startStr)
+          .lte('schedule_date', endStr)
+          .order('schedule_date', { ascending: true })
+          .range(start, end);
 
-      if (error) {
-        console.error('Supabase query error:', JSON.stringify(error));
-        return;
+        if (error) {
+          console.error('Supabase query error:', JSON.stringify(error));
+          return;
+        }
+        const rows = (data as ProductionSchedule[]) || [];
+        allRows.push(...rows);
+        hasMore = rows.length === PAGE_SIZE;
+        page++;
       }
-      setSchedules((data as ProductionSchedule[]) || []);
+      setSchedules(allRows);
     } catch (err) {
       console.error('Production dashboard load failed:', err);
     } finally {

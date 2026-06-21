@@ -82,27 +82,40 @@ export default function DriverPage() {
     setLoading(true);
     setError(null);
     try {
-      let query = supabase
-        .from('v_drivers')
-        .select('*')
-        .order('company_name', { ascending: true })
-        .order('name', { ascending: true });
+      const PAGE_SIZE = 1000;
+      const allRows: Driver[] = [];
+      let page = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const start = page * PAGE_SIZE;
+        const end = start + PAGE_SIZE - 1;
+        let query = supabase
+          .from('v_drivers')
+          .select('*')
+          .order('company_name', { ascending: true })
+          .order('name', { ascending: true })
+          .range(start, end);
 
-      // 운송사 계정: 자기 운송사 기사만 표시
-      if (isTransporter && userCompanyId) {
-        query = query.eq('company_id', userCompanyId);
+        // 운송사 계정: 자기 운송사 기사만 표시
+        if (isTransporter && userCompanyId) {
+          query = query.eq('company_id', userCompanyId);
+        }
+
+        if (searchText) {
+          const safeSearch = sanitizeFilterValue(searchText.trim());
+          query = query.or(
+            `name.ilike.%${safeSearch}%,phone.ilike.%${safeSearch}%,vehicle_number.ilike.%${safeSearch}%,company_name.ilike.%${safeSearch}%,license_number.ilike.%${safeSearch}%`
+          );
+        }
+
+        const { data, error: fetchError } = await query;
+        if (fetchError) throw fetchError;
+        const rows = data || [];
+        allRows.push(...rows);
+        hasMore = rows.length === PAGE_SIZE;
+        page++;
       }
-
-      if (searchText) {
-        const safeSearch = sanitizeFilterValue(searchText.trim());
-        query = query.or(
-          `name.ilike.%${safeSearch}%,phone.ilike.%${safeSearch}%,vehicle_number.ilike.%${safeSearch}%,company_name.ilike.%${safeSearch}%,license_number.ilike.%${safeSearch}%`
-        );
-      }
-
-      const { data: result, error: fetchError } = await query;
-      if (fetchError) throw fetchError;
-      setData(result || []);
+      setData(allRows);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '데이터를 불러오는 중 오류가 발생했습니다.';
       setError(message);
@@ -113,12 +126,26 @@ export default function DriverPage() {
 
   const fetchCompanies = useCallback(async () => {
     try {
-      const { data: result } = await supabase
-        .from('transport_companies')
-        .select('id, name')
-        .eq('is_active', true)
-        .order('name');
-      setCompanies(result || []);
+      const PAGE_SIZE = 1000;
+      const allRows: { id: string; name: string }[] = [];
+      let page = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const start = page * PAGE_SIZE;
+        const end = start + PAGE_SIZE - 1;
+        const { data, error } = await supabase
+          .from('transport_companies')
+          .select('id, name')
+          .eq('is_active', true)
+          .order('name')
+          .range(start, end);
+        if (error) throw error;
+        const rows = data || [];
+        allRows.push(...rows);
+        hasMore = rows.length === PAGE_SIZE;
+        page++;
+      }
+      setCompanies(allRows);
     } catch {
       // non-critical
     }

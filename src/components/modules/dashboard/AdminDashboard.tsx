@@ -215,7 +215,24 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
           { field: 'shipment_date', op: 'gte', value: prevMonthStart },
           { field: 'shipment_date', op: 'lte', value: prevMonthEnd },
         ]),
-        supabase.from('unit_prices').select('company_id, product_id, price, transport_type').eq('effective_date', monthStart),
+        (async () => {
+          const PAGE_SIZE = 1000;
+          const all: Record<string, unknown>[] = [];
+          let pg = 0;
+          let more = true;
+          while (more) {
+            const { data, error } = await supabase.from('unit_prices')
+              .select('company_id, product_id, price, transport_type')
+              .eq('effective_date', monthStart)
+              .range(pg * PAGE_SIZE, (pg + 1) * PAGE_SIZE - 1);
+            if (error) throw error;
+            const rows = (data || []) as Record<string, unknown>[];
+            all.push(...rows);
+            more = rows.length === PAGE_SIZE;
+            pg++;
+          }
+          return all;
+        })(),
         supabase.from('v_shipments').select('shipment_date,shipment_number,customer_name,product_name,quantity,weight_net,vehicle_number,company_name,status,created_at').order('created_at', { ascending: false }).limit(10),
       ]);
 
@@ -266,7 +283,7 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
 
       // 정산 누적: shipments weight_net × unit_prices 기반 추정 계산
       // unit_prices를 company_id 기반으로 평균 단가 맵 생성
-      const priceData = (monthUnitPricesRes.data || []) as Array<Record<string, unknown>>;
+      const priceData = (monthUnitPricesRes || []) as Array<Record<string, unknown>>;
       const avgPriceByCompany = new Map<string, number>();
       const priceCountByCompany = new Map<string, number>();
       priceData.forEach(p => {

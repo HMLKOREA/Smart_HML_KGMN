@@ -102,22 +102,35 @@ export default function TransportCompanyPage() {
     setLoading(true);
     setError(null);
     try {
-      let query = supabase
-        .from('transport_companies')
-        .select('*')
-        .order('name');
+      const PAGE_SIZE = 1000;
+      const allRows: TransportCompany[] = [];
+      let page = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const start = page * PAGE_SIZE;
+        const end = start + PAGE_SIZE - 1;
+        let query = supabase
+          .from('transport_companies')
+          .select('*')
+          .order('name')
+          .range(start, end);
 
-      if (searchText) {
-        const safeSearch = sanitizeFilterValue(searchText.trim());
-        query = query.or(
-          `name.ilike.%${safeSearch}%,business_number.ilike.%${safeSearch}%,representative.ilike.%${safeSearch}%,phone.ilike.%${safeSearch}%,address.ilike.%${safeSearch}%`
-        );
+        if (searchText) {
+          const safeSearch = sanitizeFilterValue(searchText.trim());
+          query = query.or(
+            `name.ilike.%${safeSearch}%,business_number.ilike.%${safeSearch}%,representative.ilike.%${safeSearch}%,phone.ilike.%${safeSearch}%,address.ilike.%${safeSearch}%`
+          );
+        }
+
+        const { data, error: fetchError } = await query;
+        if (fetchError) throw fetchError;
+        const rows = data || [];
+        allRows.push(...rows);
+        hasMore = rows.length === PAGE_SIZE;
+        page++;
       }
 
-      const { data: result, error: fetchError } = await query;
-      if (fetchError) throw fetchError;
-
-      let companies = result || [];
+      let companies = allRows;
       // Supabase 데이터가 없으면 데모 데이터 사용
       if (companies.length === 0) {
         companies = DEMO_COMPANIES;

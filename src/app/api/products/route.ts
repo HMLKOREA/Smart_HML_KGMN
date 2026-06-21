@@ -7,21 +7,35 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get('search');
   const activeOnly = searchParams.get('active_only') !== 'false';
 
-  let query = supabase.from('products').select('*', { count: 'exact' });
+  // 페이지네이션으로 전체 행 조회 (Supabase 1000행 제한 우회)
+  const PAGE_SIZE = 1000;
+  const allRows: Record<string, unknown>[] = [];
+  let page = 0;
+  let hasMore = true;
+  let totalCount = 0;
 
-  if (activeOnly) query = query.eq('is_active', true);
-  if (search) {
-    query = query.or(`code.ilike.%${search}%,name.ilike.%${search}%,specification.ilike.%${search}%`);
+  while (hasMore) {
+    const start = page * PAGE_SIZE;
+    const end = start + PAGE_SIZE - 1;
+    let query = supabase.from('products').select('*', { count: 'exact' }).order('code').range(start, end);
+
+    if (activeOnly) query = query.eq('is_active', true);
+    if (search) {
+      query = query.or(`code.ilike.%${search}%,name.ilike.%${search}%,specification.ilike.%${search}%`);
+    }
+
+    const { data, error, count } = await query;
+    if (error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+    if (page === 0 && count !== null) totalCount = count;
+    const rows = (data || []) as Record<string, unknown>[];
+    allRows.push(...rows);
+    hasMore = rows.length === PAGE_SIZE;
+    page++;
   }
 
-  query = query.order('code');
-  const { data, error, count } = await query;
-
-  if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ success: true, data, total: count });
+  return NextResponse.json({ success: true, data: allRows, total: totalCount || allRows.length });
 }
 
 export async function POST(request: NextRequest) {
