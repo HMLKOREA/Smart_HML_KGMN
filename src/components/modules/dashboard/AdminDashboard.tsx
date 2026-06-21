@@ -172,18 +172,49 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
     };
   }, [today]);
 
+  /** Supabase 1000건 제한 우회: 페이징 조회 */
+  const fetchAllRows = useCallback(async (
+    table: string, columns: string, filters: { field: string; op: 'gte' | 'lte' | 'eq'; value: string }[]
+  ): Promise<Record<string, unknown>[]> => {
+    const PAGE_SIZE = 1000;
+    let all: Record<string, unknown>[] = [];
+    let page = 0;
+    let hasMore = true;
+    while (hasMore) {
+      let q = supabase.from(table).select(columns).range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+      for (const f of filters) {
+        if (f.op === 'gte') q = q.gte(f.field, f.value);
+        else if (f.op === 'lte') q = q.lte(f.field, f.value);
+        else q = q.eq(f.field, f.value);
+      }
+      const { data } = await q;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rows = (data as any[] || []) as Record<string, unknown>[];
+      all = [...all, ...rows];
+      hasMore = rows.length === PAGE_SIZE;
+      page++;
+    }
+    return all;
+  }, [supabase]);
+
   const loadData = useCallback(async () => {
     try {
       const [
         todayTotalRes, todayPendingRes, todayCompletedRes,
-        monthShipmentsRes, prevMonthShipmentsRes,
+        monthData, prevData,
         monthUnitPricesRes, recentRes,
       ] = await Promise.all([
         supabase.from('shipments').select('*', { count: 'exact', head: true }).eq('shipment_date', today),
         supabase.from('shipments').select('*', { count: 'exact', head: true }).eq('shipment_date', today).eq('status', 'pending'),
         supabase.from('shipments').select('*', { count: 'exact', head: true }).eq('shipment_date', today).in('status', ['completed', 'delivered']),
-        supabase.from('v_shipments').select('weight_net, company_name, company_id, customer_name, product_name, quantity').gte('shipment_date', monthStart).lte('shipment_date', today),
-        supabase.from('v_shipments').select('customer_name, quantity, weight_net').gte('shipment_date', prevMonthStart).lte('shipment_date', prevMonthEnd),
+        fetchAllRows('v_shipments', 'weight_net, company_name, company_id, customer_name, product_name, quantity', [
+          { field: 'shipment_date', op: 'gte', value: monthStart },
+          { field: 'shipment_date', op: 'lte', value: today },
+        ]),
+        fetchAllRows('v_shipments', 'customer_name, quantity, weight_net', [
+          { field: 'shipment_date', op: 'gte', value: prevMonthStart },
+          { field: 'shipment_date', op: 'lte', value: prevMonthEnd },
+        ]),
         supabase.from('unit_prices').select('company_id, product_id, price, transport_type').eq('effective_date', monthStart),
         supabase.from('v_shipments').select('shipment_date,shipment_number,customer_name,product_name,quantity,weight_net,vehicle_number,company_name,status,created_at').order('created_at', { ascending: false }).limit(10),
       ]);
@@ -193,9 +224,6 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
         pending: todayPendingRes.count || 0,
         completed: todayCompletedRes.count || 0,
       });
-
-      const monthData = (monthShipmentsRes.data || []) as Array<Record<string, unknown>>;
-      const prevData = (prevMonthShipmentsRes.data || []) as Array<Record<string, unknown>>;
 
       const totalQuantity = monthData.reduce((sum, r) => sum + (Number(r.weight_net) || 0), 0);
 

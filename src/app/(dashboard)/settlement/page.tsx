@@ -231,13 +231,31 @@ export default function SettlementPage() {
   // ── Fetch settlements ──
   const fetchSettlementRange = useCallback(async (from: string, to: string): Promise<SettlementRow[]> => {
     try {
-      const { data: shipData, error: shipErr } = await supabase
-        .from('v_shipments')
-        .select('*')
-        .gte('shipment_date', from)
-        .lte('shipment_date', to)
-        .order('shipment_date');
-      if (shipErr) throw shipErr;
+      // Supabase 기본 limit 1000건 → 전체 데이터 페이징 조회
+      const PAGE_SIZE = 1000;
+      let allShipData: Record<string, unknown>[] = [];
+      let page = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const start = page * PAGE_SIZE;
+        const end = start + PAGE_SIZE - 1;
+        const { data: chunk, error: shipErr } = await supabase
+          .from('v_shipments')
+          .select('*')
+          .gte('shipment_date', from)
+          .lte('shipment_date', to)
+          .order('shipment_date')
+          .range(start, end);
+        if (shipErr) throw shipErr;
+
+        const rows = chunk || [];
+        allShipData = [...allShipData, ...rows];
+        hasMore = rows.length === PAGE_SIZE;
+        page++;
+      }
+
+      const shipData = allShipData;
 
       const { data: priceData, error: priceErr } = await supabase
         .from('unit_prices')

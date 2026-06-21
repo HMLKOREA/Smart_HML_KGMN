@@ -156,21 +156,38 @@ export default function ShippingPage() {
     setLoading(true);
     try {
       const range = getDateRange();
-      let query = supabase
-        .from('v_shipments')
-        .select('*')
-        .gte('shipment_date', range.from)
-        .lte('shipment_date', range.to)
-        .order('shipment_date', { ascending: true })
-        .order('created_at', { ascending: true });
+      const PAGE_SIZE = 1000;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let allData: any[] = [];
+      let page = 0;
+      let hasMore = true;
 
-      if (filterTransportType) query = query.eq('transport_type', filterTransportType);
-      if (filterCustomerId) query = query.eq('customer_id', filterCustomerId);
-      if (filterCompanyId) query = query.eq('company_id', filterCompanyId);
+      while (hasMore) {
+        const start = page * PAGE_SIZE;
+        const end = start + PAGE_SIZE - 1;
+        let query = supabase
+          .from('v_shipments')
+          .select('*')
+          .gte('shipment_date', range.from)
+          .lte('shipment_date', range.to)
+          .order('shipment_date', { ascending: true })
+          .order('created_at', { ascending: true })
+          .range(start, end);
 
-      const { data: result, error } = await query;
-      if (error) throw error;
-      setData(result || []);
+        if (filterTransportType) query = query.eq('transport_type', filterTransportType);
+        if (filterCustomerId) query = query.eq('customer_id', filterCustomerId);
+        if (filterCompanyId) query = query.eq('company_id', filterCompanyId);
+
+        const { data: chunk, error } = await query;
+        if (error) throw error;
+
+        const rows = chunk || [];
+        allData = [...allData, ...rows];
+        hasMore = rows.length === PAGE_SIZE;
+        page++;
+      }
+
+      setData(allData);
       setSelectedIds(new Set());
       setEditingRows(new Map());
       setNewRows([]);

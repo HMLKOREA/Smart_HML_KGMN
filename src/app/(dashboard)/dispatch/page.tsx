@@ -152,21 +152,38 @@ export default function DispatchPage() {
     setLoading(true);
     try {
       const range = getDateRange();
-      let query = supabase
-        .from('v_shipments')
-        .select('*')
-        .gte('shipment_date', range.from)
-        .lte('shipment_date', range.to)
-        .order('shipment_date', { ascending: true })
-        .order('created_at', { ascending: true });
+      const PAGE_SIZE = 1000;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let allData: any[] = [];
+      let page = 0;
+      let hasMore = true;
 
-      // 운송사 필터 (관리자) 또는 운송사 자동필터
-      const compFilter = isTransporter ? userCompanyId : filterCompanyId;
-      if (compFilter) query = query.eq('company_id', compFilter);
+      while (hasMore) {
+        const start = page * PAGE_SIZE;
+        const end = start + PAGE_SIZE - 1;
+        let query = supabase
+          .from('v_shipments')
+          .select('*')
+          .gte('shipment_date', range.from)
+          .lte('shipment_date', range.to)
+          .order('shipment_date', { ascending: true })
+          .order('created_at', { ascending: true })
+          .range(start, end);
 
-      const { data: result, error } = await query;
-      if (error) throw error;
-      setData(result || []);
+        // 운송사 필터 (관리자) 또는 운송사 자동필터
+        const compFilter = isTransporter ? userCompanyId : filterCompanyId;
+        if (compFilter) query = query.eq('company_id', compFilter);
+
+        const { data: chunk, error } = await query;
+        if (error) throw error;
+
+        const rows = chunk || [];
+        allData = [...allData, ...rows];
+        hasMore = rows.length === PAGE_SIZE;
+        page++;
+      }
+
+      setData(allData);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '데이터 조회 실패');
     } finally {
