@@ -192,12 +192,27 @@ export default function DispatchPage() {
   }, [supabase, getDateRange, filterCompanyId, isTransporter, userCompanyId, toast]);
 
   const fetchLookups = useCallback(async () => {
-    const [compRes, driverRes] = await Promise.all([
-      supabase.from('transport_companies').select('id, name, phone, email').eq('is_active', true).order('name'),
-      supabase.from('drivers').select('id, name, vehicle_number, phone, company_id').eq('is_active', true).order('name'),
+    // Supabase 1000행 제한 → 페이징 조회 (lookups)
+    const LK_PAGE = 1000;
+    const fetchAll = async (table: string, select: string) => {
+      let all: Record<string, unknown>[] = [];
+      let pg = 0;
+      let more = true;
+      while (more) {
+        const { data } = await supabase.from(table).select(select).eq('is_active', true).order('name').range(pg * LK_PAGE, (pg + 1) * LK_PAGE - 1);
+        const rows = (data || []) as unknown as Record<string, unknown>[];
+        all = [...all, ...rows];
+        more = rows.length === LK_PAGE;
+        pg++;
+      }
+      return all;
+    };
+    const [comps, drvs] = await Promise.all([
+      fetchAll('transport_companies', 'id, name, phone, email'),
+      fetchAll('drivers', 'id, name, vehicle_number, phone, company_id'),
     ]);
-    setCompanies(compRes.data || []);
-    setDrivers(driverRes.data || []);
+    setCompanies(comps as unknown as LookupCompany[]);
+    setDrivers(drvs as unknown as LookupDriver[]);
   }, [supabase]);
 
   useEffect(() => {

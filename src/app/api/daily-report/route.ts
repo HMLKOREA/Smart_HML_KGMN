@@ -12,30 +12,75 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 );
 
+const PAGE_SIZE = 1000;
+
+/**
+ * 페이지네이션으로 전체 행 조회 (Supabase 1000행 제한 우회)
+ */
+async function fetchAllRows<T = Record<string, unknown>>(
+  table: string,
+  columns: string,
+  filters: { column: string; value: string }[],
+  orderCol?: string,
+  orderAsc = true,
+): Promise<{ data: T[]; error: unknown }> {
+  const all: T[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    let q = supabase
+      .from(table)
+      .select(columns)
+      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+    for (const f of filters) {
+      q = q.eq(f.column, f.value);
+    }
+    if (orderCol) {
+      q = q.order(orderCol, { ascending: orderAsc });
+    }
+
+    const { data, error } = await q;
+    if (error) return { data: [], error };
+
+    const rows = (data || []) as T[];
+    all.push(...rows);
+    hasMore = rows.length === PAGE_SIZE;
+    page++;
+  }
+
+  return { data: all, error: null };
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const dateStr = searchParams.get('date') || new Date().toISOString().slice(0, 10);
 
   try {
     // 1. 해당일 전체 출하
-    const { data: shipments, error } = await supabase
-      .from('v_shipments')
-      .select('*')
-      .eq('shipment_date', dateStr)
-      .order('shipment_date', { ascending: true });
+    const { data: shipments, error } = await fetchAllRows(
+      'v_shipments',
+      '*',
+      [{ column: 'shipment_date', value: dateStr }],
+      'shipment_date',
+      true,
+    );
 
     if (error) {
       // v_shipments 뷰가 없으면 직접 조인
-      const { data: raw } = await supabase
-        .from('shipments')
-        .select(`
-          *,
+      const { data: raw, error: rawError } = await fetchAllRows(
+        'shipments',
+        `*,
           transport_companies!shipments_company_id_fkey(name),
           customers!shipments_customer_id_fkey(name),
-          products!shipments_product_id_fkey(name, code)
-        `)
-        .eq('shipment_date', dateStr)
-        .order('created_at', { ascending: true });
+          products!shipments_product_id_fkey(name, code)`,
+        [{ column: 'shipment_date', value: dateStr }],
+        'created_at',
+        true,
+      );
+
+      if (rawError) throw rawError;
 
       const mapped = (raw || []).map((s: Record<string, unknown>) => ({
         ...s,

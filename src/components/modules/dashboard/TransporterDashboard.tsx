@@ -91,12 +91,29 @@ export default function TransporterDashboard({ userName, companyName }: { userNa
           .eq('company_id', companyId)
           .eq('shipment_date', today)
           .order('created_at', { ascending: false }),
-        // 월간 출하 데이터 (배차 + 출하 통합)
-        supabase.from('v_shipments')
-          .select('weight_net,vehicle_number,product_name')
-          .eq('company_id', companyId)
-          .gte('shipment_date', monthStart)
-          .lte('shipment_date', today),
+        // 월간 출하 데이터 (배차 + 출하 통합) - pagination loop
+        (async () => {
+          const PAGE_SIZE = 1000;
+          let allRows: any[] = [];
+          let page = 0;
+          let hasMore = true;
+          while (hasMore) {
+            const start = page * PAGE_SIZE;
+            const end = start + PAGE_SIZE - 1;
+            const { data, error } = await supabase.from('v_shipments')
+              .select('weight_net,vehicle_number,product_name')
+              .eq('company_id', companyId)
+              .gte('shipment_date', monthStart)
+              .lte('shipment_date', today)
+              .range(start, end);
+            if (error) throw error;
+            const rows = data || [];
+            allRows = [...allRows, ...rows];
+            hasMore = rows.length === PAGE_SIZE;
+            page++;
+          }
+          return { data: allRows, error: null };
+        })(),
         // 월간 단가 (정산 추정용)
         supabase.from('unit_prices')
           .select('price,transport_type')

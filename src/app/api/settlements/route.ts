@@ -11,27 +11,46 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get('status');
   const companyId = searchParams.get('company_id');
 
-  let query = supabase.from('v_settlements').select('*', { count: 'exact' });
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+  let totalCount = 0;
 
-  if (startDate) query = query.gte('settlement_date', startDate);
-  if (endDate) query = query.lte('settlement_date', endDate);
-  if (status) query = query.eq('status', status);
-  if (companyId) query = query.eq('company_id', companyId);
-  if (search) {
-    query = query.or(
-      `settlement_number.ilike.%${search}%,company_name.ilike.%${search}%`
-    );
+  while (hasMore) {
+    const start = page * PAGE_SIZE;
+    const end = start + PAGE_SIZE - 1;
+    let query = supabase
+      .from('v_settlements')
+      .select('*', page === 0 ? { count: 'exact' } : {})
+      .range(start, end);
+
+    if (startDate) query = query.gte('settlement_date', startDate);
+    if (endDate) query = query.lte('settlement_date', endDate);
+    if (status) query = query.eq('status', status);
+    if (companyId) query = query.eq('company_id', companyId);
+    if (search) {
+      query = query.or(
+        `settlement_number.ilike.%${search}%,company_name.ilike.%${search}%`
+      );
+    }
+
+    query = query.order('settlement_date', { ascending: false });
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+
+    if (page === 0 && count != null) totalCount = count;
+    const rows = data || [];
+    allData = [...allData, ...rows];
+    hasMore = rows.length === PAGE_SIZE;
+    page++;
   }
 
-  query = query.order('settlement_date', { ascending: false });
-
-  const { data, error, count } = await query;
-
-  if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ success: true, data, total: count });
+  return NextResponse.json({ success: true, data: allData, total: totalCount });
 }
 
 export async function POST(request: NextRequest) {
@@ -45,7 +64,7 @@ export async function POST(request: NextRequest) {
 
   // 세액 및 최종금액 자동 계산
   if (body.total_amount) {
-    body.tax_amount = body.tax_amount || Math.round(body.total_amount * 0.1);
+    body.tax_amount = body.tax_amount ?? Math.round(body.total_amount * 0.1);
     body.final_amount = body.total_amount + body.tax_amount;
   }
 
@@ -69,7 +88,7 @@ export async function PUT(request: NextRequest) {
 
   // 세액 및 최종금액 자동 재계산
   if (updates.total_amount) {
-    updates.tax_amount = updates.tax_amount || Math.round(updates.total_amount * 0.1);
+    updates.tax_amount = updates.tax_amount ?? Math.round(updates.total_amount * 0.1);
     updates.final_amount = updates.total_amount + updates.tax_amount;
   }
 

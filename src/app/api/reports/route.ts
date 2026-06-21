@@ -10,26 +10,45 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get('search');
   const status = searchParams.get('status');
 
-  let query = supabase.from('v_quality_reports').select('*', { count: 'exact' });
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+  let totalCount = 0;
 
-  if (startDate) query = query.gte('report_date', startDate);
-  if (endDate) query = query.lte('report_date', endDate);
-  if (status) query = query.eq('status', status);
-  if (search) {
-    query = query.or(
-      `report_number.ilike.%${search}%,product_name.ilike.%${search}%,customer_name.ilike.%${search}%`
-    );
+  while (hasMore) {
+    const start = page * PAGE_SIZE;
+    const end = start + PAGE_SIZE - 1;
+    let query = supabase
+      .from('v_quality_reports')
+      .select('*', page === 0 ? { count: 'exact' } : {})
+      .range(start, end);
+
+    if (startDate) query = query.gte('report_date', startDate);
+    if (endDate) query = query.lte('report_date', endDate);
+    if (status) query = query.eq('status', status);
+    if (search) {
+      query = query.or(
+        `report_number.ilike.%${search}%,product_name.ilike.%${search}%,customer_name.ilike.%${search}%`
+      );
+    }
+
+    query = query.order('report_date', { ascending: false });
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+
+    if (page === 0 && count != null) totalCount = count;
+    const rows = data || [];
+    allData = [...allData, ...rows];
+    hasMore = rows.length === PAGE_SIZE;
+    page++;
   }
 
-  query = query.order('report_date', { ascending: false });
-
-  const { data, error, count } = await query;
-
-  if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ success: true, data, total: count });
+  return NextResponse.json({ success: true, data: allData, total: totalCount });
 }
 
 export async function POST(request: NextRequest) {

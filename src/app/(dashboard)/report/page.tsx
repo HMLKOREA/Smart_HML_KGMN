@@ -122,24 +122,36 @@ export default function ReportPage() {
     setLoading(true);
     setError(null);
     try {
-      let query = supabase
-        .from('v_quality_reports')
-        .select('*')
-        .gte('report_date', dateFrom)
-        .lte('report_date', dateTo)
-        .order('report_date', { ascending: false })
-        .order('report_number', { ascending: false });
+      // Supabase 1000행 제한 → 페이징 조회
+      const PAGE_SIZE = 1000;
+      let allRows: QualityReport[] = [];
+      let pg = 0;
+      let more = true;
+      while (more) {
+        let query = supabase
+          .from('v_quality_reports')
+          .select('*')
+          .gte('report_date', dateFrom)
+          .lte('report_date', dateTo)
+          .order('report_date', { ascending: false })
+          .order('report_number', { ascending: false })
+          .range(pg * PAGE_SIZE, (pg + 1) * PAGE_SIZE - 1);
 
-      if (searchText) {
-        const safeSearch = sanitizeFilterValue(searchText.trim());
-        query = query.or(
-          `report_number.ilike.%${safeSearch}%,product_name.ilike.%${safeSearch}%,customer_name.ilike.%${safeSearch}%,inspector.ilike.%${safeSearch}%`
-        );
+        if (searchText) {
+          const safeSearch = sanitizeFilterValue(searchText.trim());
+          query = query.or(
+            `report_number.ilike.%${safeSearch}%,product_name.ilike.%${safeSearch}%,customer_name.ilike.%${safeSearch}%,inspector.ilike.%${safeSearch}%`
+          );
+        }
+
+        const { data: chunk, error: fetchError } = await query;
+        if (fetchError) throw fetchError;
+        const rows = chunk || [];
+        allRows = [...allRows, ...rows];
+        more = rows.length === PAGE_SIZE;
+        pg++;
       }
-
-      const { data: result, error: fetchError } = await query;
-      if (fetchError) throw fetchError;
-      setData(result || []);
+      setData(allRows);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '데이터를 불러오는 중 오류가 발생했습니다.';
       setError(message);
@@ -150,12 +162,27 @@ export default function ReportPage() {
 
   const fetchLookups = useCallback(async () => {
     try {
-      const [prodRes, custRes] = await Promise.all([
-        supabase.from('products').select('id, code, name').eq('is_active', true).order('name'),
-        supabase.from('customers').select('id, name').eq('is_active', true).order('name'),
+      // Supabase 1000행 제한 → 페이징 조회 (lookups)
+      const LK_PAGE = 1000;
+      const fetchAll = async (table: string, select: string) => {
+        let all: Record<string, unknown>[] = [];
+        let pg = 0;
+        let more = true;
+        while (more) {
+          const { data } = await supabase.from(table).select(select).eq('is_active', true).order('name').range(pg * LK_PAGE, (pg + 1) * LK_PAGE - 1);
+          const rows = (data || []) as unknown as Record<string, unknown>[];
+          all = [...all, ...rows];
+          more = rows.length === LK_PAGE;
+          pg++;
+        }
+        return all;
+      };
+      const [prods, custs] = await Promise.all([
+        fetchAll('products', 'id, code, name'),
+        fetchAll('customers', 'id, name'),
       ]);
-      setProducts(prodRes.data || []);
-      setCustomers(custRes.data || []);
+      setProducts(prods as unknown as Product[]);
+      setCustomers(custs as unknown as Customer[]);
     } catch {
       // non-critical
     }

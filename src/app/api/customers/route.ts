@@ -7,21 +7,40 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get('search');
   const activeOnly = searchParams.get('active_only') !== 'false';
 
-  let query = supabase.from('customers').select('*', { count: 'exact' });
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+  let totalCount = 0;
 
-  if (activeOnly) query = query.eq('is_active', true);
-  if (search) {
-    query = query.or(`name.ilike.%${search}%,business_number.ilike.%${search}%,representative.ilike.%${search}%`);
+  while (hasMore) {
+    const start = page * PAGE_SIZE;
+    const end = start + PAGE_SIZE - 1;
+    let query = supabase
+      .from('customers')
+      .select('*', page === 0 ? { count: 'exact' } : {})
+      .range(start, end);
+
+    if (activeOnly) query = query.eq('is_active', true);
+    if (search) {
+      query = query.or(`name.ilike.%${search}%,business_number.ilike.%${search}%,representative.ilike.%${search}%`);
+    }
+
+    query = query.order('name');
+    const { data, error, count } = await query;
+
+    if (error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+
+    if (page === 0 && count != null) totalCount = count;
+    const rows = data || [];
+    allData = [...allData, ...rows];
+    hasMore = rows.length === PAGE_SIZE;
+    page++;
   }
 
-  query = query.order('name');
-  const { data, error, count } = await query;
-
-  if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ success: true, data, total: count });
+  return NextResponse.json({ success: true, data: allData, total: totalCount });
 }
 
 export async function POST(request: NextRequest) {

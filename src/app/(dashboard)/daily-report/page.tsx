@@ -73,21 +73,36 @@ export default function DailyReportPage() {
     setSendResult(null);
     try {
       const supabase = createClient();
+      const PAGE_SIZE = 1000;
 
-      // 출하 데이터 직접 조회 + 조인
-      const { data: shipments } = await supabase
-        .from('shipments')
-        .select(`
-          shipment_number, shipment_date, weight_net, status,
-          transport_type, vehicle_number, is_confirmed,
-          transport_companies!shipments_company_id_fkey(name),
-          customers!shipments_customer_id_fkey(name),
-          products!shipments_product_id_fkey(name, code)
-        `)
-        .eq('shipment_date', date)
-        .order('created_at', { ascending: true });
+      // 출하 데이터 직접 조회 + 조인 (페이지네이션으로 전체 행 조회)
+      const allShipments: Record<string, unknown>[] = [];
+      let page = 0;
+      let hasMore = true;
 
-      const rows = (shipments || []).map((s: Record<string, unknown>) => ({
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('shipments')
+          .select(`
+            shipment_number, shipment_date, weight_net, status,
+            transport_type, vehicle_number, is_confirmed,
+            transport_companies!shipments_company_id_fkey(name),
+            customers!shipments_customer_id_fkey(name),
+            products!shipments_product_id_fkey(name, code)
+          `)
+          .eq('shipment_date', date)
+          .order('created_at', { ascending: true })
+          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+        if (error) throw error;
+
+        const chunk = (data || []) as Record<string, unknown>[];
+        allShipments.push(...chunk);
+        hasMore = chunk.length === PAGE_SIZE;
+        page++;
+      }
+
+      const rows = allShipments.map((s: Record<string, unknown>) => ({
         shipmentNumber: s.shipment_number as string,
         company: (s.transport_companies as Record<string, string>)?.name || '미지정',
         customer: (s.customers as Record<string, string>)?.name || '미지정',

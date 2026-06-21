@@ -200,16 +200,32 @@ export default function ShippingPage() {
 
   const fetchLookups = useCallback(async () => {
     try {
+      // Supabase 1000행 제한 → 페이징 조회 (lookups)
+      const LK_PAGE = 1000;
+      const fetchAll = async (table: string, select: string) => {
+        let all: Record<string, unknown>[] = [];
+        let pg = 0;
+        let more = true;
+        while (more) {
+          const { data } = await supabase.from(table).select(select).eq('is_active', true).order('name').range(pg * LK_PAGE, (pg + 1) * LK_PAGE - 1);
+          const rows = (data || []) as unknown as Record<string, unknown>[];
+          all = [...all, ...rows];
+          more = rows.length === LK_PAGE;
+          pg++;
+        }
+        return all;
+      };
+
       const [custRes, prodRes, driverRes, compRes] = await Promise.allSettled([
-        supabase.from('customers').select('id, name').eq('is_active', true).order('name'),
-        supabase.from('products').select('id, code, name, unit').eq('is_active', true).order('name'),
-        supabase.from('drivers').select('id, name, vehicle_number, company_id').eq('is_active', true).order('name'),
-        supabase.from('transport_companies').select('id, name, phone, email').eq('is_active', true).order('name'),
+        fetchAll('customers', 'id, name'),
+        fetchAll('products', 'id, code, name, unit'),
+        fetchAll('drivers', 'id, name, vehicle_number, company_id'),
+        fetchAll('transport_companies', 'id, name, phone, email'),
       ]);
-      setCustomers(custRes.status === 'fulfilled' ? custRes.value.data || [] : []);
-      setProducts(prodRes.status === 'fulfilled' ? prodRes.value.data || [] : []);
-      setDrivers(driverRes.status === 'fulfilled' ? driverRes.value.data || [] : []);
-      setCompanies(compRes.status === 'fulfilled' ? compRes.value.data || [] : []);
+      setCustomers(custRes.status === 'fulfilled' ? custRes.value as unknown as LookupCustomer[] : []);
+      setProducts(prodRes.status === 'fulfilled' ? prodRes.value as unknown as LookupProduct[] : []);
+      setDrivers(driverRes.status === 'fulfilled' ? driverRes.value as unknown as LookupDriver[] : []);
+      setCompanies(compRes.status === 'fulfilled' ? compRes.value as unknown as LookupCompany[] : []);
 
       const failedLookups = [
         custRes.status === 'rejected' ? '거래처' : null,

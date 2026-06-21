@@ -200,14 +200,26 @@ export default function SettlementPage() {
   const fetchUnitPrices = useCallback(async () => {
     setUpLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('unit_prices')
-        .select(`*, transport_companies(id, name), products(id, name)`)
-        .eq('is_active', true)
-        .order('company_id');
-      if (error) throw error;
+      // Supabase 1000행 제한 → 페이징 조회
+      const UP_PAGE = 1000;
+      let allUpData: Record<string, unknown>[] = [];
+      let upPage = 0;
+      let upMore = true;
+      while (upMore) {
+        const { data: chunk, error: chunkErr } = await supabase
+          .from('unit_prices')
+          .select(`*, transport_companies(id, name), products(id, name)`)
+          .eq('is_active', true)
+          .order('company_id')
+          .range(upPage * UP_PAGE, (upPage + 1) * UP_PAGE - 1);
+        if (chunkErr) throw chunkErr;
+        const chunkRows = chunk || [];
+        allUpData = [...allUpData, ...chunkRows];
+        upMore = chunkRows.length === UP_PAGE;
+        upPage++;
+      }
 
-      const rows: UnitPriceDisplay[] = ((data as UnitPriceRow[]) || []).map(r => ({
+      const rows: UnitPriceDisplay[] = ((allUpData as unknown as UnitPriceRow[]) || []).map(r => ({
         id: r.id,
         company_id: r.company_id,
         company: r.transport_companies?.name ?? '(알수없음)',
@@ -257,15 +269,27 @@ export default function SettlementPage() {
 
       const shipData = allShipData;
 
-      const { data: priceData, error: priceErr } = await supabase
-        .from('unit_prices')
-        .select(`*, transport_companies(id, name), products(id, name)`)
-        .eq('is_active', true);
-      if (priceErr) throw priceErr;
+      // Supabase 1000행 제한 → 페이징 조회 (unit_prices)
+      const PRICE_PAGE = 1000;
+      let allPriceData: Record<string, unknown>[] = [];
+      let pricePg = 0;
+      let priceMore = true;
+      while (priceMore) {
+        const { data: priceChunk, error: priceChunkErr } = await supabase
+          .from('unit_prices')
+          .select(`*, transport_companies(id, name), products(id, name)`)
+          .eq('is_active', true)
+          .range(pricePg * PRICE_PAGE, (pricePg + 1) * PRICE_PAGE - 1);
+        if (priceChunkErr) throw priceChunkErr;
+        const priceRows = priceChunk || [];
+        allPriceData = [...allPriceData, ...priceRows];
+        priceMore = priceRows.length === PRICE_PAGE;
+        pricePg++;
+      }
 
       // company_id::product_id → price
       const priceMap = new Map<string, number>();
-      ((priceData as UnitPriceRow[]) || []).forEach(p => {
+      ((allPriceData as unknown as UnitPriceRow[]) || []).forEach(p => {
         priceMap.set(`${p.company_id}::${p.product_id}`, p.price);
       });
 

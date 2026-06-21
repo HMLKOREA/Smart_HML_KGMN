@@ -19,6 +19,39 @@ const supabase = createClient(
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
 
+const PAGE_SIZE = 1000;
+
+/**
+ * 페이지네이션으로 전체 행 조회 (Supabase 1000행 제한 우회)
+ */
+async function fetchAllShipments(dateStr: string): Promise<Record<string, unknown>[]> {
+  const all: Record<string, unknown>[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('shipments')
+      .select(`
+        *,
+        transport_companies!shipments_company_id_fkey(name),
+        customers!shipments_customer_id_fkey(name),
+        products!shipments_product_id_fkey(name)
+      `)
+      .eq('shipment_date', dateStr)
+      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+    if (error) throw error;
+
+    const rows = (data || []) as Record<string, unknown>[];
+    all.push(...rows);
+    hasMore = rows.length === PAGE_SIZE;
+    page++;
+  }
+
+  return all;
+}
+
 export async function POST(request: NextRequest) {
   if (!BOT_TOKEN || !CHAT_ID) {
     return NextResponse.json(
@@ -31,16 +64,8 @@ export async function POST(request: NextRequest) {
   const dateStr = body.date || new Date().toISOString().slice(0, 10);
 
   try {
-    // 출하 데이터 조회
-    const { data: shipments } = await supabase
-      .from('shipments')
-      .select(`
-        *,
-        transport_companies!shipments_company_id_fkey(name),
-        customers!shipments_customer_id_fkey(name),
-        products!shipments_product_id_fkey(name)
-      `)
-      .eq('shipment_date', dateStr);
+    // 출하 데이터 조회 (페이지네이션)
+    const shipments = await fetchAllShipments(dateStr);
 
     const rows = (shipments || []).map((s: Record<string, unknown>) => ({
       company: (s.transport_companies as Record<string, string>)?.name || '미지정',
