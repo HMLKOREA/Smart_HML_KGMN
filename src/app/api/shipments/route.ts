@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { sanitizeFilterValue } from '@/lib/utils/sanitize';
 
 export async function GET(request: NextRequest) {
   const supabase = await createServerSupabaseClient();
@@ -18,8 +19,9 @@ export async function GET(request: NextRequest) {
   if (endDate) query = query.lte('shipment_date', endDate);
   if (status) query = query.eq('status', status);
   if (search) {
+    const safeSearch = sanitizeFilterValue(search.trim());
     query = query.or(
-      `shipment_number.ilike.%${search}%,customer_name.ilike.%${search}%,product_name.ilike.%${search}%,driver_name.ilike.%${search}%,vehicle_number.ilike.%${search}%`
+      `shipment_number.ilike.%${safeSearch}%,customer_name.ilike.%${safeSearch}%,product_name.ilike.%${safeSearch}%,driver_name.ilike.%${safeSearch}%,vehicle_number.ilike.%${safeSearch}%`
     );
   }
 

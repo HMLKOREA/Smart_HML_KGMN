@@ -56,14 +56,19 @@ interface LookupCompany { id: string; name: string; phone: string | null; email:
 type DateMode = 'year' | 'month' | 'day' | 'period';
 
 const EXCEL_COLS = [
+  { key: 'shipment_number', header: '출하번호' },
   { key: 'shipment_date', header: '출하일자' },
   { key: 'transport_type', header: '운송구분' },
   { key: 'customer_name', header: '거래처' },
   { key: 'product_name', header: '제품명' },
   { key: 'company_name', header: '운송사' },
+  { key: 'driver_name', header: '기사명' },
   { key: 'vehicle_number', header: '차량정보' },
   { key: 'silo', header: '사일로' },
+  { key: 'weight_empty', header: '공차중량' },
+  { key: 'weight_loaded', header: '적재중량' },
   { key: 'weight_net', header: '계근결과' },
+  { key: 'status', header: '상태' },
   { key: 'notes', header: '기타' },
   { key: 'certificate_time', header: '출하증 발급시간' },
 ];
@@ -177,17 +182,31 @@ export default function ShippingPage() {
   }, [supabase, getDateRange, filterTransportType, filterCustomerId, filterCompanyId, toast]);
 
   const fetchLookups = useCallback(async () => {
-    const [custRes, prodRes, driverRes, compRes] = await Promise.all([
-      supabase.from('customers').select('id, name').eq('is_active', true).order('name'),
-      supabase.from('products').select('id, code, name, unit').eq('is_active', true).order('name'),
-      supabase.from('drivers').select('id, name, vehicle_number, company_id').eq('is_active', true).order('name'),
-      supabase.from('transport_companies').select('id, name, phone, email').eq('is_active', true).order('name'),
-    ]);
-    setCustomers(custRes.data || []);
-    setProducts(prodRes.data || []);
-    setDrivers(driverRes.data || []);
-    setCompanies(compRes.data || []);
-  }, [supabase]);
+    try {
+      const [custRes, prodRes, driverRes, compRes] = await Promise.allSettled([
+        supabase.from('customers').select('id, name').eq('is_active', true).order('name'),
+        supabase.from('products').select('id, code, name, unit').eq('is_active', true).order('name'),
+        supabase.from('drivers').select('id, name, vehicle_number, company_id').eq('is_active', true).order('name'),
+        supabase.from('transport_companies').select('id, name, phone, email').eq('is_active', true).order('name'),
+      ]);
+      setCustomers(custRes.status === 'fulfilled' ? custRes.value.data || [] : []);
+      setProducts(prodRes.status === 'fulfilled' ? prodRes.value.data || [] : []);
+      setDrivers(driverRes.status === 'fulfilled' ? driverRes.value.data || [] : []);
+      setCompanies(compRes.status === 'fulfilled' ? compRes.value.data || [] : []);
+
+      const failedLookups = [
+        custRes.status === 'rejected' ? '거래처' : null,
+        prodRes.status === 'rejected' ? '제품' : null,
+        driverRes.status === 'rejected' ? '기사' : null,
+        compRes.status === 'rejected' ? '운송사' : null,
+      ].filter(Boolean);
+      if (failedLookups.length > 0) {
+        toast.error(`기초 데이터 로딩 실패: ${failedLookups.join(', ')}`);
+      }
+    } catch (err) {
+      toast.error('기초 데이터 로딩 중 오류가 발생했습니다.');
+    }
+  }, [supabase, toast]);
 
   useEffect(() => { fetchLookups(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // 날짜/모드 변경 시 자동 조회
@@ -599,9 +618,9 @@ export default function ShippingPage() {
               <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 3 }}>날짜선택</label>
               {dateMode === 'period' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <input type="date" value={periodFrom} onChange={e => setPeriodFrom(e.target.value)} className="form-input" style={{ fontSize: 13, padding: '6px 8px' }} />
+                  <input type="date" value={periodFrom} max={periodTo} onChange={e => setPeriodFrom(e.target.value)} className="form-input" style={{ fontSize: 13, padding: '6px 8px' }} />
                   <span style={{ fontSize: 12, textAlign: 'center', color: '#9ca3af' }}>~</span>
-                  <input type="date" value={periodTo} onChange={e => setPeriodTo(e.target.value)} className="form-input" style={{ fontSize: 13, padding: '6px 8px' }} />
+                  <input type="date" value={periodTo} min={periodFrom} onChange={e => setPeriodTo(e.target.value)} className="form-input" style={{ fontSize: 13, padding: '6px 8px' }} />
                 </div>
               ) : dateMode === 'year' ? (
                 <input
@@ -1423,7 +1442,8 @@ export default function ShippingPage() {
                                     <button
                                       onClick={async () => {
                                         await crud.issueCertificate(row.id);
-                                        setPrintRow(row);
+                                        const updatedRow = { ...row, certificate_time: new Date().toISOString() };
+                                        setPrintRow(updatedRow);
                                         setShowPrint(true);
                                         fetchData();
                                       }}
@@ -1443,7 +1463,8 @@ export default function ShippingPage() {
                                   <button
                                     onClick={async () => {
                                       await crud.issueCertificate(row.id);
-                                      setPrintRow(row);
+                                      const updatedRow = { ...row, certificate_time: new Date().toISOString() };
+                                      setPrintRow(updatedRow);
                                       setShowPrint(true);
                                       fetchData();
                                     }}

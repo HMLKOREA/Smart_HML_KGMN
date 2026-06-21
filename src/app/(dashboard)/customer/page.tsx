@@ -7,6 +7,7 @@ import { exportToExcel, EXCEL_COLUMNS } from '@/lib/utils/exportExcel';
 import { useToast } from '@/components/ui/Toast';
 import { getSession } from '@/lib/auth/session';
 import AccessDenied from '@/components/ui/AccessDenied';
+import { sanitizeFilterValue } from '@/lib/utils/sanitize';
 
 // ── Types ──────────────────────────────────────────────
 interface Customer {
@@ -85,8 +86,9 @@ export default function CustomerPage() {
         .order('name');
 
       if (searchText) {
+        const safeSearch = sanitizeFilterValue(searchText.trim());
         query = query.or(
-          `name.ilike.%${searchText}%,business_number.ilike.%${searchText}%,representative.ilike.%${searchText}%,phone.ilike.%${searchText}%,address.ilike.%${searchText}%`
+          `name.ilike.%${safeSearch}%,business_number.ilike.%${safeSearch}%,representative.ilike.%${safeSearch}%,phone.ilike.%${safeSearch}%,address.ilike.%${safeSearch}%`
         );
       }
 

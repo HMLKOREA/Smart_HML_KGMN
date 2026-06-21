@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect } from 'react';
+
 /**
  * 성적서 출력 컴포넌트
  * 기존 데스크톱 앱의 11종 성적서 양식 중 기본 양식 구현
@@ -23,6 +25,25 @@ interface ReportPrintProps {
 }
 
 export default function ReportPrint({ report, onClose }: ReportPrintProps) {
+  // Auto-print on mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      window.print();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // ESC key to close
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   const handlePrint = () => {
     window.print();
   };
@@ -52,7 +73,7 @@ export default function ReportPrint({ report, onClose }: ReportPrintProps) {
       </div>
 
       {/* 성적서 본문 */}
-      <div className="bg-white w-[210mm] min-h-[297mm] p-12 shadow-2xl print:shadow-none print:p-8" id="print-area">
+      <div className="bg-white w-[210mm] min-h-[297mm] p-12 shadow-2xl print:shadow-none print:p-8" id="print-report-area">
         {/* 상단 로고/정보 */}
         <div className="flex justify-between items-start mb-2">
           <div className="text-sm text-gray-500">
@@ -168,13 +189,13 @@ export default function ReportPrint({ report, onClose }: ReportPrintProps) {
       <style>{`
         @media print {
           body * { visibility: hidden; }
-          #print-area, #print-area * { visibility: visible; }
-          #print-area {
+          #print-report-area, #print-report-area * { visibility: visible; }
+          #print-report-area {
             position: absolute; left: 0; top: 0; width: 100%;
-            padding: 20mm !important;
+            padding: 15mm 20mm !important;
           }
           .no-print { display: none !important; }
-          @page { size: A4; margin: 10mm; }
+          @page { size: A4; margin: 0; }
         }
       `}</style>
     </div>

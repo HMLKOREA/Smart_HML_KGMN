@@ -7,6 +7,8 @@ import { format } from 'date-fns';
 import ReportPrint from '@/components/modules/report/ReportPrint';
 import { exportToExcel } from '@/lib/utils/exportExcel';
 import { useToast } from '@/components/ui/Toast';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { sanitizeFilterValue } from '@/lib/utils/sanitize';
 
 // ── Types ──────────────────────────────────────────────
 interface QualityReport {
@@ -84,6 +86,19 @@ const emptyForm: ReportFormData = {
 export default function ReportPage() {
   const supabase = createClient();
   const toast = useToast();
+  const { profile } = useAuth();
+
+  // 운송사 역할은 접근 불가
+  if (profile?.role === 'transporter') {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-lg font-semibold text-gray-600">접근 권한이 없습니다</p>
+          <p className="text-sm text-gray-400 mt-1">이 페이지는 관리자 전용입니다.</p>
+        </div>
+      </div>
+    );
+  }
 
   const [data, setData] = useState<QualityReport[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,8 +131,9 @@ export default function ReportPage() {
         .order('report_number', { ascending: false });
 
       if (searchText) {
+        const safeSearch = sanitizeFilterValue(searchText.trim());
         query = query.or(
-          `report_number.ilike.%${searchText}%,product_name.ilike.%${searchText}%,customer_name.ilike.%${searchText}%,inspector.ilike.%${searchText}%`
+          `report_number.ilike.%${safeSearch}%,product_name.ilike.%${safeSearch}%,customer_name.ilike.%${safeSearch}%,inspector.ilike.%${safeSearch}%`
         );
       }
 

@@ -7,6 +7,7 @@ import { exportToExcel, EXCEL_COLUMNS } from '@/lib/utils/exportExcel';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { getTransporterAccounts } from '@/lib/auth/credentials';
+import { sanitizeFilterValue } from '@/lib/utils/sanitize';
 
 // ── Types ──────────────────────────────────────────────
 interface TransportCompany {
@@ -107,8 +108,9 @@ export default function TransportCompanyPage() {
         .order('name');
 
       if (searchText) {
+        const safeSearch = sanitizeFilterValue(searchText.trim());
         query = query.or(
-          `name.ilike.%${searchText}%,business_number.ilike.%${searchText}%,representative.ilike.%${searchText}%,phone.ilike.%${searchText}%,address.ilike.%${searchText}%`
+          `name.ilike.%${safeSearch}%,business_number.ilike.%${safeSearch}%,representative.ilike.%${safeSearch}%,phone.ilike.%${safeSearch}%,address.ilike.%${safeSearch}%`
         );
       }
 
@@ -229,6 +231,9 @@ export default function TransportCompanyPage() {
         business_manager: formData.business_manager || null,
         memo: formData.memo || null,
         is_active: formData.is_active,
+        // NOTE: login_id / login_pw are NOT saved to the transport_companies DB table.
+        // Login credentials are managed via the hardcoded auth system in credentials.ts
+        // (getTransporterAccounts). To persist login info changes, update credentials.ts directly.
       };
 
       if (isEditing && selectedId) {

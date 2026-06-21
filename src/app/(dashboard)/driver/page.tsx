@@ -7,6 +7,7 @@ import { exportToExcel, EXCEL_COLUMNS } from '@/lib/utils/exportExcel';
 import { useToast } from '@/components/ui/Toast';
 import { getSession } from '@/lib/auth/session';
 import ReadOnlyBanner from '@/components/ui/ReadOnlyBanner';
+import { sanitizeFilterValue } from '@/lib/utils/sanitize';
 
 // ── Types ──────────────────────────────────────────────
 interface Driver {
@@ -93,8 +94,9 @@ export default function DriverPage() {
       }
 
       if (searchText) {
+        const safeSearch = sanitizeFilterValue(searchText.trim());
         query = query.or(
-          `name.ilike.%${searchText}%,phone.ilike.%${searchText}%,vehicle_number.ilike.%${searchText}%,company_name.ilike.%${searchText}%,license_number.ilike.%${searchText}%`
+          `name.ilike.%${safeSearch}%,phone.ilike.%${safeSearch}%,vehicle_number.ilike.%${safeSearch}%,company_name.ilike.%${safeSearch}%,license_number.ilike.%${safeSearch}%`
         );
       }
 

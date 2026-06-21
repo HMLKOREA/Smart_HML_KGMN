@@ -257,6 +257,12 @@ body {
 @media print {
   .no-print { display: none !important; }
   body { background: white; }
+  .sidebar, .header, nav { display: none !important; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  a { text-decoration: none; color: inherit; }
+  table { page-break-inside: auto; }
+  tr { page-break-inside: avoid; page-break-after: auto; }
+  thead { display: table-header-group; }
 }
 
 /* ── Responsive Utilities ── */

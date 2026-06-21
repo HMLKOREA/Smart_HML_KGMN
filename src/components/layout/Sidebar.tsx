@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { UserRole } from '@/types';
-import { clearSession } from '@/lib/auth/session';
+import { useAuth } from '@/lib/hooks/useAuth';
 
 /* ────── Heroicon SVG mini-components ────── */
 const icons: Record<string, React.ReactNode> = {
@@ -105,6 +105,7 @@ interface SidebarProps {
 export default function Sidebar({ userRole, userName, collapsed, onToggle, isMobile, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { logout } = useAuth();
 
   const filteredNav = navItems.filter(item => item.roles.includes(userRole));
 
@@ -116,7 +117,7 @@ export default function Sidebar({ userRole, userName, collapsed, onToggle, isMob
   };
 
   const handleLogout = () => {
-    clearSession();
+    logout();
     router.push('/login');
   };
 

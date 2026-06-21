@@ -32,6 +32,17 @@ export default function ShipmentListPrint({ rows, dateLabel, onClose }: Shipment
     return () => clearTimeout(timer);
   }, []);
 
+  // ESC 키로 닫기
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   const columns = [
     { key: 'shipment_date', header: '출하일자', width: '80px', align: 'center' as const },
     { key: 'transport_type', header: '운송구분', width: '60px', align: 'center' as const },
@@ -77,6 +88,26 @@ export default function ShipmentListPrint({ rows, dateLabel, onClose }: Shipment
           WebkitOverflowScrolling: 'touch',
         }}
       >
+        {/* 제목 + 조회기간 */}
+        <div style={{ marginBottom: 12, textAlign: 'center' }}>
+          <div className="print-title" style={{
+            fontSize: 'clamp(14px, 2.5vw, 18px)',
+            fontWeight: 700,
+            color: '#222',
+          }}>
+            출하 목록
+          </div>
+          {dateLabel && (
+            <div className="print-date-label" style={{
+              fontSize: 'clamp(10px, 1.5vw, 13px)',
+              color: '#666',
+              marginTop: 4,
+            }}>
+              조회기간: {dateLabel}
+            </div>
+          )}
+        </div>
+
         {/* 테이블 — wrap in scrollable div for narrow screens */}
         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <table style={{
@@ -215,6 +246,18 @@ export default function ShipmentListPrint({ rows, dateLabel, onClose }: Shipment
           }
           .no-print {
             display: none !important;
+          }
+          #print-list-area .print-title {
+            font-size: 16px !important;
+          }
+          #print-list-area .print-date-label {
+            font-size: 11px !important;
+          }
+          #print-list-area th {
+            font-size: 10px !important;
+          }
+          #print-list-area td {
+            font-size: 11px !important;
           }
         }
       `}</style>

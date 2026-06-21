@@ -7,6 +7,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PaginationParams, PaginatedResult, DateRange } from '@/types';
+import { sanitizeFilterValue } from '@/lib/utils/sanitize';
 
 export class DataAgent<T> {
   private supabase: SupabaseClient;
@@ -42,8 +43,9 @@ export class DataAgent<T> {
 
     // 텍스트 검색 (OR 조건)
     if (params?.search && params?.searchFields?.length) {
+      const safeSearch = sanitizeFilterValue(params.search.trim());
       const searchConditions = params.searchFields
-        .map(field => `${field}.ilike.%${params.search}%`)
+        .map(field => `${field}.ilike.%${safeSearch}%`)
         .join(',');
       query = query.or(searchConditions);
     }

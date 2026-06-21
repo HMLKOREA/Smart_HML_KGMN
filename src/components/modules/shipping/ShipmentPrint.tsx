@@ -39,14 +39,33 @@ interface ShipmentPrintProps {
 
 /** 단일 출하증 복사본 (상/하 반복용) */
 function CertificateCopy({ shipment, issuedTime }: { shipment: ShipmentPrintProps['shipment']; issuedTime: string }) {
+  // 중량 표시: weight_net 우선, 없으면 공차/적재 표시
+  const weightDisplay = shipment.weight_net
+    ? `${shipment.weight_net} ton`
+    : shipment.weight_loaded && shipment.weight_empty
+      ? `공차 ${shipment.weight_empty}t / 적재 ${shipment.weight_loaded}t`
+      : shipment.weight_loaded
+        ? `적재 ${shipment.weight_loaded}t`
+        : shipment.weight_empty
+          ? `공차 ${shipment.weight_empty}t`
+          : '-';
+
+  // 수량 표시
+  const quantityDisplay = shipment.quantity
+    ? `${shipment.quantity} ${shipment.unit || ''}`
+    : '-';
+
   const rows: [string, string][] = [
     ['출하일시', issuedTime],
     ['출    하', '경기광업'],
     ['거 래 처', shipment.customer_name || '-'],
+    ['배 송 지', shipment.delivery_address || '-'],
     ['제 품 명', shipment.product_name || '-'],
+    ['수    량', quantityDisplay],
     ['운 송 사', shipment.company_name || '-'],
+    ['기 사 명', shipment.driver_name || '-'],
     ['차량정보', shipment.vehicle_number || '-'],
-    ['중    량', ''],
+    ['중    량', weightDisplay],
     ['기    타', shipment.notes || shipment.memo || ''],
   ];
 
@@ -191,6 +210,17 @@ export default function ShipmentPrint({ shipment, onClose }: ShipmentPrintProps)
     return () => clearTimeout(timer);
   }, []);
 
+  // ESC 키로 닫기
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   return (
     <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center">
       {/* 인쇄/닫기 버튼 — 화면에서만 표시 */}
@@ -214,7 +244,7 @@ export default function ShipmentPrint({ shipment, onClose }: ShipmentPrintProps)
           인쇄: @page margin:0 + 내부 padding으로 여백 제어
       */}
       <div
-        id="print-area"
+        id="print-shipment-area"
         style={{
           width: '210mm',
           height: '297mm',
@@ -274,10 +304,10 @@ export default function ShipmentPrint({ shipment, onClose }: ShipmentPrintProps)
           body * {
             visibility: hidden;
           }
-          #print-area, #print-area * {
+          #print-shipment-area, #print-shipment-area * {
             visibility: visible;
           }
-          #print-area {
+          #print-shipment-area {
             position: absolute;
             left: 0;
             top: 0;

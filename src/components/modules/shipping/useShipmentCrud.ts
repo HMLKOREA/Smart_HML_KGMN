@@ -25,10 +25,11 @@ interface SavePayload {
   status: string;
 }
 
-function generateShipmentNumber() {
-  const today = format(new Date(), 'yyyyMMdd');
-  const seq = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `SH-${today}-${seq}`;
+function generateShipmentNumber(): string {
+  const now = new Date();
+  const date = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+  const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
+  return `SH-${date}-${rand}`;
 }
 
 export function useShipmentCrud() {

@@ -1,12 +1,13 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { exportToExcel, EXCEL_COLUMNS } from '@/lib/utils/exportExcel';
 import { useToast } from '@/components/ui/Toast';
-import { getSession } from '@/lib/auth/session';
+import { useAuth } from '@/lib/hooks/useAuth';
 import AccessDenied from '@/components/ui/AccessDenied';
+import { sanitizeFilterValue } from '@/lib/utils/sanitize';
 
 // ── Types ──────────────────────────────────────────────
 interface Product {
@@ -52,8 +53,8 @@ const CATEGORY_OPTIONS = ['골재', 'ite석', '모래', '자갈', '석분', '혼
 export default function ProductCodePage() {
   const supabase = createClient();
   const toast = useToast();
-  const session = useMemo(() => getSession(), []);
-  const isTransporter = session?.profile?.role === 'transporter';
+  const { profile } = useAuth();
+  const isTransporter = profile?.role === 'transporter';
 
   const [data, setData] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,8 +76,9 @@ export default function ProductCodePage() {
         .order('code');
 
       if (searchText) {
+        const safeSearch = sanitizeFilterValue(searchText.trim());
         query = query.or(
-          `code.ilike.%${searchText}%,name.ilike.%${searchText}%,specification.ilike.%${searchText}%,category.ilike.%${searchText}%`
+          `code.ilike.%${safeSearch}%,name.ilike.%${safeSearch}%,specification.ilike.%${safeSearch}%,category.ilike.%${safeSearch}%`
         );
       }
 
