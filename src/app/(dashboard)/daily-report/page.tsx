@@ -202,6 +202,17 @@ export default function DailyReportPage() {
             className="flex-1 min-w-0 sm:flex-none px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
           <button
+            onClick={() => fetchReport(selectedDate)}
+            disabled={loading}
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition whitespace-nowrap"
+            title="현재 날짜의 최신 데이터를 다시 불러옵니다"
+          >
+            <svg className={`w-4 h-4 flex-shrink-0 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+            </svg>
+            {loading ? '조회중...' : '재확인'}
+          </button>
+          <button
             onClick={sendTelegram}
             disabled={sending || !telegramStatus?.configured}
             className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-[#0088cc] text-white rounded-lg text-sm font-medium hover:bg-[#006fa8] disabled:opacity-50 disabled:cursor-not-allowed transition whitespace-nowrap"
