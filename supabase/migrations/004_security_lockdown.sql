@@ -103,13 +103,8 @@ DO $$
 DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY['transport_companies','customers','drivers','products','unit_prices'] LOOP
-    EXECUTE format($f$
-      CREATE POLICY %1$s_read ON public.%1$s FOR SELECT TO authenticated
-        USING (public.current_role_name() IS NOT NULL);
-      CREATE POLICY %1$s_admin_write ON public.%1$s FOR ALL TO authenticated
-        USING (public.current_role_name() = 'admin')
-        WITH CHECK (public.current_role_name() = 'admin');
-    $f$, t);
+    EXECUTE format('CREATE POLICY %1$s_read ON public.%1$s FOR SELECT TO authenticated USING (public.current_role_name() IS NOT NULL)', t);
+    EXECUTE format('CREATE POLICY %1$s_admin_write ON public.%1$s FOR ALL TO authenticated USING (public.current_role_name() = ''admin'') WITH CHECK (public.current_role_name() = ''admin'')', t);
   END LOOP;
 END $$;
 
@@ -121,15 +116,8 @@ DO $$
 DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY['shipments','dispatches'] LOOP
-    EXECUTE format($f$
-      CREATE POLICY %1$s_read ON public.%1$s FOR SELECT TO authenticated
-        USING (public.is_staff() OR company_id = public.current_company_id());
-      CREATE POLICY %1$s_write ON public.%1$s FOR ALL TO authenticated
-        USING (public.current_role_name() IN ('admin','field')
-               OR (public.current_role_name() = 'transporter' AND company_id = public.current_company_id()))
-        WITH CHECK (public.current_role_name() IN ('admin','field')
-               OR (public.current_role_name() = 'transporter' AND company_id = public.current_company_id()));
-    $f$, t);
+    EXECUTE format('CREATE POLICY %1$s_read ON public.%1$s FOR SELECT TO authenticated USING (public.is_staff() OR company_id = public.current_company_id())', t);
+    EXECUTE format('CREATE POLICY %1$s_write ON public.%1$s FOR ALL TO authenticated USING (public.current_role_name() IN (''admin'',''field'') OR (public.current_role_name() = ''transporter'' AND company_id = public.current_company_id())) WITH CHECK (public.current_role_name() IN (''admin'',''field'') OR (public.current_role_name() = ''transporter'' AND company_id = public.current_company_id()))', t);
   END LOOP;
 END $$;
 
@@ -160,13 +148,8 @@ DO $$
 DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY['quality_reports','production_schedules'] LOOP
-    EXECUTE format($f$
-      CREATE POLICY %1$s_read ON public.%1$s FOR SELECT TO authenticated
-        USING (public.current_role_name() IS NOT NULL);
-      CREATE POLICY %1$s_write ON public.%1$s FOR ALL TO authenticated
-        USING (public.current_role_name() IN ('admin','field'))
-        WITH CHECK (public.current_role_name() IN ('admin','field'));
-    $f$, t);
+    EXECUTE format('CREATE POLICY %1$s_read ON public.%1$s FOR SELECT TO authenticated USING (public.current_role_name() IS NOT NULL)', t);
+    EXECUTE format('CREATE POLICY %1$s_write ON public.%1$s FOR ALL TO authenticated USING (public.current_role_name() IN (''admin'',''field'')) WITH CHECK (public.current_role_name() IN (''admin'',''field''))', t);
   END LOOP;
 END $$;
 
