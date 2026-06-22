@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import type { UserProfile, UserRole } from '@/types';
-import { validateCredentials } from '@/lib/auth/credentials';
 import { getSession, setSession, clearSession } from '@/lib/auth/session';
 
 interface AuthState {
@@ -13,80 +12,88 @@ interface AuthState {
   error: string | null;
 }
 
+// loginId(KC, ADMIN…) → Supabase Auth 이메일
+const emailFor = (loginId: string) => `${loginId.trim().toLowerCase()}@smarthml.com`;
+
 export function useAuth() {
   const router = useRouter();
 
+  // localStorage 캐시는 즉시 렌더용 UI 캐시일 뿐, 실제 권한은 Supabase
+  // 세션 쿠키 + DB RLS가 강제한다.
   const [state, setState] = useState<AuthState>(() => {
     const session = getSession();
-    return {
-      profile: session?.profile || null,
-      loading: false,
-      error: null,
-    };
+    return { profile: session?.profile || null, loading: false, error: null };
   });
 
-  // 로그인
+  // 마운트 시 실제 Supabase 세션으로 검증 — 위조된 캐시는 정리
+  useEffect(() => {
+    const supabase = createClient();
+    let active = true;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!active) return;
+      if (!user) {
+        clearSession();
+        setState(prev => (prev.profile ? { ...prev, profile: null } : prev));
+        return;
+      }
+      const { data: profile } = await supabase
+        .from('user_profiles').select('*').eq('id', user.id).single();
+      if (!active) return;
+      if (profile) {
+        setSession({ profile: profile as UserProfile, loginId: profile.username || '', loginAt: new Date().toISOString() });
+        setState({ profile: profile as UserProfile, loading: false, error: null });
+      }
+    })();
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      if (!session) { clearSession(); setState({ profile: null, loading: false, error: null }); }
+    });
+    return () => { active = false; sub.subscription.unsubscribe(); };
+  }, []);
+
+  // 로그인 — Supabase Auth
   const login = useCallback(async (loginId: string, password: string): Promise<boolean> => {
     setState(prev => ({ ...prev, loading: true, error: null }));
+    const supabase = createClient();
 
-    const account = validateCredentials(loginId, password);
-    if (!account) {
-      setState(prev => ({ ...prev, loading: false, error: '아이디 또는 비밀번호가 올바르지 않습니다.' }));
+    // 현행 비밀번호는 모두 대문자/숫자 → 레거시 대소문자 무시 로그인 호환
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: emailFor(loginId),
+      password: password.trim().toUpperCase(),
+    });
+    if (error || !data.user) {
+      setState({ profile: null, loading: false, error: '아이디 또는 비밀번호가 올바르지 않습니다.' });
       return false;
     }
 
-    // 운송사 계정이면 company_id 조회
-    let companyId: string | undefined;
-    let companyName: string | undefined;
-
-    if (account.role === 'transporter' && account.companyName) {
-      try {
-        const supabase = createClient();
-        const { data } = await supabase
-          .from('transport_companies')
-          .select('id, name')
-          .ilike('name', account.companyName)
-          .single();
-        if (data) {
-          companyId = data.id;
-          companyName = data.name;
-        }
-      } catch {
-        // 조회 실패해도 로그인은 진행
-      }
+    const { data: profile, error: pErr } = await supabase
+      .from('user_profiles').select('*').eq('id', data.user.id).single();
+    if (pErr || !profile) {
+      await supabase.auth.signOut();
+      setState({ profile: null, loading: false, error: '사용자 프로필을 찾을 수 없습니다.' });
+      return false;
+    }
+    if (profile.is_active === false) {
+      await supabase.auth.signOut();
+      setState({ profile: null, loading: false, error: '비활성화된 계정입니다.' });
+      return false;
     }
 
     const now = new Date().toISOString();
-    const profile: UserProfile = {
-      id: `local-${account.loginId.toLowerCase()}`,
-      email: `${account.loginId.toLowerCase()}@smarthml.local`,
-      name: account.name,
-      role: account.role,
-      company_id: companyId,
-      company_name: companyName,
-      is_active: true,
-      created_at: now,
-      updated_at: now,
-    };
-
-    setSession({
-      profile,
-      loginId: account.loginId,
-      loginAt: now,
-    });
-
-    setState({ profile, loading: false, error: null });
+    setSession({ profile: profile as UserProfile, loginId: profile.username || loginId, loginAt: now });
+    setState({ profile: profile as UserProfile, loading: false, error: null });
     return true;
   }, []);
 
   // 로그아웃
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
     clearSession();
     setState({ profile: null, loading: false, error: null });
     router.push('/login');
   }, [router]);
 
-  // 역할 체크
   const hasRole = useCallback((roles: UserRole | UserRole[]): boolean => {
     if (!state.profile) return false;
     const roleArray = Array.isArray(roles) ? roles : [roles];

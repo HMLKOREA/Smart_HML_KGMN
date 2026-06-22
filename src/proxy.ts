@@ -1,8 +1,9 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import { type NextRequest } from 'next/server';
+import { updateSession } from '@/lib/supabase/middleware';
 
-export function proxy(_request: NextRequest) {
-  // 인증은 클라이언트 localStorage 기반 — 서버 프록시 패스스루
-  return NextResponse.next();
+// Supabase 세션 쿠키 갱신 + 미인증 사용자 보호(서버측 가드)
+export async function proxy(request: NextRequest) {
+  return updateSession(request);
 }
 
 export const config = {

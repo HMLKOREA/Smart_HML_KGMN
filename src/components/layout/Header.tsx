@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { clearSession } from '@/lib/auth/session';
+import { createClient } from '@/lib/supabase/client';
 
 interface HeaderProps {
   title: string;
@@ -61,7 +62,8 @@ export default function Header({ title, sidebarWidth, isMobile, onMenuClick }: H
   const router = useRouter();
   const icon = PAGE_ICONS[title] || '📄';
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await createClient().auth.signOut();
     clearSession();
     router.push('/login');
     router.refresh();
