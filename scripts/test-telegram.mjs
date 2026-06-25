@@ -18,7 +18,8 @@ try {
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+// 서버 전용 리포팅: service_role 키로 RLS 우회 (anon은 RLS로 출하 조회 불가)
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
 
 // 오늘 또는 가장 최근 데이터 있는 날짜 찾기
 let dateStr = process.argv[2] || new Date().toISOString().slice(0, 10);
@@ -31,9 +32,11 @@ let { data: shipments } = await supabase
 
 if (!shipments || shipments.length === 0) {
   console.log(`${dateStr}에 데이터 없음, 최근 날짜 검색...`);
+  const today = new Date().toISOString().slice(0, 10);
   const { data: recent } = await supabase
     .from('shipments')
     .select('shipment_date')
+    .lte('shipment_date', today)          // 미래 오타 날짜(예: 2510-01-01) 제외
     .order('shipment_date', { ascending: false })
     .limit(1)
     .single();
