@@ -15,6 +15,7 @@ const pageTitles: Record<string, string> = {
   '/customer': '거래처관리',
   '/driver': '기사관리',
   '/product-code': '제품코드관리',
+  '/unit-price': '단가관리',
   '/report': '성적서관리',
   '/production': '생산현황',
   '/settlement': '정산관리',
@@ -126,7 +127,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         className="transition-[margin-left] duration-300"
         style={{ paddingTop: 56, marginLeft: mainMarginLeft }}
       >
-        <div className="p-3 sm:p-4 md:p-6">{children}</div>
+        <div className="app-content p-3 sm:p-4 md:p-6">{children}</div>
       </main>
     </div>
   );

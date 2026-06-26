@@ -29,33 +29,11 @@ interface MonthlyAnalysis {
   settlementAmount: number;
 }
 
-interface RecentShipment {
-  shipment_date: string;
-  shipment_number: string;
-  customer_name: string;
-  product_name: string;
-  quantity: number;
-  weight_net: number;
-  vehicle_number: string;
-  company_name: string;
-  status: string;
-  created_at: string;
-}
-
 /* ── 색상 팔레트 ── */
 const PIE_COLORS = [
   '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
   '#06B6D4', '#EC4899', '#F97316', '#14B8A6', '#6366F1', '#84CC16',
 ];
-
-const STATUS_MAP: Record<string, { label: string; style: string }> = {
-  pending:    { label: '대기',     style: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200' },
-  dispatched: { label: '배차완료', style: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' },
-  in_transit: { label: '운송중',   style: 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200' },
-  delivered:  { label: '배송완료', style: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' },
-  completed:  { label: '완료',     style: 'bg-green-50 text-green-700 ring-1 ring-green-200' },
-  cancelled:  { label: '취소',     style: 'bg-red-50 text-red-700 ring-1 ring-red-200' },
-};
 
 /* ── 커스텀 툴팁 ── */
 function PieTooltip({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number }> }) {
@@ -153,7 +131,6 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
   const [monthly, setMonthly] = useState<MonthlyAnalysis>({
     totalQuantity: 0, companyVolumes: [], customerVolumes: [], settlementAmount: 0,
   });
-  const [recentShipments, setRecentShipments] = useState<RecentShipment[]>([]);
   const [todaySettlement, setTodaySettlement] = useState(0);
   const [chartMode, setChartMode] = useState<ChartMode>('ton');
 
@@ -202,7 +179,7 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
       const [
         todayTotalRes, todayPendingRes, todayCompletedRes,
         monthData, prevData,
-        monthUnitPricesRes, recentRes,
+        monthUnitPricesRes,
       ] = await Promise.all([
         supabase.from('shipments').select('*', { count: 'exact', head: true }).eq('shipment_date', today),
         supabase.from('shipments').select('*', { count: 'exact', head: true }).eq('shipment_date', today).eq('status', 'pending'),
@@ -233,7 +210,6 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
           }
           return all;
         })(),
-        supabase.from('v_shipments').select('shipment_date,shipment_number,customer_name,product_name,quantity,weight_net,vehicle_number,company_name,status,created_at').order('created_at', { ascending: false }).limit(10),
       ]);
 
       setTodayStats({
@@ -313,7 +289,6 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
       setTodaySettlement(todaySettle);
 
       setMonthly({ totalQuantity, companyVolumes, customerVolumes, settlementAmount });
-      setRecentShipments((recentRes.data as RecentShipment[]) || []);
     } catch (err) {
       console.error('Admin dashboard load failed:', err);
     } finally {
@@ -537,63 +512,6 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
                 데이터가 없습니다
               </div>
             )}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════ Section 3: 최근 출하내역 ═══════ */}
-      <section className="mt-6 sm:mt-8">
-        <SectionHeader color="bg-violet-500" title="최근 출하내역" subtitle="최근 10건" />
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm mt-3">
-          <div className="overflow-x-auto -mx-0">
-            <table className="data-table min-w-[640px] w-full">
-              <thead>
-                <tr>
-                  <th>출하일자</th>
-                  <th>거래처</th>
-                  <th>제품</th>
-                  <th className="text-right">계량(ton)</th>
-                  <th>차량번호</th>
-                  <th>운송사</th>
-                  <th>발급시간</th>
-                  <th>상태</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentShipments.length > 0 ? recentShipments.map((s, i) => {
-                  const st = STATUS_MAP[s.status] || { label: s.status, style: 'bg-gray-100 text-gray-600' };
-                  return (
-                    <tr key={i} className="hover:bg-blue-50/30 transition-colors">
-                      <td className="text-gray-500">{s.shipment_date}</td>
-                      <td className="font-medium text-gray-800">{s.customer_name || '-'}</td>
-                      <td className="text-gray-600">{s.product_name || '-'}</td>
-                      <td className="text-right tabular-nums font-semibold text-gray-800">{(s.weight_net || 0).toLocaleString()}</td>
-                      <td className="font-mono text-sm text-gray-600">{s.vehicle_number || '-'}</td>
-                      <td className="text-gray-600">{s.company_name || '-'}</td>
-                      <td className="text-gray-500 tabular-nums text-sm">
-                        {s.created_at ? new Date(s.created_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '-'}
-                      </td>
-                      <td>
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold ${st.style}`}>
-                          {st.label}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                }) : (
-                  <tr>
-                    <td colSpan={8} className="text-center py-16 text-gray-300">
-                      <div className="flex flex-col items-center gap-3">
-                        <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={0.8}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
-                        </svg>
-                        <p className="text-sm">출하 데이터가 없습니다</p>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
           </div>
         </div>
       </section>

@@ -245,8 +245,34 @@ export default function ShippingPage() {
   // 날짜/모드 변경 시 자동 조회
   useEffect(() => { fetchData(); }, [selectedDate, dateMode, periodFrom, periodTo]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── 정렬 (헤더 클릭: 오름차순 → 내림차순 → 해제) ──
+  const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
+  const toggleSort = useCallback((key: string) => {
+    setSort(prev =>
+      !prev || prev.key !== key ? { key, dir: 'asc' }
+        : prev.dir === 'asc' ? { key, dir: 'desc' }
+          : null
+    );
+  }, []);
+  const sortedData = useMemo(() => {
+    if (!sort) return data;
+    const arr = [...data];
+    arr.sort((a, b) => {
+      const av = (a as unknown as Record<string, unknown>)[sort.key];
+      const bv = (b as unknown as Record<string, unknown>)[sort.key];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      let cmp: number;
+      if (typeof av === 'number' && typeof bv === 'number') cmp = av - bv;
+      else cmp = String(av).localeCompare(String(bv), 'ko');
+      return sort.dir === 'asc' ? cmp : -cmp;
+    });
+    return arr;
+  }, [data, sort]);
+
   // ── Selection ──
-  const allRows = useMemo(() => [...newRows, ...data], [newRows, data]);
+  const allRows = useMemo(() => [...newRows, ...sortedData], [newRows, sortedData]);
   const toggleSelectAll = () => {
     if (selectedIds.size === allRows.length && allRows.length > 0) {
       setSelectedIds(new Set());
@@ -995,26 +1021,37 @@ export default function ShippingPage() {
               조회된 데이터가 없습니다.
             </div>
           ) : (
-            <table className="data-table" style={{ fontSize: 13 }}>
+            <table className="data-table ship-table" style={{ fontSize: 14 }}>
               <thead>
                 <tr>
-                  <th style={{ width: 56, textAlign: 'center', padding: '7px 6px' }}>상태</th>
                   <th style={{ width: 32, textAlign: 'center', padding: '7px 6px' }}>#</th>
                   <th style={{ width: 32, textAlign: 'center', padding: '7px 6px' }}>
                     <input type="checkbox" checked={selectedIds.size === allRows.length && allRows.length > 0} onChange={toggleSelectAll} />
                   </th>
-                  <th style={{ minWidth: 90, padding: '7px 6px' }}>출하일자</th>
-                  <th style={{ minWidth: 60, padding: '7px 6px' }}>운송구분</th>
-                  <th style={{ minWidth: 140, padding: '7px 6px' }}>거래처</th>
-                  <th style={{ minWidth: 130, padding: '7px 6px' }}>제품명</th>
-                  <th style={{ minWidth: 80, padding: '7px 6px' }}>운송사</th>
-                  <th style={{ minWidth: 100, padding: '7px 6px' }}>차량정보</th>
-                  <th style={{ minWidth: 60, padding: '7px 6px' }}>사일로</th>
+                  {([
+                    { k: 'shipment_date', label: '출하일자', minWidth: 90 },
+                    { k: 'transport_type', label: '운송구분', minWidth: 60 },
+                    { k: 'customer_name', label: '거래처', minWidth: 140 },
+                    { k: 'product_name', label: '제품명', minWidth: 130 },
+                    { k: 'company_name', label: '운송사', minWidth: 80 },
+                    { k: 'vehicle_number', label: '차량정보', minWidth: 100 },
+                    { k: 'silo', label: '사일로', minWidth: 60 },
+                  ] as const).map(c => (
+                    <th key={c.k} onClick={() => toggleSort(c.k)} title="클릭 시 정렬"
+                      style={{ minWidth: c.minWidth, padding: '7px 6px', cursor: 'pointer', userSelect: 'none' }}>
+                      {c.label}{sort?.key === c.k ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
+                    </th>
+                  ))}
                   <th style={{ width: 36, textAlign: 'center', padding: '7px 6px' }}>출하</th>
-                  <th style={{ minWidth: 72, textAlign: 'right', padding: '7px 6px' }}>계근결과</th>
+                  <th onClick={() => toggleSort('weight_net')} title="클릭 시 정렬"
+                    style={{ minWidth: 72, padding: '7px 6px', cursor: 'pointer', userSelect: 'none' }}>
+                    계근결과{sort?.key === 'weight_net' ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
+                  </th>
                   <th style={{ minWidth: 120, padding: '7px 6px' }}>기타</th>
-                  <th style={{ minWidth: 140, padding: '7px 6px' }}>출하증 발급시간</th>
-                  <th style={{ width: 44, textAlign: 'center', padding: '7px 6px' }}>첨부파일</th>
+                  <th onClick={() => toggleSort('certificate_time')} title="클릭 시 정렬"
+                    style={{ minWidth: 140, padding: '7px 6px', cursor: 'pointer', userSelect: 'none' }}>
+                    출하증 발급시간{sort?.key === 'certificate_time' ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
+                  </th>
                   <th style={{ width: 56, textAlign: 'center', padding: '7px 6px' }}>배차통보</th>
                   <th style={{ width: 50, textAlign: 'center', padding: '7px 6px' }}>작업</th>
                 </tr>

@@ -4,6 +4,13 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/lib/hooks/useAuth';
+import { getSession } from '@/lib/auth/session';
+
+// 로그인 후 랜딩: 출하 권한 있으면 출하관리, 운송사는 배차관리
+function landingPath(): string {
+  const role = getSession()?.profile?.role;
+  return role === 'transporter' ? '/dispatch' : '/shipping';
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,10 +22,10 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
 
-  // 이미 로그인 상태면 대시보드로 이동
+  // 이미 로그인 상태면 출하관리(운송사는 배차관리)로 이동
   useEffect(() => {
     if (isAuthenticated) {
-      router.replace('/home');
+      router.replace(landingPath());
     }
   }, [isAuthenticated, router]);
 
@@ -47,7 +54,7 @@ export default function LoginPage() {
       } else {
         localStorage.removeItem('remembered_login_id');
       }
-      router.push('/home');
+      router.push(landingPath());
     } else {
       setError('아이디 또는 비밀번호가 올바르지 않습니다.');
     }

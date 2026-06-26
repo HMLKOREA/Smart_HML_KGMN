@@ -63,14 +63,18 @@ export interface EditableRowData {
   status: string;
 }
 
-const TRANSPORT_TYPES = ['탱크', '벌크', '백(bag)', '기타'];
+const TRANSPORT_TYPES = ['카고', '탱크', '원석'];
 
 function formatKoreanDateTime(dt: string | null): string {
   if (!dt) return '';
   const d = new Date(dt);
+  const yy = d.getFullYear();
+  const MM = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
-  return `${hh}:${mm}`;
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  return `${yy}-${MM}-${dd} ${hh}:${mm}:${ss}`;
 }
 
 interface InlineShipmentRowProps {
@@ -107,23 +111,6 @@ export function prepareOptions(
     driverOpts: drivers.map(d => ({ id: d.id, label: d.vehicle_number, subLabel: d.name })),
     companyOpts: companies.map(c => ({ id: c.id, label: c.name })),
   };
-}
-
-/** 워크플로우 상태 판별 */
-function getWorkflowStatus(row: Shipment): { label: string; bg: string; color: string } {
-  if (row.is_shipped || row.certificate_time) {
-    return { label: '출하완료', bg: '#dcfce7', color: '#15803d' };
-  }
-  if (row.driver_name || row.vehicle_number) {
-    return { label: '기사배정', bg: '#e0e7ff', color: '#4338ca' };
-  }
-  if (row.company_name) {
-    return { label: '배차완료', bg: '#dbeafe', color: '#1d4ed8' };
-  }
-  if (row.customer_name && row.product_name) {
-    return { label: '출하등록', bg: '#fef3c7', color: '#b45309' };
-  }
-  return { label: '입력중', bg: '#f3f4f6', color: '#6b7280' };
 }
 
 // Responsive padding: compact on mobile (tight screens), normal on desktop
@@ -210,20 +197,6 @@ export default function InlineShipmentRow({
         onClick={() => onToggleSelect(row.id)}
         onDoubleClick={() => { if (!isLocked) onStartEdit(row.id); }}
       >
-        <td style={{ textAlign: 'center', padding: cellPad }}>
-          {(() => {
-            const ws = getWorkflowStatus(row);
-            return (
-              <span style={{
-                display: 'inline-block', padding: '2px 6px', borderRadius: 4,
-                fontSize: 11, fontWeight: 700, backgroundColor: ws.bg, color: ws.color,
-                whiteSpace: 'nowrap',
-              }}>
-                {ws.label}
-              </span>
-            );
-          })()}
-        </td>
         <td style={{ textAlign: 'center', color: '#9ca3af', padding: cellPad, fontSize: 13 }}>{index + 1}</td>
         <td style={{ textAlign: 'center', padding: cellPad }} onClick={e => e.stopPropagation()}>
           <input type="checkbox" checked={isSelected} onChange={() => onToggleSelect(row.id)} />
@@ -252,11 +225,8 @@ export default function InlineShipmentRow({
         <td style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, padding: cellPad }}>
           {row.notes || ''}
         </td>
-        <td style={{ fontSize: 11, whiteSpace: 'nowrap', padding: '2px 4px', textAlign: 'center', fontFamily: 'monospace' }}>
+        <td style={{ fontSize: 12, whiteSpace: 'nowrap', padding: '2px 4px', textAlign: 'center', fontFamily: 'monospace' }}>
           {formatKoreanDateTime(row.certificate_time)}
-        </td>
-        <td style={{ textAlign: 'center', fontWeight: 600, color: row.has_attachment ? '#16a34a' : '#dc2626', padding: cellPad, fontSize: 13 }}>
-          {row.has_attachment ? 'O' : 'X'}
         </td>
         <td style={{ textAlign: 'center', fontWeight: 600, color: row.dispatch_notified ? '#16a34a' : '#dc2626', padding: cellPad, fontSize: 13 }}>
           {row.dispatch_notified ? 'O' : 'X'}
@@ -286,15 +256,6 @@ export default function InlineShipmentRow({
       style={{ backgroundColor: bgEdit, borderLeft, touchAction: 'manipulation' }}
       onKeyDown={handleKeyDown}
     >
-      <td style={{ textAlign: 'center', padding: cellPad }}>
-        <span style={{
-          display: 'inline-block', padding: '2px 6px', borderRadius: 4,
-          fontSize: 11, fontWeight: 700, backgroundColor: '#fef3c7', color: '#b45309',
-          whiteSpace: 'nowrap',
-        }}>
-          {isNew ? '신규' : '편집중'}
-        </span>
-      </td>
       <td style={{ textAlign: 'center', color: '#9ca3af', padding: cellPad, fontSize: 13 }}>
         {isNew ? '+' : index + 1}
       </td>
@@ -417,13 +378,8 @@ export default function InlineShipmentRow({
       </td>
 
       {/* 출하증 발급시간 - read-only */}
-      <td style={{ fontSize: 11, whiteSpace: 'nowrap', padding: '2px 4px', textAlign: 'center', fontFamily: 'monospace' }}>
+      <td style={{ fontSize: 12, whiteSpace: 'nowrap', padding: '2px 4px', textAlign: 'center', fontFamily: 'monospace' }}>
         {formatKoreanDateTime(row.certificate_time)}
-      </td>
-
-      {/* 첨부파일 - read-only */}
-      <td style={{ textAlign: 'center', fontWeight: 600, color: row.has_attachment ? '#16a34a' : '#dc2626', padding: cellPad, fontSize: 13 }}>
-        {row.has_attachment ? 'O' : 'X'}
       </td>
 
       {/* 배차통보 - read-only */}

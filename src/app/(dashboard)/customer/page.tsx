@@ -33,29 +33,32 @@ interface Customer {
 
 interface CustomerFormData {
   name: string;
-  business_number: string;
-  representative: string;
-  phone: string;
-  fax: string;
+  customer_code: string;
+  transport_type: string;
+  default_product_id: string;
+  warehouse_code: string;
   address: string;
   delivery_address: string;
   email: string;
   memo: string;
-  is_active: boolean;
 }
 
 const emptyForm: CustomerFormData = {
   name: '',
-  business_number: '',
-  representative: '',
-  phone: '',
-  fax: '',
+  customer_code: '',
+  transport_type: '카고',
+  default_product_id: '',
+  warehouse_code: '',
   address: '',
   delivery_address: '',
   email: '',
   memo: '',
-  is_active: true,
 };
+
+// 운송구분 3종 (담당자 요청)
+const TRANSPORT_TYPES = ['카고', '탱크', '원석'];
+
+interface LookupProduct { id: string; name: string; code: string; }
 
 // ── Component ──────────────────────────────────────────
 export default function CustomerPage() {
@@ -65,6 +68,11 @@ export default function CustomerPage() {
   const isTransporter = session?.profile?.role === 'transporter';
 
   const [data, setData] = useState<Customer[]>([]);
+  const [products, setProducts] = useState<LookupProduct[]>([]);
+  const productName = useCallback(
+    (id: string | null) => products.find(p => p.id === id)?.name || '-',
+    [products],
+  );
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -97,7 +105,7 @@ export default function CustomerPage() {
         if (searchText) {
           const safeSearch = sanitizeFilterValue(searchText.trim());
           query = query.or(
-            `name.ilike.%${safeSearch}%,business_number.ilike.%${safeSearch}%,representative.ilike.%${safeSearch}%,phone.ilike.%${safeSearch}%,address.ilike.%${safeSearch}%`
+            `name.ilike.%${safeSearch}%,customer_code.ilike.%${safeSearch}%,warehouse_code.ilike.%${safeSearch}%,address.ilike.%${safeSearch}%`
           );
         }
 
@@ -121,6 +129,13 @@ export default function CustomerPage() {
   useEffect(() => {
     fetchData();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 제품 목록 (제품명 표시/선택용)
+  useEffect(() => {
+    supabase.from('products').select('id, name, code').order('name').then(({ data }) => {
+      setProducts((data || []) as LookupProduct[]);
+    });
+  }, [supabase]);
 
   const sortedData = useMemo(() => {
     return [...data].sort((a, b) => {
@@ -161,15 +176,14 @@ export default function CustomerPage() {
     setIsEditing(true);
     setFormData({
       name: row.name,
-      business_number: row.business_number || '',
-      representative: row.representative || '',
-      phone: row.phone || '',
-      fax: row.fax || '',
+      customer_code: row.customer_code || '',
+      transport_type: row.transport_type || '카고',
+      default_product_id: row.default_product_id || '',
+      warehouse_code: row.warehouse_code || '',
       address: row.address || '',
       delivery_address: row.delivery_address || '',
       email: row.email || '',
       memo: row.memo || '',
-      is_active: row.is_active,
     });
     setModalOpen(true);
   };
@@ -203,15 +217,14 @@ export default function CustomerPage() {
     try {
       const payload = {
         name: formData.name.trim(),
-        business_number: formData.business_number || null,
-        representative: formData.representative || null,
-        phone: formData.phone || null,
-        fax: formData.fax || null,
+        customer_code: formData.customer_code || null,
+        transport_type: formData.transport_type || null,
+        default_product_id: formData.default_product_id || null,
+        warehouse_code: formData.warehouse_code || null,
         address: formData.address || null,
         delivery_address: formData.delivery_address || null,
         email: formData.email || null,
         memo: formData.memo || null,
-        is_active: formData.is_active,
       };
 
       if (isEditing && selectedId) {
@@ -251,7 +264,7 @@ export default function CustomerPage() {
       <div className="flex flex-wrap items-center gap-2 px-4 sm:px-6 py-3 bg-white border-b border-[var(--color-border)]">
         <input
           type="text"
-          placeholder="거래처명, 사업자번호, 대표자, 전화번호, 주소 검색"
+          placeholder="거래처명, 거래처코드, 창고코드, 주소 검색"
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -326,8 +339,6 @@ export default function CustomerPage() {
                   { key: 'default_product_id', label: '제품명' },
                   { key: 'contact_email', label: '담당자 이메일' },
                   { key: 'address', label: '주소' },
-                  { key: 'phone', label: '전화번호' },
-                  { key: 'is_active', label: '사용' },
                   { key: 'memo', label: '비고' },
                 ].map(col => (
                   <th key={col.key} onClick={() => toggleSort(col.key)} style={{ cursor: 'pointer', userSelect: 'none' }}>
@@ -351,17 +362,9 @@ export default function CustomerPage() {
                   <td className="font-medium">{row.name}</td>
                   <td>{row.customer_code || '-'}</td>
                   <td>{row.warehouse_code || '-'}</td>
-                  <td>{row.default_product_id || '-'}</td>
+                  <td>{productName(row.default_product_id)}</td>
                   <td>{row.contact_email || '-'}</td>
                   <td className="max-w-[200px] truncate">{row.address || '-'}</td>
-                  <td>{row.phone || '-'}</td>
-                  <td>
-                    <span
-                      className={`badge ${row.is_active ? 'badge-completed' : 'badge-cancelled'}`}
-                    >
-                      {row.is_active ? '사용' : '미사용'}
-                    </span>
-                  </td>
                   <td className="max-w-[150px] truncate">{row.memo || '-'}</td>
                 </tr>
               ))}
@@ -401,14 +404,14 @@ export default function CustomerPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">사업자번호</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">거래처코드</label>
                   <input
                     type="text"
-                    value={formData.business_number}
+                    value={formData.customer_code}
                     onChange={(e) =>
-                      setFormData({ ...formData, business_number: e.target.value })
+                      setFormData({ ...formData, customer_code: e.target.value })
                     }
-                    placeholder="000-00-00000"
+                    placeholder="거래처코드"
                     className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                 </div>
@@ -416,31 +419,32 @@ export default function CustomerPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">대표자</label>
-                  <input
-                    type="text"
-                    value={formData.representative}
-                    onChange={(e) =>
-                      setFormData({ ...formData, representative: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">운송구분</label>
+                  <select
+                    value={formData.transport_type}
+                    onChange={(e) => setFormData({ ...formData, transport_type: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                  >
+                    {TRANSPORT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">전화번호</label>
-                  <input
-                    type="text"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">제품명</label>
+                  <select
+                    value={formData.default_product_id}
+                    onChange={(e) => setFormData({ ...formData, default_product_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="">선택 안 함</option>
+                    {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">팩스</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">창고코드</label>
                   <input
                     type="text"
-                    value={formData.fax}
-                    onChange={(e) => setFormData({ ...formData, fax: e.target.value })}
+                    value={formData.warehouse_code}
+                    onChange={(e) => setFormData({ ...formData, warehouse_code: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                 </div>
@@ -486,19 +490,6 @@ export default function CustomerPage() {
                   rows={2}
                   className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
                 />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="is_active"
-                  checked={formData.is_active}
-                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <label htmlFor="is_active" className="text-sm font-medium text-gray-700">
-                  사용여부
-                </label>
               </div>
             </div>
 

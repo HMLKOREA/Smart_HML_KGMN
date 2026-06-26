@@ -77,6 +77,11 @@ function getDateRange(
   const y = year;
 
   switch (period) {
+    case 'daily': {
+      const t = new Date();
+      const ds = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
+      return { from: ds, to: ds, label: `${ds} (당일)` };
+    }
     case 'monthly': {
       const ld = lastDay(y, month);
       return {
@@ -115,6 +120,13 @@ function getPrevRange(
   period: PeriodFilter
 ): { from: string; to: string; label: string } {
   switch (period) {
+    case 'daily': {
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const t = new Date();
+      t.setDate(t.getDate() - 1);
+      const ds = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
+      return { from: ds, to: ds, label: `${ds} (전일)` };
+    }
     case 'monthly': {
       const pm = month === 1 ? 12 : month - 1;
       const py = month === 1 ? year - 1 : year;
@@ -141,7 +153,7 @@ function getPrevRange(
 const CHART_COLORS = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#84cc16','#f97316','#6366f1','#14b8a6','#e11d48'];
 
 type TabKey = 'settlement' | 'unitprice';
-type PeriodFilter = 'monthly' | 'quarterly' | 'semi-annual' | 'annual';
+type PeriodFilter = 'daily' | 'monthly' | 'quarterly' | 'semi-annual' | 'annual';
 
 // ── Component ──────────────────────────────────────────
 export default function SettlementPage() {
@@ -175,7 +187,7 @@ export default function SettlementPage() {
   // ── Settlement State ──
   const [stlYear, setStlYear] = useState(() => new Date().getFullYear());
   const [stlMonth, setStlMonth] = useState(() => new Date().getMonth() + 1);
-  const [stlPeriodFilter, setStlPeriodFilter] = useState<PeriodFilter>('monthly');
+  const [stlPeriodFilter, setStlPeriodFilter] = useState<PeriodFilter>('daily');
   const [stlFilterCompany, setStlFilterCompany] = useState('');
   const [stlFilterCustomer, setStlFilterCustomer] = useState('');
   const [stlFilterTransport, setStlFilterTransport] = useState('');
@@ -444,6 +456,7 @@ export default function SettlementPage() {
   // ── 조회구분 선택 UI ──
   const renderPeriodSelector = () => {
     const periods: { value: PeriodFilter; label: string }[] = [
+      { value: 'daily', label: '당일' },
       { value: 'monthly', label: '월별' },
       { value: 'quarterly', label: '분기별' },
       { value: 'semi-annual', label: '반기별' },

@@ -343,14 +343,10 @@ export default function DriverPage() {
             <thead>
               <tr>
                 <th>운송사</th>
-                <th>차량종류</th>
+                <th>구분</th>
                 <th>기사명</th>
-                <th>전화번호</th>
+                <th>연락처</th>
                 <th>차량번호</th>
-                <th className="text-right">톤수</th>
-                <th>면허번호</th>
-                <th>사용</th>
-                <th>비고</th>
               </tr>
             </thead>
             <tbody>
@@ -365,22 +361,10 @@ export default function DriverPage() {
                   }}
                 >
                   <td className="font-medium">{row.company_name}</td>
-                  <td>{row.vehicle_type}</td>
+                  <td>{row.vehicle_type || '-'}</td>
                   <td className="font-medium">{row.name}</td>
-                  <td>{row.phone}</td>
+                  <td>{row.phone || '-'}</td>
                   <td>{row.vehicle_number}</td>
-                  <td className="text-right">
-                    {row.vehicle_tonnage != null ? Number(row.vehicle_tonnage).toLocaleString() : ''}
-                  </td>
-                  <td>{row.license_number}</td>
-                  <td>
-                    <span
-                      className={`badge ${row.is_active ? 'badge-completed' : 'badge-cancelled'}`}
-                    >
-                      {row.is_active ? '사용' : '미사용'}
-                    </span>
-                  </td>
-                  <td className="max-w-[150px] truncate">{row.memo}</td>
                 </tr>
               ))}
             </tbody>
