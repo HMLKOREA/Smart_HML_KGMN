@@ -334,21 +334,43 @@ async function syncUnitPrices(conn) {
   const [rows] = await conn.query('SELECT * FROM unit_mst');
   log(`  MySQL 단가: ${rows.length}건`);
 
-  // 기존 단가 모두 조회
-  const { data: existing } = await supabase.from('unit_prices').select('id, company_id, customer_id, effective_date');
-  const existingSet = new Set((existing || []).map(e => `${e.company_id}:${e.customer_id}:${e.effective_date}`));
+  // 기존 단가 전체 조회 (페이지네이션 — 기본 1000행 제한 우회)
+  const existingSet = new Set();
+  {
+    const PAGE = 1000;
+    let pg = 0, more = true;
+    while (more) {
+      const { data } = await supabase.from('unit_prices')
+        .select('company_id, customer_id, effective_date')
+        .range(pg * PAGE, (pg + 1) * PAGE - 1);
+      const chunk = data || [];
+      for (const e of chunk) existingSet.add(`${e.company_id}:${e.customer_id}:${e.effective_date}`);
+      more = chunk.length === PAGE;
+      pg++;
+    }
+  }
+
+  // 월 정규화: 'YYYY-M' / 'YYYY-MM' → 'YYYY-MM-01'
+  const normMonth = (m) => {
+    const s = String(m).trim();
+    const mm = s.match(/^(\d{4})-(\d{1,2})/);
+    return mm ? `${mm[1]}-${mm[2].padStart(2, '0')}-01` : null;
+  };
 
   let created = 0, skipped = 0;
+  const seen = new Set(); // 같은 실행 내 중복 방지
 
   for (const r of rows) {
     const companyId = cache.companies.get(String(r.carr_uid));
     const customerId = cache.customers.get(String(r.cus_uid));
     if (!companyId) { skipped++; continue; }
 
-    const effectiveDate = `${r.month}-01`; // '2024-03' → '2024-03-01'
+    const effectiveDate = normMonth(r.month);
+    if (!effectiveDate) { skipped++; continue; }
     const key = `${companyId}:${customerId || null}:${effectiveDate}`;
 
-    if (existingSet.has(key)) { skipped++; continue; }
+    if (existingSet.has(key) || seen.has(key)) { skipped++; continue; }
+    seen.add(key);
 
     const record = {
       company_id: companyId,
