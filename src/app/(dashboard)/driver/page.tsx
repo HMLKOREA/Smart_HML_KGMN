@@ -7,6 +7,7 @@ import { exportToExcel, EXCEL_COLUMNS } from '@/lib/utils/exportExcel';
 import { useToast } from '@/components/ui/Toast';
 import { getSession } from '@/lib/auth/session';
 import ReadOnlyBanner from '@/components/ui/ReadOnlyBanner';
+import MultiSelectFilter from '@/components/ui/MultiSelectFilter';
 import { sanitizeFilterValue } from '@/lib/utils/sanitize';
 
 // ── Types ──────────────────────────────────────────────
@@ -71,6 +72,7 @@ export default function DriverPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchText, setSearchText] = useState('');
   const [companies, setCompanies] = useState<TransportCompany[]>([]);
+  const [filterCompanyNames, setFilterCompanyNames] = useState<string[]>([]);
 
   // ── Auth: 운송사 계정이면 자기 회사만 ──
   const session = useMemo(() => getSession(), []);
@@ -256,6 +258,11 @@ export default function DriverPage() {
     exportToExcel(data as unknown as Record<string, unknown>[], EXCEL_COLUMNS.drivers, '기사관리');
   };
 
+  // 운송사 다중필터 적용(클라이언트)
+  const displayed = filterCompanyNames.length
+    ? data.filter(d => d.company_name && filterCompanyNames.includes(d.company_name))
+    : data;
+
   // ── Render ───────────────────────────────────────────
   return (
     <div className="flex flex-col h-full">
@@ -280,6 +287,14 @@ export default function DriverPage() {
         >
           조회
         </button>
+        {!isTransporter && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-semibold text-gray-600">운송사</span>
+            <div className="w-44">
+              <MultiSelectFilter label="" options={companies.map(c => c.name)} selected={filterCompanyNames} onChange={setFilterCompanyNames} />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ReadOnly Banner for transporter */}
@@ -316,7 +331,7 @@ export default function DriverPage() {
           엑셀
         </button>
         <span className="ml-auto text-sm text-[var(--color-text-secondary)]">
-          총 {data.length}건
+          총 {displayed.length}건
         </span>
       </div>
 
@@ -350,7 +365,7 @@ export default function DriverPage() {
               </tr>
             </thead>
             <tbody>
-              {data.map((row) => (
+              {displayed.map((row) => (
                 <tr
                   key={row.id}
                   className={`cursor-pointer ${selectedId === row.id ? 'selected' : ''}`}
