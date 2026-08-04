@@ -88,6 +88,7 @@ const navItems: NavItem[] = [
   { label: '단가관리', path: '/unit-price', iconKey: 'settlement', roles: ['admin', 'monitor'] },
   { label: '성적서관리', path: '/report', iconKey: 'report', roles: ['admin', 'monitor', 'field'] },
   { label: '생산현황', path: '/production', iconKey: 'production', roles: ['admin', 'monitor', 'field'] },
+  { label: '사일로현황', path: '/silo', iconKey: 'production', roles: ['admin', 'monitor', 'field'] },
   { label: '정산관리', path: '/settlement', iconKey: 'settlement', roles: ['admin', 'monitor', 'transporter'] },
   { label: '일일보고', path: '/daily-report', iconKey: 'dailyReport', roles: ['admin', 'monitor'] },
   // 대시보드는 사용자관리 바로 앞으로 이동 (담당자 요청)
