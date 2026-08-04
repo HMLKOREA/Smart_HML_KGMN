@@ -42,3 +42,6 @@ next-env.d.ts
 kgmn-logo-src.pdf
 
 .vercel
+
+# 로컬 동기화/발송 로그
+logs/

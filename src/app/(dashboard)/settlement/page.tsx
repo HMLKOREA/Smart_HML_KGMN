@@ -194,7 +194,7 @@ export default function SettlementPage() {
   const [stlFilterTransport, setStlFilterTransport] = useState('');
   const [stlFilterProduct, setStlFilterProduct] = useState('');
   const [stlFilterCollapsed, setStlFilterCollapsed] = useState(false);
-  const [stlDetailOpen, setStlDetailOpen] = useState(false);
+  const [stlDetailOpen, setStlDetailOpen] = useState(true);
   const [stlLoading, setStlLoading] = useState(false);
   const [showStatement, setShowStatement] = useState(false);
   const [settlements, setSettlements] = useState<SettlementRow[]>([]);
@@ -951,7 +951,7 @@ export default function SettlementPage() {
                   </button>
                 )}
                 <div className="w-1 h-5 rounded-sm bg-blue-600 shrink-0" />
-                <h1 className="text-sm md:text-base font-bold text-gray-900">정산 대시보드</h1>
+                <h1 className="text-sm md:text-base font-bold text-gray-900">정산관리 (당일)</h1>
                 <span className="text-[13px] px-2.5 py-0.5 rounded-md bg-blue-50 border border-blue-200 font-bold text-blue-700">
                   {dateRange.label}
                 </span>
@@ -1010,6 +1010,8 @@ export default function SettlementPage() {
 
               {stlLoading ? spinner : (
                 <>
+                  {/* 그래프는 대시보드로 이동 — 정산관리는 당일 그리드만 표시 (담당자 요청) */}
+                  {false && (<>
                   {/* Charts Row 1 — 1 col mobile, 2 col desktop */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
                     <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
@@ -1057,6 +1059,7 @@ export default function SettlementPage() {
                       </div>
                     </div>
                   </div>
+                  </>)}
 
                   {/* Detail Table */}
                   <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
