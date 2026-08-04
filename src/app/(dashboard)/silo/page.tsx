@@ -61,6 +61,14 @@ export default function SiloPage() {
   }, [bags]);
   const bagTotal = (no: number) => (bagsBySilo.get(no) || []).reduce((s, b) => s + Number(b.total_ton || 0), 0);
 
+  // 전체 총재고 (담당자 확인용): 벌크 + 톤백(1~8번)
+  const totals = useMemo(() => {
+    const silos = data?.silos || [];
+    let bulk = 0, bag = 0;
+    for (const s of silos) { bulk += s.weight ?? 0; if (s.no <= 8) bag += bagTotal(s.no); }
+    return { bulk, bag, total: bulk + bag };
+  }, [data, bagsBySilo]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const srcLabel: Record<string, { t: string; c: string; bg: string }> = {
     api: { t: '실데이터 · 벤더 API', c: '#15803d', bg: '#e7f6ec' },
     db: { t: '실데이터 · SQL', c: '#15803d', bg: '#e7f6ec' },
@@ -92,6 +100,30 @@ export default function SiloPage() {
         </div>
       )}
 
+      {/* 전체 총재고 요약 (재고관리 기본) */}
+      {data && (
+        <div className="mx-5 sm:mx-7 mt-4 rounded-2xl px-5 py-4 flex flex-wrap items-center justify-between gap-3" style={{ background: 'linear-gradient(135deg,#0f172a,#1e293b)' }}>
+          <div className="flex items-center gap-2.5">
+            <span className="text-2xl">📦</span>
+            <span className="text-lg font-bold text-slate-300">전체 총재고</span>
+          </div>
+          <div className="flex items-end gap-5">
+            <div className="text-right">
+              <div className="text-[13px] text-slate-400 font-semibold">벌크</div>
+              <div className="text-xl font-black text-slate-200 tabular-nums">{fmt(totals.bulk)}<span className="text-[13px] text-slate-500">톤</span></div>
+            </div>
+            <div className="text-right">
+              <div className="text-[13px] text-slate-400 font-semibold">톤백</div>
+              <div className="text-xl font-black text-indigo-300 tabular-nums">{fmt(totals.bag)}<span className="text-[13px] text-slate-500">톤</span></div>
+            </div>
+            <div className="text-right border-l border-slate-600 pl-5">
+              <div className="text-[13px] text-blue-300 font-bold">총합</div>
+              <div className="text-3xl sm:text-4xl font-black text-white tabular-nums leading-none">{fmt(totals.total)}<span className="text-lg text-slate-400">톤</span></div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Grid */}
       <div className="flex-1 overflow-auto p-5 sm:p-7 bg-slate-50">
         {loading && !data ? (
@@ -101,7 +133,8 @@ export default function SiloPage() {
             {data?.silos.map(s => {
               const color = fillColor(s.pct);
               const h = s.pct == null ? 0 : s.pct;
-              const bt = bagTotal(s.no);
+              const hasTonbag = s.no <= 8;               // 9·10번 사일로는 톤백 미사용
+              const bt = hasTonbag ? bagTotal(s.no) : 0;
               const combined = (s.weight ?? 0) + bt;
               return (
                 <div key={s.no} className="bg-white rounded-3xl border border-gray-200 shadow-[0_2px_12px_rgba(15,23,42,0.05)] p-5 flex flex-col items-center">
@@ -121,28 +154,34 @@ export default function SiloPage() {
                     </div>
                   </div>
 
-                  {/* 벌크 수치 */}
+                  {/* 벌크 수치 (보조) */}
                   <div className="text-center mt-2">
-                    <div className="text-2xl font-black text-gray-900 tabular-nums leading-tight">
-                      {fmt(s.weight)}<span className="text-base text-gray-400 font-bold"> / {fmt(s.max)}톤</span>
+                    <div className="text-[17px] font-bold text-gray-500 tabular-nums leading-tight">
+                      벌크 {fmt(s.weight)}<span className="text-[13px] text-gray-400 font-bold"> / {fmt(s.max)}톤</span>
                     </div>
-                    <div className="text-[13px] mt-1 font-semibold" style={{ color: s.stale ? '#dc2626' : '#94a3b8' }}>
+                    <div className="text-[12px] mt-0.5 font-semibold" style={{ color: s.stale ? '#dc2626' : '#94a3b8' }}>
                       {s.stale ? '⚠ 데이터 지연' : (s.measuredAt ? new Date(s.measuredAt).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '측정값 없음')}
                     </div>
                   </div>
 
-                  {/* 톤백 (수동) */}
-                  <div className="w-full mt-3.5 pt-3.5 border-t border-dashed border-gray-200">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[15px] font-bold text-gray-500">🅱 톤백 저장</span>
-                      <span className="text-xl font-black text-indigo-600 tabular-nums">{fmt(bt)}<span className="text-[13px] text-gray-400 font-bold">톤</span></span>
-                    </div>
-                    <div className="flex items-center justify-between mt-1.5">
-                      <span className="text-[13px] text-gray-400 font-semibold">합계(벌크+톤백) {fmt(combined)}톤</span>
+                  {/* 톤백 (1~8번만) */}
+                  {hasTonbag && (
+                    <div className="w-full mt-2.5 flex items-center justify-between px-1">
+                      <span className="text-[16px] font-bold text-indigo-700">🅱 톤백 {fmt(bt)}<span className="text-[12px] text-gray-400">톤</span></span>
                       <button onClick={() => setModalSilo(s)}
                         className="text-[14px] font-bold px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100">
                         {canEdit ? '톤백 관리' : '톤백 보기'}
                       </button>
+                    </div>
+                  )}
+
+                  {/* 총 재고 (재고관리 기본값 · 강조) */}
+                  <div className="w-full mt-3 pt-3 border-t-2 border-gray-100">
+                    <div className="rounded-2xl px-4 py-3 text-center" style={{ background: 'linear-gradient(135deg,#0f172a,#1e293b)' }}>
+                      <div className="text-[13px] font-bold text-slate-300 tracking-wide">총 재고 {hasTonbag ? '(벌크+톤백)' : '(벌크)'}</div>
+                      <div className="text-4xl font-black text-white tabular-nums leading-none mt-1">
+                        {fmt(combined)}<span className="text-lg text-slate-400 font-bold">톤</span>
+                      </div>
                     </div>
                   </div>
                 </div>
