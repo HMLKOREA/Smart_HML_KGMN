@@ -10,6 +10,7 @@ import InlineShipmentRow, { type EditableRowData } from '@/components/modules/sh
 import MultiCustomerPanel from '@/components/modules/shipping/MultiCustomerPanel';
 import { useShipmentCrud } from '@/components/modules/shipping/useShipmentCrud';
 import { exportToExcel } from '@/lib/utils/exportExcel';
+import { parseCsv, readFileText } from '@/lib/utils/importCsv';
 import { useToast } from '@/components/ui/Toast';
 import { getSession } from '@/lib/auth/session';
 import AccessDenied from '@/components/ui/AccessDenied';
@@ -620,6 +621,90 @@ export default function ShippingPage() {
     exportToExcel(data as unknown as Record<string, unknown>[], EXCEL_COLS, '출하관리');
   };
 
+  // ── 위하고(Wehago) 매출자료 양식 내보내기 ──
+  const handleWehagoExport = () => {
+    if (data.length === 0) { toast.warning('내보낼 출하 내역이 없습니다.'); return; }
+    exportToExcel(
+      data as unknown as Record<string, unknown>[],
+      [
+        { key: 'shipment_date', header: '작성일자' },
+        { key: 'customer_name', header: '거래처명' },
+        { key: 'product_name', header: '품목' },
+        { key: 'transport_type', header: '규격' },
+        { key: 'weight_net', header: '수량', formatter: (v) => (v == null ? '' : String(v)) },
+        { key: 'unit', header: '단위', formatter: () => 'ton' },
+        { key: 'vehicle_number', header: '차량번호' },
+        { key: 'notes', header: '비고' },
+      ],
+      `위하고_매출자료_${selectedDate}`,
+    );
+    toast.success('위하고 매출자료 양식(CSV)을 내려받았습니다.');
+  };
+
+  // ── 엑셀(CSV) 가져오기: 출하 일괄등록 ──
+  const handleExcelImport = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv,text/csv';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const rows = parseCsv(await readFileText(file));
+        if (rows.length === 0) { toast.warning('데이터가 없습니다. (헤더 행 포함 CSV)'); return; }
+
+        // 이름 → id 매핑 (대소문자/공백 무시)
+        const norm = (s: string) => (s || '').trim().toLowerCase();
+        const custMap = new Map(customers.map(c => [norm(c.name), c.id]));
+        const prodMap = new Map(products.map(p => [norm(p.name), p.id]));
+        const compMap = new Map(companies.map(c => [norm(c.name), c.id]));
+
+        const pick = (r: Record<string, string>, ...keys: string[]) => {
+          for (const k of keys) if (r[k] != null && r[k] !== '') return r[k];
+          return '';
+        };
+        const ts = Date.now();
+        const records: Record<string, unknown>[] = [];
+        let skipped = 0;
+        rows.forEach((r, i) => {
+          const custName = pick(r, '거래처', '거래처명', 'customer');
+          const prodName = pick(r, '제품명', '제품', 'product');
+          const compName = pick(r, '운송사', 'company');
+          const dateRaw = pick(r, '출하일자', '일자', 'shipment_date');
+          const custId = custMap.get(norm(custName));
+          const prodId = prodMap.get(norm(prodName));
+          if (!custId || !prodId) { skipped++; return; } // 거래처/제품 필수
+          const m = dateRaw.match(/(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})/);
+          const shipDate = m ? `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}` : selectedDate;
+          const w = parseFloat(pick(r, '계근결과', '중량', 'weight_net'));
+          records.push({
+            shipment_number: `WEB-${ts}-${i + 1}`,
+            shipment_date: shipDate,
+            transport_type: pick(r, '운송구분', 'transport_type') || null,
+            customer_id: custId,
+            product_id: prodId,
+            company_id: compMap.get(norm(compName)) || null,
+            vehicle_number: pick(r, '차량번호', '차량정보', 'vehicle_number') || null,
+            silo: pick(r, '사일로', 'silo') || null,
+            weight_net: isNaN(w) ? null : w,
+            notes: pick(r, '기타', '비고', 'notes') || null,
+            status: 'pending',
+            is_shipped: false,
+          });
+        });
+
+        if (records.length === 0) { toast.error(`등록 가능한 행이 없습니다. (거래처·제품명이 마스터와 일치해야 함, 건너뜀 ${skipped})`); return; }
+        const { error } = await supabase.from('shipments').insert(records);
+        if (error) { toast.error(`가져오기 실패: ${error.message}`); return; }
+        toast.success(`${records.length}건 가져오기 완료${skipped ? ` (건너뜀 ${skipped}건)` : ''}`);
+        fetchData();
+      } catch (err) {
+        toast.error(`가져오기 오류: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    };
+    input.click();
+  };
+
   const handleMultiCustomerRegister = async (multiData: {
     shipment_date: string;
     entries: Array<{
@@ -920,7 +1005,7 @@ export default function ShippingPage() {
               background: '#fff', color: '#dc2626', border: '1px solid #fca5a5',
             }}>삭제</button>
             <div style={{ width: 1, height: 22, background: '#e5e7eb', margin: '0 2px' }} className="hidden sm:block" />
-            <button onClick={() => toast.info('엑셀 가져오기 기능은 준비 중입니다.')} style={{
+            <button onClick={handleExcelImport} style={{
               fontSize: 13, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontWeight: 500,
               background: '#fff', color: '#374151', border: '1px solid #d1d5db',
             }} className="hidden sm:block">엑셀가져오기</button>
@@ -975,7 +1060,7 @@ export default function ShippingPage() {
             }}>확정취소</button>
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
-            <button onClick={() => toast.info('위하고 양식 기능은 준비 중입니다.')} style={{
+            <button onClick={handleWehagoExport} style={{
               fontSize: 13, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 500,
               background: '#fff', color: '#6b7280', border: '1px solid #d1d5db',
             }}>위하고 양식</button>
@@ -1576,6 +1661,8 @@ export default function ShippingPage() {
                                   <>
                                     <button
                                       onClick={async () => {
+                                        const issued = new Date(row.certificate_time!).toLocaleString('ko-KR');
+                                        if (!confirm(`이미 출하증이 발급되었습니다.\n(발급시간: ${issued})\n\n재발급하시겠습니까?`)) return;
                                         await crud.issueCertificate(row.id);
                                         const updatedRow = { ...row, certificate_time: new Date().toISOString() };
                                         setPrintRow(updatedRow);

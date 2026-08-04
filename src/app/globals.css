@@ -46,12 +46,12 @@ body {
 
 .data-table th {
   background-color: #eef2f7;            /* 헤더 색상 통일 */
-  padding: 11px 14px;
+  padding: 15px 16px;                   /* 여유 있는 셀 */
   text-align: center;                   /* 가운데 정렬 */
-  font-weight: 700;                     /* 굵게 */
-  font-size: 15px;                      /* 크게 */
-  color: #1f2937;                       /* 선명하게(진하게) */
-  letter-spacing: 0;
+  font-weight: 800;                     /* 굵게 */
+  font-size: 21px;                      /* 최대한 크게 (저시력 배려) */
+  color: #0f172a;                       /* 선명하게(진하게) */
+  letter-spacing: 0.01em;
   border-bottom: 2px solid #cbd5e1;
   border-right: 1px solid #e5e7eb;      /* 셀 구분선 */
   white-space: nowrap;
@@ -61,23 +61,25 @@ body {
 }
 
 .data-table td {
-  padding: 12px 14px;
+  padding: 16px 16px;                   /* 넓은 행 간격 */
   border-bottom: 1px solid #e5e7eb;     /* 셀 구분선 */
   border-right: 1px solid #eef2f7;      /* 셀 세로 구분선 */
-  font-size: 16px;                      /* 크게 */
-  font-weight: 500;                     /* 약간 굵게 */
-  color: #111827;                       /* 선명하게 */
+  font-size: 20px;                      /* 최대한 크게 (저시력 배려) */
+  font-weight: 600;                     /* 또렷하게 */
+  line-height: 1.55;
+  letter-spacing: 0.01em;
+  color: #0f172a;                       /* 선명하게 */
   background-color: inherit;
 }
 
 @media (max-width: 640px) {
-  .data-table th { padding: 8px 8px; font-size: 13px; }
-  .data-table td { padding: 8px 8px; font-size: 14px; }
+  .data-table th { padding: 11px 9px; font-size: 16px; }
+  .data-table td { padding: 12px 9px; font-size: 17px; }
 }
 
 @media (min-width: 641px) and (max-width: 1023px) {
-  .data-table th { padding: 9px 10px; font-size: 14px; }
-  .data-table td { padding: 10px 10px; font-size: 15px; }
+  .data-table th { padding: 13px 11px; font-size: 18px; }
+  .data-table td { padding: 14px 11px; font-size: 19px; }
 }
 
 .data-table tbody tr {
@@ -129,10 +131,10 @@ body {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 8px 15px;
+  padding: 10px 18px;
   border-radius: 8px;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
   transition: all 0.15s;
   cursor: pointer;
   white-space: nowrap;
@@ -188,11 +190,11 @@ body {
 /* ── Form Inputs ── */
 .form-input {
   width: 100%;
-  padding: 9px 12px;
+  padding: 11px 13px;
   background: #f9fafb;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  font-size: 15px;
+  font-size: 16px;
   transition: all 0.15s;
   outline: none;
 }
@@ -205,10 +207,11 @@ body {
 
 .form-label {
   display: block;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   color: #1f2937;
-  margin-bottom: 4px;
+  margin-bottom: 5px;
+  letter-spacing: 0.01em;
 }
 
 /* ── Modal ── */
@@ -267,18 +270,23 @@ body {
   thead { display: table-header-group; }
 }
 
-/* ── 전체 글자 확대/선명 (담당자 요청): 본문 콘텐츠 한정 ── */
-.app-content { color: #1f2937; }
-.app-content .text-xs { font-size: 13px; }
-.app-content .text-sm { font-size: 15px; }
+/* ── 전체 글자 확대/선명 + 자간·줄간격 확보 (저시력 배려) ── */
+.app-content { color: #1f2937; line-height: 1.7; letter-spacing: 0.01em; }
+.app-content .text-xs { font-size: 14px; }
+.app-content .text-sm { font-size: 16px; }
+.app-content .text-base { font-size: 18px; }
+.app-content p, .app-content li, .app-content label, .app-content span, .app-content div { line-height: 1.65; }
 .app-content table { font-variant-numeric: tabular-nums; }
 /* 본문 내 탭 활성 색상 통일(파랑) */
 .app-content .tab-active {
   color: var(--color-primary) !important;
   border-color: var(--color-primary) !important;
 }
-/* 출하내역 표: 모든 셀 가운데 정렬 (담당자 요청) */
-.ship-table td, .ship-table th { text-align: center !important; }
+/* 출하내역 표: 모든 셀 가운데 정렬 + 글자 최대한 크게 (저시력 배려) */
+.ship-table td, .ship-table th { text-align: center !important; font-size: 18px !important; font-family: inherit !important; }
+.ship-table th { font-size: 19px !important; font-weight: 800 !important; }
+.ship-table td { padding-top: 11px !important; padding-bottom: 11px !important; }
+.ship-table td input, .ship-table td select { font-size: 17px !important; font-family: inherit !important; }
 .ship-table td input[type="text"],
 .ship-table td input[type="date"] { text-align: center; }
 

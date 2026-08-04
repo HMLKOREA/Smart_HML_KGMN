@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { exportToExcel } from '@/lib/utils/exportExcel';
+import TransactionStatementPrint from '@/components/modules/settlement/TransactionStatementPrint';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/lib/hooks/useAuth';
 
@@ -195,6 +196,7 @@ export default function SettlementPage() {
   const [stlFilterCollapsed, setStlFilterCollapsed] = useState(false);
   const [stlDetailOpen, setStlDetailOpen] = useState(false);
   const [stlLoading, setStlLoading] = useState(false);
+  const [showStatement, setShowStatement] = useState(false);
   const [settlements, setSettlements] = useState<SettlementRow[]>([]);
   const [prevSettlements, setPrevSettlements] = useState<SettlementRow[]>([]);
 
@@ -430,7 +432,7 @@ export default function SettlementPage() {
       { key: 'customer', header: '거래처' }, { key: 'transportType', header: '운송구분' },
       { key: 'product', header: '제품명' }, { key: 'weightNet', header: '계근수량' },
       { key: 'unitPrice', header: '단가(원)' }, { key: 'transportFee', header: '운송료(원)' },
-      { key: 'tax', header: '세액(원)' }, { key: 'totalFee', header: '운송료합계(원)' },
+      { key: 'tax', header: '세액(원)' }, { key: 'totalFee', header: '운송료 합계(원)' },
     ], `정산관리_${dateRange.label}`);
   };
 
@@ -960,12 +962,23 @@ export default function SettlementPage() {
                   </div>
                 )}
               </div>
-              <button
-                onClick={handleExcelSettlement}
-                className="text-[13px] px-3 py-1.5 rounded-lg cursor-pointer font-medium bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 transition-colors"
-              >
-                엑셀내보내기
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    if (filteredSettlements.length === 0) { toast.warning('출력할 정산 내역이 없습니다.'); return; }
+                    setShowStatement(true);
+                  }}
+                  className="text-[13px] px-3 py-1.5 rounded-lg cursor-pointer font-medium bg-blue-600 text-white border border-blue-600 hover:bg-blue-700 transition-colors"
+                >
+                  거래명세서
+                </button>
+                <button
+                  onClick={handleExcelSettlement}
+                  className="text-[13px] px-3 py-1.5 rounded-lg cursor-pointer font-medium bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 transition-colors"
+                >
+                  엑셀내보내기
+                </button>
+              </div>
             </div>
 
             {/* Dashboard */}
@@ -1138,6 +1151,19 @@ export default function SettlementPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {showStatement && (
+        <TransactionStatementPrint
+          customer={stlFilterCustomer || '전체 거래처'}
+          periodLabel={dateRange.label}
+          rows={filteredSettlements.map(s => ({
+            date: s.date, product: s.product, transportType: s.transportType,
+            weightNet: s.weightNet, unitPrice: s.unitPrice, transportFee: s.transportFee,
+            tax: s.tax, totalFee: s.totalFee,
+          }))}
+          onClose={() => setShowStatement(false)}
+        />
       )}
     </div>
   );

@@ -242,6 +242,16 @@ async function syncShipments(conn) {
     .select('id, shipment_number');
   const existingMap = new Map((existing || []).map(e => [e.shipment_number, e.id]));
 
+  // 거래처(cus_uid) → 제품(product_id) 매핑: 거래처별 기본 제품(prod_code) 기준
+  const custProduct = new Map();
+  {
+    const [custRows] = await conn.query('SELECT uid, prod_code FROM custom_mst');
+    for (const c of custRows) {
+      const pid = cache.products.get(c.prod_code);
+      if (pid) custProduct.set(String(c.uid), pid);
+    }
+  }
+
   let whereClause = '';
   if (isDelta) {
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString().slice(0, 19);
@@ -283,6 +293,7 @@ async function syncShipments(conn) {
         shipment_date: normalizeDate(r.out_date),
         company_id: companyId,
         customer_id: customerId,
+        product_id: custProduct.get(String(r.cus_uid)) || null,
         vehicle_number: r.car_no || null,
         transport_type: typeMap[r.car_type] || r.car_type || null,
         silo: r.silo_no || null,
