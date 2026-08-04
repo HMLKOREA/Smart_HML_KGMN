@@ -513,7 +513,7 @@ export default function ShippingPage() {
 
   const openDispatchNotify = () => {
     if (selectedIds.size === 0) { toast.warning('배차통보할 항목을 선택해주세요.'); return; }
-    setNotifyMethod('email');
+    setNotifyMethod('kakao'); // 배차통보는 운송사 담당자에게 문자/카카오
     setShowDispatchNotify(true);
   };
 
@@ -523,24 +523,26 @@ export default function ShippingPage() {
       const selected = data.filter(d => selectedIds.has(d.id));
       if (selected.length === 0) { toast.warning('통보 대상이 없습니다.'); setNotifyLoading(false); return; }
 
-      // 거래처 연락처 조회 (이메일/전화번호)
-      const customerIds = [...new Set(selected.map(s => s.customer_id).filter((id): id is string => !!id))];
-      const { data: custData } = await supabase
-        .from('customers')
+      // 배차통보 수신자 = 운송사 담당자 (운송사별 연락처/휴대폰)
+      const companyIds = [...new Set(selected.map(s => s.company_id).filter((id): id is string => !!id))];
+      if (companyIds.length === 0) { toast.warning('운송사가 지정되지 않은 출하는 통보할 수 없습니다.'); setNotifyLoading(false); return; }
+      const { data: coData } = await supabase
+        .from('transport_companies')
         .select('id, name, email, phone')
-        .in('id', customerIds);
+        .in('id', companyIds);
 
-      const customerMap: Record<string, { name: string; email: string; phone: string }> = {};
-      (custData || []).forEach((c: { id: string; name: string; email?: string; phone?: string }) => {
-        customerMap[c.id] = { name: c.name, email: c.email || '', phone: c.phone || '' };
+      // 그룹 키를 운송사로 사용 (라우트는 customer_id 기준 그룹핑 → 운송사 id를 넣어 재사용)
+      const contactMap: Record<string, { name: string; email: string; phone: string }> = {};
+      (coData || []).forEach((c: { id: string; name: string; email?: string; phone?: string }) => {
+        contactMap[c.id] = { name: c.name, email: c.email || '', phone: c.phone || '' };
       });
 
-      // 발송 대상 정보 구성
-      const shipmentPayload = selected.map(s => ({
+      // 발송 대상 정보 구성 (수신 그룹 = 운송사)
+      const shipmentPayload = selected.filter(s => s.company_id).map(s => ({
         id: s.id,
         shipment_date: s.shipment_date,
-        customer_id: s.customer_id,
-        customer_name: s.customer_name,
+        customer_id: s.company_id as string,   // 그룹 키 = 운송사
+        customer_name: s.company_name,          // 수신자명 = 운송사명
         product_name: s.product_name,
         company_name: s.company_name,
         vehicle_number: s.vehicle_number,
@@ -551,12 +553,8 @@ export default function ShippingPage() {
         notes: s.notes,
       }));
 
-      // 선택된 방법으로 발송
+      // 선택된 방법으로 발송 (배차통보는 문자/카카오 권장)
       const endpoint = notifyMethod === 'email' ? '/api/notify/email' : '/api/notify/kakao';
-      const contactMap: Record<string, { name: string; email: string; phone: string }> = {};
-      for (const cid of customerIds) {
-        if (customerMap[cid]) contactMap[cid] = customerMap[cid];
-      }
 
       const notifyRes = await fetch(endpoint, {
         method: 'POST',

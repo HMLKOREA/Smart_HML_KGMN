@@ -49,7 +49,8 @@ export default function SiloPage() {
 
   useEffect(() => {
     Promise.all([loadBulk(), loadBags()]).finally(() => setLoading(false));
-    const t = setInterval(loadBulk, 60_000);
+    // 벤더 데이터는 1분 갱신이지만 상시 확인이 아니므로 5분 간격 + 수동 새로고침 (서버 부담 최소화)
+    const t = setInterval(loadBulk, 5 * 60_000);
     return () => clearInterval(t);
   }, [loadBulk, loadBags]);
 
