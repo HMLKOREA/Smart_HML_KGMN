@@ -14,6 +14,7 @@ import { parseCsv, readFileText } from '@/lib/utils/importCsv';
 import { useToast } from '@/components/ui/Toast';
 import { getSession } from '@/lib/auth/session';
 import AccessDenied from '@/components/ui/AccessDenied';
+import MultiSelectFilter from '@/components/ui/MultiSelectFilter';
 
 // ── Types ──────────────────────────────────────────────
 interface Shipment {
@@ -104,9 +105,9 @@ export default function ShippingPage() {
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [periodFrom, setPeriodFrom] = useState(format(new Date(), 'yyyy-MM-01'));
   const [periodTo, setPeriodTo] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [filterTransportType, setFilterTransportType] = useState('');
-  const [filterCustomerId, setFilterCustomerId] = useState('');
-  const [filterCompanyId, setFilterCompanyId] = useState('');
+  const [filterTransportTypes, setFilterTransportTypes] = useState<string[]>([]);
+  const [filterCustomerNames, setFilterCustomerNames] = useState<string[]>([]);
+  const [filterCompanyNames, setFilterCompanyNames] = useState<string[]>([]);
   const [filterCollapsed, setFilterCollapsed] = useState(false);
 
   // ── Selection State ──
@@ -175,9 +176,15 @@ export default function ShippingPage() {
           .order('created_at', { ascending: true })
           .range(start, end);
 
-        if (filterTransportType) query = query.eq('transport_type', filterTransportType);
-        if (filterCustomerId) query = query.eq('customer_id', filterCustomerId);
-        if (filterCompanyId) query = query.eq('company_id', filterCompanyId);
+        if (filterTransportTypes.length) query = query.in('transport_type', filterTransportTypes);
+        if (filterCustomerNames.length) {
+          const ids = filterCustomerNames.map(n => customers.find(c => c.name === n)?.id).filter(Boolean) as string[];
+          query = query.in('customer_id', ids.length ? ids : ['__none__']);
+        }
+        if (filterCompanyNames.length) {
+          const ids = filterCompanyNames.map(n => companies.find(c => c.name === n)?.id).filter(Boolean) as string[];
+          query = query.in('company_id', ids.length ? ids : ['__none__']);
+        }
 
         const { data: chunk, error } = await query;
         if (error) throw error;
@@ -197,7 +204,7 @@ export default function ShippingPage() {
     } finally {
       setLoading(false);
     }
-  }, [supabase, getDateRange, filterTransportType, filterCustomerId, filterCompanyId, toast]);
+  }, [supabase, getDateRange, filterTransportTypes, filterCustomerNames, filterCompanyNames, customers, companies, toast]);
 
   const fetchLookups = useCallback(async () => {
     try {
@@ -867,40 +874,18 @@ export default function ShippingPage() {
               )}
             </div>
 
-            {/* Transport Type */}
+            {/* 다중선택 필터 */}
             <div>
               <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 3 }}>운송구분</label>
-              <select
-                value={filterTransportType} onChange={e => setFilterTransportType(e.target.value)}
-                className="form-input" style={{ fontSize: 13, padding: '6px 8px' }}
-              >
-                <option value="">[전체]</option>
-                {TRANSPORT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
+              <MultiSelectFilter label="" options={TRANSPORT_TYPES} selected={filterTransportTypes} onChange={setFilterTransportTypes} />
             </div>
-
-            {/* Customer */}
             <div>
               <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 3 }}>거래처</label>
-              <select
-                value={filterCustomerId} onChange={e => setFilterCustomerId(e.target.value)}
-                className="form-input" style={{ fontSize: 13, padding: '6px 8px' }}
-              >
-                <option value="">[전체]</option>
-                {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <MultiSelectFilter label="" options={customers.map(c => c.name)} selected={filterCustomerNames} onChange={setFilterCustomerNames} />
             </div>
-
-            {/* Transport Company */}
             <div>
               <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 3 }}>운송사</label>
-              <select
-                value={filterCompanyId} onChange={e => setFilterCompanyId(e.target.value)}
-                className="form-input" style={{ fontSize: 13, padding: '6px 8px' }}
-              >
-                <option value="">[전체]</option>
-                {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <MultiSelectFilter label="" options={companies.map(c => c.name)} selected={filterCompanyNames} onChange={setFilterCompanyNames} />
             </div>
 
             <button onClick={() => fetchData()} style={{

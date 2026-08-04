@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { exportToExcel } from '@/lib/utils/exportExcel';
 import TransactionStatementPrint from '@/components/modules/settlement/TransactionStatementPrint';
+import MultiSelectFilter from '@/components/ui/MultiSelectFilter';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/lib/hooks/useAuth';
 
@@ -189,10 +190,10 @@ export default function SettlementPage() {
   const [stlYear, setStlYear] = useState(() => new Date().getFullYear());
   const [stlMonth, setStlMonth] = useState(() => new Date().getMonth() + 1);
   const [stlPeriodFilter, setStlPeriodFilter] = useState<PeriodFilter>('daily');
-  const [stlFilterCompany, setStlFilterCompany] = useState('');
-  const [stlFilterCustomer, setStlFilterCustomer] = useState('');
-  const [stlFilterTransport, setStlFilterTransport] = useState('');
-  const [stlFilterProduct, setStlFilterProduct] = useState('');
+  const [stlFilterCompany, setStlFilterCompany] = useState<string[]>([]);
+  const [stlFilterCustomer, setStlFilterCustomer] = useState<string[]>([]);
+  const [stlFilterTransport, setStlFilterTransport] = useState<string[]>([]);
+  const [stlFilterProduct, setStlFilterProduct] = useState<string[]>([]);
   const [stlFilterCollapsed, setStlFilterCollapsed] = useState(false);
   const [stlDetailOpen, setStlDetailOpen] = useState(true);
   const [stlLoading, setStlLoading] = useState(false);
@@ -374,10 +375,10 @@ export default function SettlementPage() {
 
   const filteredSettlements = useMemo(() => {
     let r = settlements;
-    if (stlFilterCompany) r = r.filter(s => s.company === stlFilterCompany);
-    if (stlFilterCustomer) r = r.filter(s => s.customer === stlFilterCustomer);
-    if (stlFilterTransport) r = r.filter(s => s.transportType === stlFilterTransport);
-    if (stlFilterProduct) r = r.filter(s => s.product === stlFilterProduct);
+    if (stlFilterCompany.length) r = r.filter(s => stlFilterCompany.includes(s.company));
+    if (stlFilterCustomer.length) r = r.filter(s => stlFilterCustomer.includes(s.customer));
+    if (stlFilterTransport.length) r = r.filter(s => stlFilterTransport.includes(s.transportType));
+    if (stlFilterProduct.length) r = r.filter(s => stlFilterProduct.includes(s.product));
     return r;
   }, [settlements, stlFilterCompany, stlFilterCustomer, stlFilterTransport, stlFilterProduct]);
 
@@ -883,53 +884,13 @@ export default function SettlementPage() {
 
                 <div className="h-px bg-gray-200" />
 
-                <div>
-                  <label className="block text-[13px] font-semibold text-slate-600 mb-1">운송사</label>
-                  <select
-                    value={stlFilterCompany}
-                    onChange={e => setStlFilterCompany(e.target.value)}
-                    className="w-full text-[13px] py-1.5 px-2 rounded-md border border-gray-300 bg-white outline-none"
-                  >
-                    <option value="">[전체]</option>
-                    {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[13px] font-semibold text-slate-600 mb-1">거래처</label>
-                  <select
-                    value={stlFilterCustomer}
-                    onChange={e => setStlFilterCustomer(e.target.value)}
-                    className="w-full text-[13px] py-1.5 px-2 rounded-md border border-gray-300 bg-white outline-none"
-                  >
-                    <option value="">[전체]</option>
-                    {customerOptions.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[13px] font-semibold text-slate-600 mb-1">운송구분</label>
-                  <select
-                    value={stlFilterTransport}
-                    onChange={e => setStlFilterTransport(e.target.value)}
-                    className="w-full text-[13px] py-1.5 px-2 rounded-md border border-gray-300 bg-white outline-none"
-                  >
-                    <option value="">[전체]</option>
-                    {transportTypeOptions.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[13px] font-semibold text-slate-600 mb-1">제품명</label>
-                  <select
-                    value={stlFilterProduct}
-                    onChange={e => setStlFilterProduct(e.target.value)}
-                    className="w-full text-[13px] py-1.5 px-2 rounded-md border border-gray-300 bg-white outline-none"
-                  >
-                    <option value="">[전체]</option>
-                    {productOptions.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                </div>
+                <MultiSelectFilter label="운송사" options={companyOptions} selected={stlFilterCompany} onChange={setStlFilterCompany} width={160} />
+                <MultiSelectFilter label="거래처" options={customerOptions} selected={stlFilterCustomer} onChange={setStlFilterCustomer} width={200} />
+                <MultiSelectFilter label="운송구분" options={transportTypeOptions} selected={stlFilterTransport} onChange={setStlFilterTransport} width={140} />
+                <MultiSelectFilter label="제품명" options={productOptions} selected={stlFilterProduct} onChange={setStlFilterProduct} width={180} />
                 <button
-                  onClick={() => { setStlFilterCompany(''); setStlFilterCustomer(''); setStlFilterTransport(''); setStlFilterProduct(''); }}
-                  className="w-full text-[13px] py-2 rounded-lg border-none cursor-pointer font-bold bg-gray-500 text-white hover:bg-gray-600 transition-colors"
+                  onClick={() => { setStlFilterCompany([]); setStlFilterCustomer([]); setStlFilterTransport([]); setStlFilterProduct([]); }}
+                  className="text-[14px] py-2 px-3 rounded-lg border-none cursor-pointer font-bold bg-gray-500 text-white hover:bg-gray-600 transition-colors"
                 >
                   필터 초기화
                 </button>
@@ -1158,7 +1119,7 @@ export default function SettlementPage() {
 
       {showStatement && (
         <TransactionStatementPrint
-          customer={stlFilterCustomer || '전체 거래처'}
+          customer={stlFilterCustomer.length === 1 ? stlFilterCustomer[0] : stlFilterCustomer.length > 1 ? `${stlFilterCustomer.length}개 거래처` : '전체 거래처'}
           periodLabel={dateRange.label}
           rows={filteredSettlements.map(s => ({
             date: s.date, product: s.product, transportType: s.transportType,
