@@ -615,6 +615,18 @@ export default function ShippingPage() {
     setWaitingPasswordError('');
     setShowWaitingScreen(true);
   };
+  // 별도 팝업 창으로 대기화면 열기
+  const openWaitingPopup = () => {
+    if (typeof window !== 'undefined') {
+      window.open(`${window.location.pathname}?waiting=1`, 'waitingScreen', 'width=1280,height=860,noopener');
+    }
+  };
+  // 팝업(?waiting=1)으로 열리면 자동으로 대기화면 표시
+  useEffect(() => {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('waiting') === '1') {
+      openWaitingScreen();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const closeWaitingScreen = () => {
     setShowWaitingScreen(false);
     setWaitingStep('select');
@@ -1021,6 +1033,10 @@ export default function ShippingPage() {
               fontSize: 13, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 600,
               background: '#fff', color: '#475569', border: '1px solid #cbd5e1',
             }}>출하증대기화면</button>
+            <button onClick={openWaitingPopup} title="대기화면을 별도 창으로 열기" style={{
+              fontSize: 13, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 700,
+              background: '#0ea5e9', color: '#fff', border: 'none',
+            }}>대기화면 새 창 ↗</button>
             <button onClick={async () => {
               const { data: recent } = await supabase
                 .from('v_shipments')
@@ -1359,10 +1375,12 @@ export default function ShippingPage() {
           return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
         });
 
-        // Step 3용 필터링 데이터
-        const waitingRows = waitingCompanyId
-          ? allRows.filter(r => r.company_id === waitingCompanyId)
-          : [];
+        // Step 3용 필터링 데이터 ('__ALL__' = 경기광업 전체)
+        const waitingRows = waitingCompanyId === '__ALL__'
+          ? allRows
+          : waitingCompanyId
+            ? allRows.filter(r => r.company_id === waitingCompanyId)
+            : [];
 
         // 버튼 배경색 팔레트
         const btnColors = [
@@ -1421,10 +1439,33 @@ export default function ShippingPage() {
                   <div
                     className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
                     style={{
-                      gap: 16,
-                      width: '100%', maxWidth: 900,
+                      gap: 18,
+                      width: '100%', maxWidth: 1150,
                     }}
                   >
+                    {/* 경기광업(전체) 탭 — 전체 운송사 보기 */}
+                    <button
+                      onClick={() => {
+                        setWaitingCompanyId('__ALL__');
+                        setWaitingCompanyName('경기광업 (전체)');
+                        setWaitingStep('password');
+                        setWaitingPassword('');
+                        setWaitingPasswordError('');
+                      }}
+                      className="col-span-2 sm:col-span-3 lg:col-span-4 py-9 sm:!py-11"
+                      style={{
+                        backgroundColor: '#1e293b',
+                        border: '2px solid #0ea5e9',
+                        borderRadius: 18,
+                        fontSize: 30, fontWeight: 900, color: '#fff',
+                        cursor: 'pointer', textAlign: 'center', letterSpacing: '0.03em',
+                        transition: 'all 0.15s',
+                      }}
+                      onMouseOver={e => { e.currentTarget.style.backgroundColor = '#0f172a'; e.currentTarget.style.transform = 'scale(1.01)'; e.currentTarget.style.boxShadow = '0 6px 18px rgba(0,0,0,0.2)'; }}
+                      onMouseOut={e => { e.currentTarget.style.backgroundColor = '#1e293b'; e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
+                    >
+                      경기광업 (전체)
+                    </button>
                     {sortedCompanies.map((company, idx) => {
                       const color = btnColors[idx % btnColors.length];
                       return (
@@ -1437,21 +1478,20 @@ export default function ShippingPage() {
                             setWaitingPassword('');
                             setWaitingPasswordError('');
                           }}
-                          className="py-6 sm:!py-9"
+                          className="py-10 sm:!py-14"
                           style={{
-                            padding: undefined,
                             paddingLeft: 16, paddingRight: 16,
                             backgroundColor: color.bg,
-                            border: `2px solid ${color.border}`,
-                            borderRadius: 16,
-                            fontSize: 18, fontWeight: 700, color: '#1e293b',
-                            cursor: 'pointer', textAlign: 'center',
+                            border: `3px solid ${color.border}`,
+                            borderRadius: 18,
+                            fontSize: 30, fontWeight: 900, color: '#0f172a',
+                            cursor: 'pointer', textAlign: 'center', letterSpacing: '0.02em',
                             transition: 'all 0.15s',
                           }}
                           onMouseOver={e => {
                             (e.currentTarget).style.backgroundColor = color.hover;
                             (e.currentTarget).style.transform = 'scale(1.03)';
-                            (e.currentTarget).style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+                            (e.currentTarget).style.boxShadow = '0 4px 14px rgba(0,0,0,0.12)';
                           }}
                           onMouseOut={e => {
                             (e.currentTarget).style.backgroundColor = color.bg;
@@ -1619,6 +1659,9 @@ export default function ShippingPage() {
                       <thead>
                         <tr style={{ backgroundColor: '#f8fafc', borderBottom: '3px solid #e2e8f0' }}>
                           <th style={{ padding: '16px 14px', fontSize: 16, fontWeight: 700, color: '#475569', textAlign: 'center', width: 50 }}>#</th>
+                          {waitingCompanyId === '__ALL__' && (
+                            <th style={{ padding: '16px 14px', fontSize: 16, fontWeight: 700, color: '#475569', textAlign: 'left' }}>운송사</th>
+                          )}
                           <th style={{ padding: '16px 14px', fontSize: 16, fontWeight: 700, color: '#475569', textAlign: 'left' }}>거래처</th>
                           <th style={{ padding: '16px 14px', fontSize: 16, fontWeight: 700, color: '#475569', textAlign: 'left' }}>제품명</th>
                           <th style={{ padding: '16px 14px', fontSize: 16, fontWeight: 700, color: '#475569', textAlign: 'left' }}>차량정보</th>
@@ -1636,6 +1679,9 @@ export default function ShippingPage() {
                             }}
                           >
                             <td style={{ padding: '18px 14px', fontSize: 18, textAlign: 'center', color: '#94a3b8', fontWeight: 600 }}>{idx + 1}</td>
+                            {waitingCompanyId === '__ALL__' && (
+                              <td style={{ padding: '18px 14px', fontSize: 18, color: '#1e293b', fontWeight: 700 }}>{row.company_name || '-'}</td>
+                            )}
                             <td style={{ padding: '18px 14px', fontSize: 18, color: '#1e293b', fontWeight: 600 }}>{row.customer_name || '-'}</td>
                             <td style={{ padding: '18px 14px', fontSize: 18, color: '#374151' }}>{row.product_name || '-'}</td>
                             <td style={{ padding: '18px 14px', fontSize: 18, color: '#374151', fontWeight: 500 }}>{row.vehicle_number || '-'}</td>
