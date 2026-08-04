@@ -73,7 +73,7 @@ export default function ReportPrint({ report, onClose }: ReportPrintProps) {
       </div>
 
       {/* 성적서 본문 */}
-      <div className="bg-white w-[210mm] min-h-[297mm] p-12 shadow-2xl print:shadow-none print:p-8" id="print-report-area">
+      <div className="print-doc bg-white w-[210mm] min-h-[297mm] p-12 shadow-2xl print:shadow-none print:p-8" id="print-report-area">
         {/* 상단 로고/정보 */}
         <div className="flex justify-between items-start mb-2">
           <div className="text-sm text-gray-500">

@@ -75,6 +75,7 @@ export default function ShipmentListPrint({ rows, dateLabel, onClose }: Shipment
       {/* 인쇄 영역 — on-screen: shrinks to viewport; on print: full A4 landscape */}
       <div
         id="print-list-area"
+        className="print-doc"
         style={{
           width: 'min(297mm, 96vw)',
           minHeight: '210mm',

@@ -55,7 +55,7 @@ export default function TransactionStatementPrint({ customer, supplier = '경기
         <button onClick={onClose} className="px-5 py-2.5 bg-gray-500 text-white rounded-lg font-bold text-base min-h-[44px]">닫기</button>
       </div>
 
-      <div id="stmt-area" style={{
+      <div id="stmt-area" className="print-doc" style={{
         width: 'min(210mm, 96vw)', minHeight: '297mm', background: '#fff', boxSizing: 'border-box',
         padding: 'clamp(14px, 4vw, 40px)', fontFamily: "'Pretendard', -apple-system, sans-serif",
         overflow: 'auto', maxHeight: '95dvh', boxShadow: '0 4px 24px rgba(0,0,0,.15)',

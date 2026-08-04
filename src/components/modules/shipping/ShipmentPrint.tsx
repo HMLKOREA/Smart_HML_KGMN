@@ -70,7 +70,7 @@ function CertificateCopy({ shipment, issuedTime }: { shipment: ShipmentPrintProp
   ];
 
   return (
-    <div style={{
+    <div className="print-doc" style={{
       height: '100%',
       display: 'flex',
       flexDirection: 'column',

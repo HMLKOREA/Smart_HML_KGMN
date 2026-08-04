@@ -290,6 +290,16 @@ body {
 .ship-table td input[type="text"],
 .ship-table td input[type="date"] { text-align: center; }
 
+/* ── 인쇄/출력물(.print-doc): 본문 확대 규칙에서 제외 — 디자인 우선 ── */
+.app-content .print-doc,
+.app-content .print-doc * {
+  line-height: normal;
+  letter-spacing: normal;
+}
+.app-content .print-doc .text-xs { font-size: 11px; }
+.app-content .print-doc .text-sm { font-size: 13px; }
+.app-content .print-doc .text-base { font-size: 15px; }
+
 /* ── Responsive Utilities ── */
 
 /* Search input: full-width on mobile, fixed 320px on sm+ */
