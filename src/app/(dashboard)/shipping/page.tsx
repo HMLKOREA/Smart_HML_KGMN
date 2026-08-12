@@ -77,6 +77,26 @@ const EXCEL_COLS = [
 
 const TRANSPORT_TYPES = ['탱크', '덤프', '카고'];
 
+// 출하내역 그리드 컬럼(순서/기본너비) — 컬럼 너비 드래그 조절용
+const SHIP_COLS: { key: string; w: number }[] = [
+  { key: 'rownum', w: 34 },
+  { key: 'check', w: 34 },
+  { key: 'shipment_date', w: 92 },
+  { key: 'transport_type', w: 66 },
+  { key: 'customer_name', w: 150 },
+  { key: 'product_name', w: 140 },
+  { key: 'company_name', w: 84 },
+  { key: 'vehicle_number', w: 110 },
+  { key: 'silo', w: 66 },
+  { key: 'shipped', w: 40 },
+  { key: 'weight_net', w: 82 },
+  { key: 'notes', w: 130 },
+  { key: 'certificate_time', w: 150 },
+  { key: 'dispatch_notified', w: 60 },
+  { key: 'action', w: 54 },
+];
+const SHIP_COLS_LS_KEY = 'smarthml_ship_col_widths_v1';
+
 /** 대기화면 비밀번호 (모든 운송사 공통) */
 const WAITING_SCREEN_PASSWORD = '1234';
 
@@ -127,6 +147,45 @@ export default function ShippingPage() {
   const [notifyLoading, setNotifyLoading] = useState(false);
   const [showMultiCustomer, setShowMultiCustomer] = useState(false);
   const [multiCustomerMaster, setMultiCustomerMaster] = useState<CustomerProductMaster[]>([]);
+
+  // ── 출하내역 컬럼 너비(드래그 조절, localStorage 저장) ──
+  const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
+    const base: Record<string, number> = {};
+    SHIP_COLS.forEach(c => { base[c.key] = c.w; });
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = JSON.parse(localStorage.getItem(SHIP_COLS_LS_KEY) || '{}');
+        for (const k of Object.keys(saved)) if (typeof saved[k] === 'number') base[k] = saved[k];
+      } catch { /* ignore */ }
+    }
+    return base;
+  });
+  const startColResize = useCallback((key: string, e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startW = colWidths[key] ?? (SHIP_COLS.find(c => c.key === key)?.w ?? 100);
+    const onMove = (ev: PointerEvent) => {
+      const next = Math.max(36, startW + (ev.clientX - startX));
+      setColWidths(prev => ({ ...prev, [key]: next }));
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      setColWidths(prev => {
+        try { localStorage.setItem(SHIP_COLS_LS_KEY, JSON.stringify(prev)); } catch { /* ignore */ }
+        return prev;
+      });
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }, [colWidths]);
+  const resetColWidths = useCallback(() => {
+    const base: Record<string, number> = {};
+    SHIP_COLS.forEach(c => { base[c.key] = c.w; });
+    setColWidths(base);
+    try { localStorage.removeItem(SHIP_COLS_LS_KEY); } catch { /* ignore */ }
+  }, []);
   const [waitingCompanyId, setWaitingCompanyId] = useState<string>('');
   const [waitingStep, setWaitingStep] = useState<'select' | 'password' | 'data'>('select');
   const [waitingPassword, setWaitingPassword] = useState('');
@@ -1088,6 +1147,11 @@ export default function ShippingPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#2563eb' }} />
             <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>출하내역</span>
+            <span style={{ fontSize: 11, color: '#94a3b8' }}>· 헤더 경계를 드래그해 컬럼 너비 조절</span>
+            <button onClick={resetColWidths} title="컬럼 너비 기본값으로" style={{
+              fontSize: 11, padding: '2px 8px', borderRadius: 5, cursor: 'pointer',
+              background: '#fff', color: '#6b7280', border: '1px solid #d1d5db', marginLeft: 2,
+            }}>컬럼폭 초기화</button>
           </div>
           <span style={{ fontSize: 13, color: '#2563eb', fontWeight: 700 }}>{allRows.length}건</span>
         </div>
@@ -1115,39 +1179,50 @@ export default function ShippingPage() {
               조회된 데이터가 없습니다.
             </div>
           ) : (
-            <table className="data-table ship-table" style={{ fontSize: 14 }}>
+            <table className="data-table ship-table" style={{ fontSize: 14, tableLayout: 'fixed', width: SHIP_COLS.reduce((s, c) => s + (colWidths[c.key] || c.w), 0) }}>
+              <colgroup>
+                {SHIP_COLS.map(c => (
+                  <col key={c.key} style={{ width: colWidths[c.key] || c.w }} />
+                ))}
+              </colgroup>
               <thead>
                 <tr>
-                  <th style={{ width: 32, textAlign: 'center', padding: '7px 6px' }}>#</th>
-                  <th style={{ width: 32, textAlign: 'center', padding: '7px 6px' }}>
-                    <input type="checkbox" checked={selectedIds.size === allRows.length && allRows.length > 0} onChange={toggleSelectAll} />
-                  </th>
-                  {([
-                    { k: 'shipment_date', label: '출하일자', minWidth: 90 },
-                    { k: 'transport_type', label: '운송구분', minWidth: 60 },
-                    { k: 'customer_name', label: '거래처', minWidth: 140 },
-                    { k: 'product_name', label: '제품명', minWidth: 130 },
-                    { k: 'company_name', label: '운송사', minWidth: 80 },
-                    { k: 'vehicle_number', label: '차량정보', minWidth: 100 },
-                    { k: 'silo', label: '사일로', minWidth: 60 },
-                  ] as const).map(c => (
-                    <th key={c.k} onClick={() => toggleSort(c.k)} title="클릭 시 정렬"
-                      style={{ minWidth: c.minWidth, padding: '7px 6px', cursor: 'pointer', userSelect: 'none' }}>
-                      {c.label}{sort?.key === c.k ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
-                    </th>
-                  ))}
-                  <th style={{ width: 36, textAlign: 'center', padding: '7px 6px' }}>출하</th>
-                  <th onClick={() => toggleSort('weight_net')} title="클릭 시 정렬"
-                    style={{ minWidth: 72, padding: '7px 6px', cursor: 'pointer', userSelect: 'none' }}>
-                    계근결과{sort?.key === 'weight_net' ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
-                  </th>
-                  <th style={{ minWidth: 120, padding: '7px 6px' }}>기타</th>
-                  <th onClick={() => toggleSort('certificate_time')} title="클릭 시 정렬"
-                    style={{ minWidth: 140, padding: '7px 6px', cursor: 'pointer', userSelect: 'none' }}>
-                    출하증 발급시간{sort?.key === 'certificate_time' ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
-                  </th>
-                  <th style={{ width: 56, textAlign: 'center', padding: '7px 6px' }}>배차통보</th>
-                  <th style={{ width: 50, textAlign: 'center', padding: '7px 6px' }}>작업</th>
+                  {(() => {
+                    // 컬럼 오른쪽 경계 드래그 핸들
+                    const Handle = ({ ck }: { ck: string }) => (
+                      <span
+                        onPointerDown={(e) => startColResize(ck, e)}
+                        onClick={(e) => e.stopPropagation()}
+                        title="드래그하여 너비 조절"
+                        style={{ position: 'absolute', top: 0, right: 0, width: 8, height: '100%', cursor: 'col-resize', touchAction: 'none' }}
+                      />
+                    );
+                    const base: React.CSSProperties = { position: 'sticky', top: 0, padding: '7px 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+                    const sortable: React.CSSProperties = { ...base, cursor: 'pointer', userSelect: 'none' };
+                    const arrow = (k: string) => (sort?.key === k ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '');
+                    return (
+                      <>
+                        <th style={{ ...base, textAlign: 'center' }}>#<Handle ck="rownum" /></th>
+                        <th style={{ ...base, textAlign: 'center' }}>
+                          <input type="checkbox" checked={selectedIds.size === allRows.length && allRows.length > 0} onChange={toggleSelectAll} />
+                          <Handle ck="check" />
+                        </th>
+                        <th onClick={() => toggleSort('shipment_date')} title="클릭 시 정렬" style={sortable}>출하일자{arrow('shipment_date')}<Handle ck="shipment_date" /></th>
+                        <th onClick={() => toggleSort('transport_type')} title="클릭 시 정렬" style={sortable}>운송구분{arrow('transport_type')}<Handle ck="transport_type" /></th>
+                        <th onClick={() => toggleSort('customer_name')} title="클릭 시 정렬" style={sortable}>거래처{arrow('customer_name')}<Handle ck="customer_name" /></th>
+                        <th onClick={() => toggleSort('product_name')} title="클릭 시 정렬" style={sortable}>제품명{arrow('product_name')}<Handle ck="product_name" /></th>
+                        <th onClick={() => toggleSort('company_name')} title="클릭 시 정렬" style={sortable}>운송사{arrow('company_name')}<Handle ck="company_name" /></th>
+                        <th onClick={() => toggleSort('vehicle_number')} title="클릭 시 정렬" style={sortable}>차량정보{arrow('vehicle_number')}<Handle ck="vehicle_number" /></th>
+                        <th onClick={() => toggleSort('silo')} title="클릭 시 정렬" style={sortable}>사일로{arrow('silo')}<Handle ck="silo" /></th>
+                        <th style={{ ...base, textAlign: 'center' }}>출하<Handle ck="shipped" /></th>
+                        <th onClick={() => toggleSort('weight_net')} title="클릭 시 정렬" style={sortable}>계근결과{arrow('weight_net')}<Handle ck="weight_net" /></th>
+                        <th style={base}>기타<Handle ck="notes" /></th>
+                        <th onClick={() => toggleSort('certificate_time')} title="클릭 시 정렬" style={sortable}>출하증 발급시간{arrow('certificate_time')}<Handle ck="certificate_time" /></th>
+                        <th style={{ ...base, textAlign: 'center' }}>배차통보<Handle ck="dispatch_notified" /></th>
+                        <th style={{ ...base, textAlign: 'center' }}>작업</th>
+                      </>
+                    );
+                  })()}
                 </tr>
               </thead>
               <tbody>
