@@ -751,14 +751,7 @@ export default function DispatchPage() {
                       </td>
                       <td style={{ padding: '6px 8px', fontSize: 13 }}>{row.transport_type || '-'}</td>
                       <td style={{ padding: '6px 8px', fontSize: 13 }}>
-                        {row.vehicle_number ? (
-                          <span>
-                            {row.vehicle_number}
-                            <span style={{ marginLeft: 4, fontWeight: 700, color: '#2563eb', fontSize: 12 }}>
-                              ({extractLast4(row.vehicle_number)})
-                            </span>
-                          </span>
-                        ) : '-'}
+                        {row.vehicle_number || '-'}
                       </td>
                       <td style={{ padding: '6px 8px', fontSize: 13 }}>{row.driver_name || '-'}</td>
                       <td style={{ padding: '6px 8px', fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>

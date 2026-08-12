@@ -7,7 +7,7 @@ import { format, addDays, subDays, endOfMonth } from 'date-fns';
 import ShipmentPrint from '@/components/modules/shipping/ShipmentPrint';
 import ShipmentListPrint from '@/components/modules/shipping/ShipmentListPrint';
 import InlineShipmentRow, { type EditableRowData } from '@/components/modules/shipping/InlineShipmentRow';
-import MultiCustomerPanel from '@/components/modules/shipping/MultiCustomerPanel';
+import MultiCustomerPanel, { type CustomerProductMaster } from '@/components/modules/shipping/MultiCustomerPanel';
 import { useShipmentCrud } from '@/components/modules/shipping/useShipmentCrud';
 import { exportToExcel } from '@/lib/utils/exportExcel';
 import { parseCsv, readFileText } from '@/lib/utils/importCsv';
@@ -126,7 +126,7 @@ export default function ShippingPage() {
   const [notifyMethod, setNotifyMethod] = useState<'email' | 'kakao'>('email');
   const [notifyLoading, setNotifyLoading] = useState(false);
   const [showMultiCustomer, setShowMultiCustomer] = useState(false);
-  const [multiCustomerRecent, setMultiCustomerRecent] = useState<Shipment[]>([]);
+  const [multiCustomerMaster, setMultiCustomerMaster] = useState<CustomerProductMaster[]>([]);
   const [waitingCompanyId, setWaitingCompanyId] = useState<string>('');
   const [waitingStep, setWaitingStep] = useState<'select' | 'password' | 'data'>('select');
   const [waitingPassword, setWaitingPassword] = useState('');
@@ -1036,13 +1036,23 @@ export default function ShippingPage() {
               background: '#0ea5e9', color: '#fff', border: 'none',
             }}>대기화면 새 창 ↗</button>
             <button onClick={async () => {
-              const { data: recent } = await supabase
-                .from('v_shipments')
-                .select('*')
-                .order('shipment_date', { ascending: false })
-                .order('created_at', { ascending: false })
-                .limit(50);
-              setMultiCustomerRecent(recent || []);
+              // 거래처×제품 마스터(custom_mst 미러, 전체) 조회 — 페이징
+              const PAGE = 1000;
+              const all: CustomerProductMaster[] = [];
+              let pg = 0, more = true;
+              while (more) {
+                const { data } = await supabase
+                  .from('customer_products')
+                  .select('id,transport_type,customer_id,customer_name,customer_code,product_id,product_name,warehouse_code')
+                  .eq('is_active', true)
+                  .order('customer_name')
+                  .range(pg * PAGE, (pg + 1) * PAGE - 1);
+                const rows = (data || []) as CustomerProductMaster[];
+                all.push(...rows);
+                more = rows.length === PAGE;
+                pg++;
+              }
+              setMultiCustomerMaster(all);
               setShowMultiCustomer(true);
             }} style={{
               fontSize: 13, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 600,
@@ -1088,7 +1098,7 @@ export default function ShippingPage() {
             customers={customers}
             products={products}
             defaultDate={selectedDate}
-            recentData={multiCustomerRecent}
+            masterData={multiCustomerMaster}
             onRegister={handleMultiCustomerRegister}
             onClose={() => setShowMultiCustomer(false)}
           />

@@ -89,6 +89,7 @@ const cache = {
   customers: new Map(),   // mysql uid → supabase uuid
   products: new Map(),    // mysql code → supabase uuid
   drivers: new Map(),     // mysql uid → supabase uuid
+  driversByVehicle: new Map(), // 차량번호(car_no) → supabase driver uuid
 };
 
 async function buildMappingCache(mysqlConn) {
@@ -128,7 +129,11 @@ async function buildMappingCache(mysqlConn) {
     const match = (sbDrivers || []).find(d => d.name === md.name && d.vehicle_number === md.car_no);
     if (match) cache.drivers.set(String(md.uid), match.id);
   }
-  log(`  기사 매핑: ${cache.drivers.size}/${mysqlDrivers.length}`);
+  // 차량번호 → 기사 매핑 (out_info.car_no 로 기사 자동 연결용)
+  for (const d of (sbDrivers || [])) {
+    if (d.vehicle_number) cache.driversByVehicle.set(String(d.vehicle_number).trim(), d.id);
+  }
+  log(`  기사 매핑: ${cache.drivers.size}/${mysqlDrivers.length} (차량번호 맵: ${cache.driversByVehicle.size})`);
 }
 
 // ─── 1. 운송사 동기화 ──────────────────────────────
@@ -237,10 +242,20 @@ async function syncDrivers(conn) {
 async function syncShipments(conn) {
   log('── 출하 동기화 ──');
 
-  // 기존 shipment_number로 매핑 (OUT-{uid} 형식)
-  const { data: existing } = await supabase.from('shipments')
-    .select('id, shipment_number');
-  const existingMap = new Map((existing || []).map(e => [e.shipment_number, e.id]));
+  // 기존 shipment_number로 매핑 (OUT-{uid} 형식) — 페이징(1000행 제한 회피)
+  const existingMap = new Map();
+  {
+    const PAGE = 1000;
+    let pg = 0, more = true;
+    while (more) {
+      const { data } = await supabase.from('shipments')
+        .select('id, shipment_number').range(pg * PAGE, (pg + 1) * PAGE - 1);
+      const rows = data || [];
+      for (const e of rows) existingMap.set(e.shipment_number, e.id);
+      more = rows.length === PAGE;
+      pg++;
+    }
+  }
 
   // 거래처(cus_uid) → 제품(product_id) 매핑: 거래처별 기본 제품(prod_code) 기준
   const custProduct = new Map();
@@ -258,7 +273,9 @@ async function syncShipments(conn) {
     whereClause = `WHERE update_date >= '${twoHoursAgo}' OR insert_date >= '${twoHoursAgo}'`;
   }
 
-  const [rows] = await conn.query(`SELECT * FROM out_info ${whereClause} ORDER BY uid`);
+  const [rows] = await conn.query(
+    `SELECT *, DATE_FORMAT(out_time, '%Y-%m-%d %H:%i:%s') AS out_time_str FROM out_info ${whereClause} ORDER BY uid`
+  );
   log(`  MySQL 출하 조회: ${rows.length}건 ${isDelta ? '(증분)' : '(전체)'}`);
 
   let created = 0, updated = 0, errors = 0;
@@ -295,6 +312,8 @@ async function syncShipments(conn) {
         customer_id: customerId,
         product_id: custProduct.get(String(r.cus_uid)) || null,
         vehicle_number: r.car_no || null,
+        // 차량번호로 기사 자동 연결 (기사성명/연락처가 딸려오도록)
+        driver_id: cache.driversByVehicle.get(String(r.car_no || '').trim()) || null,
         transport_type: typeMap[r.car_type] || r.car_type || null,
         silo: r.silo_no || null,
         weight_net: r.weight ? parseFloat(r.weight) : null,
@@ -302,24 +321,27 @@ async function syncShipments(conn) {
         is_shipped: r.out_yn === 'Y',
         is_confirmed: r.confirm === 'Y',
         dispatch_notified: r.noti_yn === 'Y',
+        // 출하증 발급시간(out_time): 레거시 KST 벽시계 → UTC instant(Z)로 확정 변환
+        certificate_time: r.out_time_str
+          ? new Date(`${r.out_time_str.replace(' ', 'T')}+09:00`).toISOString()
+          : null,
+        // 기타/비고 (그리드 '기타' 컬럼은 notes 를 표시)
+        notes: r.remarks || null,
         memo: r.remarks || null,
       };
 
-      if (existingMap.has(shipmentNumber)) {
-        // UPDATE
-        upserts.push({ ...record, id: existingMap.get(shipmentNumber) });
-      } else {
-        upserts.push(record);
-      }
+      // id 는 넣지 않는다: onConflict='shipment_number' 로 기존행을 갱신하므로
+      // (id 혼합 시 배치 upsert가 'null value in id' 로 실패하던 문제 제거)
+      upserts.push(record);
     }
 
-    // Batch upsert
+    // Batch upsert (shipment_number 충돌 시 갱신)
     const { error } = await supabase.from('shipments')
       .upsert(upserts, { onConflict: 'shipment_number' });
 
     if (error) {
       log(`  ⚠️ 배치 ${i}~${i + batch.length} 오류: ${error.message}`);
-      // 개별 삽입으로 폴백
+      // 개별 폴백
       for (const rec of upserts) {
         const { error: e2 } = await supabase.from('shipments')
           .upsert(rec, { onConflict: 'shipment_number' });
@@ -328,9 +350,10 @@ async function syncShipments(conn) {
         else created++;
       }
     } else {
-      const newCount = upserts.filter(u => !u.id).length;
-      created += newCount;
-      updated += upserts.length - newCount;
+      for (const u of upserts) {
+        if (existingMap.has(u.shipment_number)) updated++;
+        else created++;
+      }
     }
 
     if (i % 2000 === 0 && i > 0) log(`  진행: ${i}/${rows.length}`);
@@ -399,6 +422,36 @@ async function syncUnitPrices(conn) {
 }
 
 // ─── 6. 성적서 동기화 ──────────────────────────────
+// ─── 거래처×제품 마스터 동기화 (custom_mst → customer_products) ───
+async function syncCustomerProducts(conn) {
+  log('── 거래처×제품 마스터 동기화 ──');
+  const typeMap = { BCT: '탱크', DUMP: '덤프', CGO: '카고' };
+  const [rows] = await conn.query('SELECT * FROM custom_mst ORDER BY uid');
+  log(`  MySQL custom_mst: ${rows.length}건`);
+
+  const records = rows.map(r => ({
+    source_uid: r.uid,
+    transport_type: typeMap[r.carr_gubun_cd] || r.carr_gubun_cd || null,
+    customer_id: cache.customers.get(String(r.uid)) || null,
+    customer_name: r.cp_name || null,
+    customer_code: r.cus_code || null,
+    product_id: cache.products.get(r.prod_code) || null,
+    product_name: r.product || null,
+    product_code: r.prod_code || null,
+    warehouse_code: r.storage_code || null,
+    is_active: true,
+    updated_at: new Date().toISOString(),
+  }));
+
+  const { error } = await supabase
+    .from('customer_products')
+    .upsert(records, { onConflict: 'source_uid' });
+  if (error) { log(`  ⚠️ 오류: ${error.message}`); return; }
+  const withCust = records.filter(r => r.customer_id).length;
+  const withProd = records.filter(r => r.product_id).length;
+  log(`  거래처×제품: ${records.length}건 (거래처연결 ${withCust}, 제품연결 ${withProd})`);
+}
+
 async function syncQualityReports(conn) {
   log('── 성적서 동기화 ──');
 
@@ -481,6 +534,7 @@ async function runSync() {
     await syncCompanies(conn);
     await syncCustomers(conn);
     await syncDrivers(conn);
+    await syncCustomerProducts(conn);
 
     // 트랜잭션 데이터
     await syncShipments(conn);
