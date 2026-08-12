@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { exportToExcel, EXCEL_COLUMNS } from '@/lib/utils/exportExcel';
 import { useToast } from '@/components/ui/Toast';
@@ -85,7 +86,13 @@ const DEMO_COMPANIES: TransportCompany[] = [
 export default function TransportCompanyPage() {
   const supabase = createClient();
   const toast = useToast();
+  const router = useRouter();
   const { isAdmin, isTransporter, profile } = useAuth();
+
+  // 운송사 계정은 운송사관리 화면 접근 불가 (탭 숨김 + 직접 URL 차단)
+  useEffect(() => {
+    if (isTransporter) router.replace('/home');
+  }, [isTransporter, router]);
 
   const [data, setData] = useState<TransportCompany[]>([]);
   const [loading, setLoading] = useState(true);

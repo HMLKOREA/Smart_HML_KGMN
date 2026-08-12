@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase/client';
 import { exportToExcel, EXCEL_COLUMNS } from '@/lib/utils/exportExcel';
 import { useToast } from '@/components/ui/Toast';
 import { getSession } from '@/lib/auth/session';
-import ReadOnlyBanner from '@/components/ui/ReadOnlyBanner';
 import MultiSelectFilter from '@/components/ui/MultiSelectFilter';
 import { sanitizeFilterValue } from '@/lib/utils/sanitize';
 
@@ -168,7 +167,8 @@ export default function DriverPage() {
   // ── CRUD ─────────────────────────────────────────────
   const handleNew = () => {
     setIsEditing(false);
-    setFormData({ ...emptyForm });
+    // 운송사 계정은 자사로 고정
+    setFormData({ ...emptyForm, company_id: isTransporter ? userCompanyId : '' });
     setModalOpen(true);
   };
 
@@ -229,7 +229,8 @@ export default function DriverPage() {
         vehicle_number: formData.vehicle_number.trim(),
         vehicle_type: formData.vehicle_type || null,
         vehicle_tonnage: formData.vehicle_tonnage,
-        company_id: formData.company_id || null,
+        // 운송사 계정은 자사로 강제 (타 운송사 재배정 차단)
+        company_id: isTransporter ? (userCompanyId || null) : (formData.company_id || null),
         license_number: formData.license_number || null,
         memo: formData.memo || null,
         is_active: formData.is_active,
@@ -297,32 +298,36 @@ export default function DriverPage() {
         )}
       </div>
 
-      {/* ReadOnly Banner for transporter */}
-      {isTransporter && <ReadOnlyBanner message="운송사 계정은 기사 정보를 수정할 수 없습니다." />}
+      {/* 운송사 안내 배너: 자사 기사만 관리 가능 */}
+      {isTransporter && (
+        <div className="mx-4 sm:mx-6 mt-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
+          자사 소속 기사 정보만 등록·수정할 수 있습니다.
+        </div>
+      )}
 
       {/* Action Buttons */}
       <div className="flex flex-wrap items-center gap-2 px-4 sm:px-6 py-2 bg-gray-50 border-b border-[var(--color-border)]">
+        {/* 신규등록·수정: 운송사 포함 (운송사는 자사 기사 한정) */}
+        <button
+          onClick={handleNew}
+          className="px-3 py-1.5 bg-[var(--color-primary)] text-white text-sm rounded hover:bg-[var(--color-primary-dark)] transition-colors"
+        >
+          신규등록
+        </button>
+        <button
+          onClick={() => handleEdit()}
+          className="px-3 py-1.5 bg-white text-[var(--color-text)] text-sm rounded border border-gray-300 hover:bg-gray-100 transition-colors"
+        >
+          수정
+        </button>
+        {/* 삭제: 이력 무결성 보호 위해 운송사 제외 */}
         {!isTransporter && (
-          <>
-            <button
-              onClick={handleNew}
-              className="px-3 py-1.5 bg-[var(--color-primary)] text-white text-sm rounded hover:bg-[var(--color-primary-dark)] transition-colors"
-            >
-              신규등록
-            </button>
-            <button
-              onClick={() => handleEdit()}
-              className="px-3 py-1.5 bg-white text-[var(--color-text)] text-sm rounded border border-gray-300 hover:bg-gray-100 transition-colors"
-            >
-              수정
-            </button>
-            <button
-              onClick={handleDelete}
-              className="px-3 py-1.5 bg-white text-[var(--color-danger)] text-sm rounded border border-red-300 hover:bg-red-50 transition-colors"
-            >
-              삭제
-            </button>
-          </>
+          <button
+            onClick={handleDelete}
+            className="px-3 py-1.5 bg-white text-[var(--color-danger)] text-sm rounded border border-red-300 hover:bg-red-50 transition-colors"
+          >
+            삭제
+          </button>
         )}
         <button
           onClick={handleExcel}
@@ -481,7 +486,8 @@ export default function DriverPage() {
                   <select
                     value={formData.company_id}
                     onChange={(e) => setFormData({ ...formData, company_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    disabled={isTransporter}
+                    className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
                   >
                     <option value="">-- 선택 --</option>
                     {companies.map((c) => (

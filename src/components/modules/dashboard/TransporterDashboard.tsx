@@ -57,7 +57,7 @@ function VehicleTooltip({ active, payload, label }: { active?: boolean; payload?
   );
 }
 
-export default function TransporterDashboard({ userName, companyName }: { userName: string; companyName: string }) {
+export default function TransporterDashboard({ userName, companyName, companyId: companyIdProp }: { userName: string; companyName: string; companyId?: string }) {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
   const [todayRequests, setTodayRequests] = useState<TodayRequest[]>([]);
@@ -71,14 +71,16 @@ export default function TransporterDashboard({ userName, companyName }: { userNa
 
   const loadData = useCallback(async () => {
     try {
-      // 운송사 ID 찾기
-      const { data: companyData } = await supabase
-        .from('transport_companies')
-        .select('id')
-        .eq('name', companyName)
-        .single();
-
-      const companyId = companyData?.id;
+      // 운송사 ID 결정: profile의 company_id 우선, 없으면 회사명으로 조회(하위호환)
+      let companyId = companyIdProp || '';
+      if (!companyId && companyName) {
+        const { data: companyData } = await supabase
+          .from('transport_companies')
+          .select('id')
+          .eq('name', companyName)
+          .single();
+        companyId = companyData?.id || '';
+      }
       if (!companyId) {
         setLoading(false);
         return;
@@ -180,7 +182,7 @@ export default function TransporterDashboard({ userName, companyName }: { userNa
     } finally {
       setLoading(false);
     }
-  }, [supabase, today, monthStart, companyName]);
+  }, [supabase, today, monthStart, companyName, companyIdProp]);
 
   useEffect(() => { loadData(); }, [loadData]);
 

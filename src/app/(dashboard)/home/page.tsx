@@ -19,12 +19,13 @@ export default function HomePage() {
     );
   }
 
-  // 운송사 계정 → 운송사 대시보드
+  // 운송사 계정 → 운송사 대시보드 (자사 현황)
   if (profile.role === 'transporter') {
     return (
       <TransporterDashboard
         userName={profile.name}
         companyName={profile.company_name || ''}
+        companyId={profile.company_id || ''}
       />
     );
   }
