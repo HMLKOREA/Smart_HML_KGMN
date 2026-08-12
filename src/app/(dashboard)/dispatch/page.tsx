@@ -83,12 +83,14 @@ export default function DispatchPage() {
   const [userRole, setUserRole] = useState<string>('admin');
   const [userCompanyId, setUserCompanyId] = useState<string>('');
 
+  const [sessionLoaded, setSessionLoaded] = useState(false);
   useEffect(() => {
     const session = getSession();
     if (session?.profile) {
       setUserRole(session.profile.role || 'admin');
       setUserCompanyId(session.profile.company_id || '');
     }
+    setSessionLoaded(true);
   }, []);
 
   const isAdmin = userRole === 'admin' || userRole === 'monitor';
@@ -215,10 +217,12 @@ export default function DispatchPage() {
     setDrivers(drvs as unknown as LookupDriver[]);
   }, [supabase]);
 
+  // 세션(역할/소속 운송사) 확정 후 최초 조회 — 운송사 자동필터가 반드시 적용되도록
   useEffect(() => {
+    if (!sessionLoaded) return;
     fetchData();
     fetchLookups();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sessionLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Navigation ──
   const handlePrevDay = () => setSelectedDate(format(subDays(new Date(selectedDate + 'T00:00:00'), 1), 'yyyy-MM-dd'));
