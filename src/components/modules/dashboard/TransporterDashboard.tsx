@@ -23,16 +23,9 @@ interface TodayRequest {
   weight_net: number | null;
 }
 
-interface MonthlyStats {
-  totalQuantity: number;
-  dispatchCount: number;
-  settlementAmount: number;
-  vehicleAnalysis: {
-    vehicle_number: string;
-    dispatch_count: number;
-    total_quantity: number;
-  }[];
-}
+interface ShipRow { weight_net: number | null; shipment_date: string | null; }
+type PeriodMode = 'day' | 'month' | 'quarter';
+interface PeriodStat { label: string; total_quantity: number; dispatch_count: number; }
 
 const STATUS_MAP: Record<string, { label: string; style: string }> = {
   pending:    { label: '대기',     style: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200' },
@@ -62,12 +55,12 @@ export default function TransporterDashboard({ userName, companyName, companyId:
   const [loading, setLoading] = useState(true);
   const [todayRequests, setTodayRequests] = useState<TodayRequest[]>([]);
   const [needsWeighing, setNeedsWeighing] = useState<TodayRequest[]>([]);
-  const [monthly, setMonthly] = useState<MonthlyStats>({
-    totalQuantity: 0, dispatchCount: 0, settlementAmount: 0, vehicleAnalysis: [],
-  });
+  const [yearData, setYearData] = useState<ShipRow[]>([]);
+  const [periodMode, setPeriodMode] = useState<PeriodMode>('month');
 
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
   const monthStart = useMemo(() => `${today.substring(0, 7)}-01`, [today]);
+  const yearStart = useMemo(() => `${today.substring(0, 4)}-01-01`, [today]);
 
   const loadData = useCallback(async () => {
     try {
@@ -86,55 +79,35 @@ export default function TransporterDashboard({ userName, companyName, companyId:
         return;
       }
 
-      const [todayShipmentsRes, monthShipmentsRes, monthUnitPricesRes] = await Promise.all([
+      const [todayShipmentsRes, yearShipmentsRes] = await Promise.all([
         // 금일 출하 요청
         supabase.from('v_shipments')
           .select('id,shipment_number,customer_name,product_name,quantity,delivery_address,vehicle_number,driver_name,status,weight_empty,weight_loaded,weight_net')
           .eq('company_id', companyId)
           .eq('shipment_date', today)
           .order('created_at', { ascending: false }),
-        // 월간 출하 데이터 (배차 + 출하 통합) - pagination loop
+        // 연간 출하 데이터 (날짜/월/분기 분석용) - pagination loop
         (async () => {
           const PAGE_SIZE = 1000;
-          let allRows: any[] = [];
+          let allRows: ShipRow[] = [];
           let page = 0;
           let hasMore = true;
           while (hasMore) {
             const start = page * PAGE_SIZE;
             const end = start + PAGE_SIZE - 1;
             const { data, error } = await supabase.from('v_shipments')
-              .select('weight_net,vehicle_number,product_name')
+              .select('weight_net,shipment_date')
               .eq('company_id', companyId)
-              .gte('shipment_date', monthStart)
+              .gte('shipment_date', yearStart)
               .lte('shipment_date', today)
               .range(start, end);
             if (error) throw error;
-            const rows = data || [];
+            const rows = (data || []) as ShipRow[];
             allRows = [...allRows, ...rows];
             hasMore = rows.length === PAGE_SIZE;
             page++;
           }
-          return { data: allRows, error: null };
-        })(),
-        // 월간 단가 (정산 추정용) - pagination
-        (async () => {
-          const PAGE_SIZE = 1000;
-          const all: any[] = [];
-          let pg = 0;
-          let more = true;
-          while (more) {
-            const { data, error } = await supabase.from('unit_prices')
-              .select('price,transport_type')
-              .eq('company_id', companyId)
-              .eq('effective_date', monthStart)
-              .range(pg * PAGE_SIZE, (pg + 1) * PAGE_SIZE - 1);
-            if (error) throw error;
-            const rows = data || [];
-            all.push(...rows);
-            more = rows.length === PAGE_SIZE;
-            pg++;
-          }
-          return { data: all, error: null };
+          return allRows;
         })(),
       ]);
 
@@ -146,45 +119,46 @@ export default function TransporterDashboard({ userName, companyName, companyId:
         s.weight_net === null && s.status !== 'cancelled' && s.status !== 'pending'
       ));
 
-      // 월간 분석
-      const monthData = (monthShipmentsRes.data || []) as Array<Record<string, unknown>>;
-      const priceData = (monthUnitPricesRes.data || []) as Array<Record<string, unknown>>;
-
-      const totalQuantity = monthData.reduce((sum, r) => sum + (Number(r.weight_net) || 0), 0);
-      // 배차 횟수 = shipments 건수 (dispatches 테이블이 아닌 shipments 기준)
-      const dispatchCount = monthData.length;
-      // 정산 추정: weight_net × 평균 단가
-      const avgPrice = priceData.length > 0
-        ? priceData.reduce((sum, p) => sum + (Number(p.price) || 0), 0) / priceData.length
-        : 15000;
-      const settlementAmount = Math.round(totalQuantity * avgPrice);
-
-      // 차량별 분석 (shipments 기준)
-      const vehicleMap = new Map<string, { dispatch_count: number; total_quantity: number }>();
-      monthData.forEach(r => {
-        const vn = String(r.vehicle_number || '미지정');
-        const existing = vehicleMap.get(vn) || { dispatch_count: 0, total_quantity: 0 };
-        existing.dispatch_count += 1;
-        existing.total_quantity += Number(r.weight_net) || 0;
-        vehicleMap.set(vn, existing);
-      });
-      const vehicleAnalysis = Array.from(vehicleMap.entries())
-        .map(([vehicle_number, data]) => ({
-          vehicle_number,
-          dispatch_count: data.dispatch_count,
-          total_quantity: Math.round(data.total_quantity * 100) / 100,
-        }))
-        .sort((a, b) => b.dispatch_count - a.dispatch_count);
-
-      setMonthly({ totalQuantity, dispatchCount, settlementAmount, vehicleAnalysis });
+      setYearData(yearShipmentsRes);
     } catch (err) {
       console.error('Transporter dashboard load failed:', err);
     } finally {
       setLoading(false);
     }
-  }, [supabase, today, monthStart, companyName, companyIdProp]);
+  }, [supabase, today, yearStart, companyName, companyIdProp]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // 월간 KPI (당월)
+  const monthKpi = useMemo(() => {
+    const rows = yearData.filter(r => (r.shipment_date || '') >= monthStart);
+    return {
+      totalQuantity: rows.reduce((s, r) => s + (Number(r.weight_net) || 0), 0),
+      dispatchCount: rows.length,
+    };
+  }, [yearData, monthStart]);
+
+  // 기간별(날짜/월/분기) 출하 분석
+  const periodStats = useMemo<PeriodStat[]>(() => {
+    const map = new Map<string, { total_quantity: number; dispatch_count: number }>();
+    // 날짜별은 당월만, 월별/분기별은 연간 전체
+    const src = periodMode === 'day' ? yearData.filter(r => (r.shipment_date || '') >= monthStart) : yearData;
+    for (const r of src) {
+      const d = r.shipment_date;
+      if (!d) continue;
+      let label: string;
+      if (periodMode === 'day') label = d.slice(5);            // MM-DD
+      else if (periodMode === 'month') label = d.slice(0, 7);  // YYYY-MM
+      else label = `${d.slice(0, 4)} Q${Math.floor((Number(d.slice(5, 7)) - 1) / 3) + 1}`; // 분기
+      const cur = map.get(label) || { total_quantity: 0, dispatch_count: 0 };
+      cur.total_quantity += Number(r.weight_net) || 0;
+      cur.dispatch_count += 1;
+      map.set(label, cur);
+    }
+    return Array.from(map.entries())
+      .map(([label, v]) => ({ label, total_quantity: Math.round(v.total_quantity * 100) / 100, dispatch_count: v.dispatch_count }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [yearData, periodMode, monthStart]);
 
   if (loading) {
     return (
@@ -296,95 +270,96 @@ export default function TransporterDashboard({ userName, companyName, companyId:
         </div>
       </section>
 
-      {/* ═══════ Section 2: 월간 분석 ═══════ */}
+      {/* ═══════ Section 2: 출하 분석 ═══════ */}
       <section>
         <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
           <span className="w-1 h-5 bg-emerald-500 rounded-full" />
-          월간 분석
-          <span className="text-xs font-normal text-gray-400 ml-1">({today.substring(0, 7)})</span>
+          출하 분석
+          <span className="text-xs font-normal text-gray-400 ml-1">(당월 요약 · 기간별 추이)</span>
         </h3>
 
-        {/* KPI 카드 */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4">
+        {/* KPI 카드 (당월) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
           <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">총 출하량</p>
             <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mt-1">
-              {monthly.totalQuantity.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+              {monthKpi.totalQuantity.toLocaleString(undefined, { maximumFractionDigits: 1 })}
               <span className="text-xs sm:text-sm font-normal text-gray-400 ml-1">ton</span>
             </p>
           </div>
           <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">배차 횟수</p>
             <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">
-              {monthly.dispatchCount.toLocaleString()}
+              {monthKpi.dispatchCount.toLocaleString()}
               <span className="text-xs sm:text-sm font-normal text-gray-400 ml-1">회</span>
-            </p>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5">
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">월간 정산 금액</p>
-            <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent mt-1">
-              {monthly.settlementAmount.toLocaleString()}
-              <span className="text-xs sm:text-sm font-normal text-gray-400 ml-1">원</span>
             </p>
           </div>
         </div>
 
-        {/* 차량별 분석 차트 - 출하량 상위 10대 */}
+        {/* 기간별 출하량 분석 (날짜/월/분기 토글) */}
         <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5">
-          <p className="text-sm font-semibold text-gray-700 mb-3">
-            차량별 누적 출하량
-            {monthly.vehicleAnalysis.length > 10 && (
-              <span className="text-xs font-normal text-gray-400 ml-1">(상위 10대)</span>
-            )}
-          </p>
-          {monthly.vehicleAnalysis.length > 0 ? (
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart
-                data={monthly.vehicleAnalysis.slice(0, 10)}
-                layout="vertical"
-                margin={{ top: 5, right: 20, left: 5, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 10 }} />
-                <YAxis type="category" dataKey="vehicle_number" tick={{ fontSize: 10 }} width={80} />
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <p className="text-sm font-semibold text-gray-700">
+              기간별 출하량
+              <span className="text-xs font-normal text-gray-400 ml-1">
+                ({periodMode === 'day' ? `${today.substring(0, 7)} 일별` : `${today.substring(0, 4)}년 ${periodMode === 'month' ? '월별' : '분기별'}`})
+              </span>
+            </p>
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+              {([['day', '날짜별'], ['month', '월별'], ['quarter', '분기별']] as [PeriodMode, string][]).map(([mode, label]) => (
+                <button key={mode} onClick={() => setPeriodMode(mode)}
+                  className={`px-3 py-1.5 text-xs font-semibold transition-colors ${periodMode === mode ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {periodStats.length > 0 ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={periodStats} margin={{ top: 5, right: 12, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 10 }} />
                 <Tooltip content={<VehicleTooltip />} />
-                <Bar dataKey="total_quantity" name="출하량(ton)" fill="#3B82F6" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="total_quantity" name="출하량(ton)" fill="#3B82F6" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-[200px] sm:h-[260px] text-gray-400 text-sm">
+            <div className="flex items-center justify-center h-[200px] sm:h-[280px] text-gray-400 text-sm">
               데이터가 없습니다
             </div>
           )}
         </div>
 
-        {/* 차량별 상세 테이블 */}
-        {monthly.vehicleAnalysis.length > 0 && (
+        {/* 기간별 상세 테이블 */}
+        {periodStats.length > 0 && (
           <div className="bg-white rounded-xl border border-gray-100 overflow-hidden mt-4">
             <div className="px-4 sm:px-5 py-3 border-b border-gray-100">
-              <p className="text-sm font-semibold text-gray-700">차량별 상세</p>
+              <p className="text-sm font-semibold text-gray-700">
+                기간별 상세 <span className="text-xs font-normal text-gray-400">({periodMode === 'day' ? '날짜별' : periodMode === 'month' ? '월별' : '분기별'})</span>
+              </p>
             </div>
             <div className="overflow-x-auto">
               <table className="data-table min-w-[320px]">
                 <thead>
                   <tr>
-                    <th>차량번호</th>
+                    <th>{periodMode === 'day' ? '날짜' : periodMode === 'month' ? '월' : '분기'}</th>
                     <th className="text-right">배차 횟수</th>
-                    <th className="text-right">누적 출하량 (ton)</th>
+                    <th className="text-right">출하량 (ton)</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {monthly.vehicleAnalysis.map((v, i) => (
+                  {periodStats.map((v, i) => (
                     <tr key={i} className="hover:bg-gray-50/50">
-                      <td className="font-mono text-xs sm:text-sm font-medium text-gray-800 whitespace-nowrap">{v.vehicle_number}</td>
+                      <td className="font-medium text-gray-800 whitespace-nowrap">{v.label}</td>
                       <td className="text-right tabular-nums">{v.dispatch_count}</td>
                       <td className="text-right tabular-nums font-medium">{v.total_quantity.toLocaleString()}</td>
                     </tr>
                   ))}
                   <tr className="bg-gray-50 font-semibold">
                     <td className="text-gray-700">합계</td>
-                    <td className="text-right tabular-nums">{monthly.vehicleAnalysis.reduce((s, v) => s + v.dispatch_count, 0)}</td>
-                    <td className="text-right tabular-nums">{monthly.vehicleAnalysis.reduce((s, v) => s + v.total_quantity, 0).toLocaleString()}</td>
+                    <td className="text-right tabular-nums">{periodStats.reduce((s, v) => s + v.dispatch_count, 0)}</td>
+                    <td className="text-right tabular-nums">{periodStats.reduce((s, v) => s + v.total_quantity, 0).toLocaleString()}</td>
                   </tr>
                 </tbody>
               </table>
