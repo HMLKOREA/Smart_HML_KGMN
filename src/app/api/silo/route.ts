@@ -17,17 +17,18 @@ const STALE_HOURS = 3;
 
 // ── 사일로 마스터 (configsilo1.cfg 기준) ──
 interface SiloMaster { no: number; product: string; max: number; table: string; field: 750 | 760; }
+// max: 실제 용량(톤). 레거시 표시가 10배(850→85 등)라 담당자 확인값으로 보정.
 const SILO_MASTER: SiloMaster[] = [
-  { no: 1, product: 'K325', max: 850, table: 'hogi03', field: 750 },
-  { no: 2, product: 'K100', max: 950, table: 'hogi03', field: 750 },
-  { no: 3, product: 'K200', max: 850, table: 'hogi03', field: 750 },
-  { no: 4, product: 'K10+K18', max: 1080, table: 'hogi04', field: 760 },
-  { no: 5, product: 'K18', max: 4200, table: 'hogi02', field: 760 },
-  { no: 6, product: 'K10', max: 1000, table: 'hogi05', field: 760 },
-  { no: 7, product: 'K50', max: 1800, table: 'hogi01', field: 760 },
-  { no: 8, product: 'K18', max: 2600, table: 'hogi06', field: 760 },
-  { no: 9, product: '원석350', max: 3500, table: 'hogi22', field: 760 },
-  { no: 10, product: '원석500', max: 5000, table: 'hogi21', field: 760 },
+  { no: 1, product: 'K325', max: 85, table: 'hogi03', field: 750 },
+  { no: 2, product: 'K100', max: 95, table: 'hogi03', field: 750 },
+  { no: 3, product: 'K200', max: 85, table: 'hogi03', field: 750 },
+  { no: 4, product: 'K10+K18', max: 108, table: 'hogi04', field: 760 },
+  { no: 5, product: 'K18', max: 420, table: 'hogi02', field: 760 },
+  { no: 6, product: 'K10', max: 100, table: 'hogi05', field: 760 },
+  { no: 7, product: 'K50', max: 180, table: 'hogi01', field: 760 },
+  { no: 8, product: 'K18', max: 260, table: 'hogi06', field: 760 },
+  { no: 9, product: '원석350', max: 350, table: 'hogi22', field: 760 },
+  { no: 10, product: '원석500', max: 500, table: 'hogi21', field: 760 },
 ];
 
 interface Reading { weight: number | null; measuredAt: string | null; }
@@ -110,7 +111,7 @@ function dummy(): Map<number, Reading> {
   const map = new Map<number, Reading>();
   const now = new Date().toISOString();
   const fill: Record<number, number> = { 1: 0.62, 2: 0.78, 3: 0.41, 4: 0.9, 5: 0.55, 6: 0.33, 7: 0.7, 8: 0.85, 9: 0.48, 10: 0.6 };
-  for (const s of SILO_MASTER) map.set(s.no, { weight: Math.round(s.max * (fill[s.no] ?? 0.5)), measuredAt: now });
+  for (const s of SILO_MASTER) map.set(s.no, { weight: Math.round(s.max * (fill[s.no] ?? 0.5) * 10) / 10, measuredAt: now });
   return map;
 }
 

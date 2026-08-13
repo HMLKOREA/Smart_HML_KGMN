@@ -698,12 +698,18 @@ export default function DispatchPage() {
                         <td style={{ padding: '6px 8px', fontSize: 12, color: '#475569', whiteSpace: 'nowrap' }}>
                           {editData.driver_phone || '-'}
                         </td>
-                        {/* 계근수량 */}
+                        {/* 계근수량 — 관리자 출하확정(is_shipped) 시 운송사는 수정 불가 */}
                         <td style={{ padding: '2px 3px' }}>
-                          <input type="number" step="0.01"
-                            value={editData.weight_net ?? ''}
-                            onChange={e => setEditData({ ...editData, weight_net: e.target.value ? parseFloat(e.target.value) : null })}
-                            style={{ width: 70, fontSize: 12, padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: 4, textAlign: 'right' }} />
+                          {isTransporter && row.is_shipped ? (
+                            <div title="관리자 출하확정 건은 계근값을 수정할 수 없습니다" style={{ width: 70, fontSize: 12, padding: '4px 6px', textAlign: 'right', color: '#6b7280', background: '#f3f4f6', borderRadius: 4, whiteSpace: 'nowrap' }}>
+                              🔒 {editData.weight_net != null ? editData.weight_net.toFixed(2) : '0.00'}
+                            </div>
+                          ) : (
+                            <input type="number" step="0.01"
+                              value={editData.weight_net ?? ''}
+                              onChange={e => setEditData({ ...editData, weight_net: e.target.value ? parseFloat(e.target.value) : null })}
+                              style={{ width: 70, fontSize: 12, padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: 4, textAlign: 'right' }} />
+                          )}
                         </td>
                         <td style={{ padding: '6px 8px', fontSize: 12, whiteSpace: 'nowrap', color: '#6b7280' }}>
                           {formatCertTime(row.certificate_time)}
