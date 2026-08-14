@@ -18,7 +18,7 @@ import mysql from 'mysql2/promise';
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 // ─── .env.local 로드 ──────────────────────────────
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -54,7 +54,7 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY);
 
-const isDelta = process.argv.includes('--delta');
+let isDelta = process.argv.includes('--delta');
 const isCron = process.argv.includes('--cron');
 
 // ─── 유틸 ──────────────────────────────────────────
@@ -517,7 +517,9 @@ async function syncQualityReports(conn) {
 }
 
 // ─── 메인 실행 ─────────────────────────────────────
-async function runSync() {
+// deltaOverride: true=증분, false=전체, undefined=argv 기준 (라우트/크론에서 호출용)
+export async function runSync(deltaOverride) {
+  if (deltaOverride !== undefined) isDelta = deltaOverride;
   const startTime = Date.now();
   log('========================================');
   log(`동기화 시작 (${isDelta ? '증분' : '전체'} 모드)`);
@@ -552,16 +554,14 @@ async function runSync() {
   }
 }
 
-// ─── 크론 모드 ─────────────────────────────────────
-if (isCron) {
-  log('⏰ 크론 모드 시작 — 매시간 자동 동기화');
-  // 즉시 1회 실행 후 매시간 반복
-  await runSync();
-  setInterval(async () => {
-    // 크론 모드에서는 항상 delta
-    process.argv.push('--delta');
+// ─── CLI 실행 (import 시에는 실행 안 함) ─────────────
+const isMain = !!process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) {
+  if (isCron) {
+    log('⏰ 크론 모드 시작 — 매시간 자동 동기화');
     await runSync();
-  }, 60 * 60 * 1000); // 1시간
-} else {
-  await runSync();
+    setInterval(() => runSync(true), 60 * 60 * 1000); // 1시간마다 증분
+  } else {
+    await runSync();
+  }
 }
