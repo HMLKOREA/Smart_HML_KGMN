@@ -88,10 +88,11 @@ async function fromApi(): Promise<Map<number, Reading> | null> {
   const sb = sbAdmin();
 
   // 1) 공유 스냅샷 확인 (신선하면 그대로 사용)
-  let snap: { readings: Record<string, Reading>; fetched_at: string } | null = null;
+  type Snap = { readings: Record<string, Reading>; fetched_at: string };
+  let snap: Snap | null = null;
   if (sb) {
     const { data } = await sb.from('silo_snapshot').select('readings, fetched_at').eq('id', 1).maybeSingle();
-    if (data) snap = data as typeof snap;
+    if (data) snap = data as unknown as Snap;
   }
   if (snap && Date.now() - new Date(snap.fetched_at).getTime() < SNAPSHOT_TTL_MS) {
     return jsonToMap(snap.readings);
