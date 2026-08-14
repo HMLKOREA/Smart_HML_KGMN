@@ -631,18 +631,15 @@ export default function ShippingPage() {
         return;
       }
 
-      // DB 플래그 업데이트
-      const dbResult = await crud.batchUpdate(Array.from(selectedIds), { dispatch_notified: true });
-
-      if (notifyResult.success || notifyRes.ok) {
-        toast.success(notifyResult.message || '배차통보가 완료되었습니다.');
+      // 발송이 성공했을 때만 '통보완료' 플래그 설정 (실패건이 통보완료로 표기되지 않도록)
+      const sendOk = notifyRes.ok && notifyResult.success !== false;
+      if (sendOk) {
+        const dbResult = await crud.batchUpdate(Array.from(selectedIds), { dispatch_notified: true });
+        if (!dbResult.success) toast.error('통보는 발송됐으나 상태 업데이트에 실패했습니다.');
+        else toast.success(notifyResult.message || '배차통보가 완료되었습니다.');
       } else {
-        // 발송 실패해도 DB 플래그는 업데이트, 사용자에게 부분 실패 알림
-        toast.warning(notifyResult.message || notifyResult.error || '일부 통보가 실패했습니다. 연락처를 확인해주세요.');
-      }
-
-      if (!dbResult.success) {
-        toast.error('통보 상태 업데이트 실패');
+        // 미발송 → 상태는 '미통보'로 유지
+        toast.warning(notifyResult.message || notifyResult.error || '통보 발송에 실패했습니다. 연락처를 확인해주세요. (미통보 상태 유지)');
       }
 
       setShowDispatchNotify(false);

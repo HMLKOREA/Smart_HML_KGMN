@@ -32,45 +32,57 @@ const SILO_MASTER: SiloMaster[] = [
 ];
 
 interface Reading { weight: number | null; measuredAt: string | null; }
-const tableNum = (t: string) => parseInt(t.replace(/\D/g, ''), 10);
 
-/** 1안: 벤더 REST API (파라미터 없이 호출 → JSON) */
+// 벤더 값은 실제 톤의 10배(예: SILO1=850 → 85.0톤). 담당자 확인값.
+const API_WEIGHT_SCALE = 0.1;
+// 벤더 호출 제한(1회/60초) 준수용 서버 캐시
+const API_CACHE_MS = 60_000;
+let apiCache: { at: number; map: Map<number, Reading> } | null = null;
+
+// "YYYY-MM-DD hh:mm:ss.s" (KST 벽시계) → UTC ISO
+const kstToIso = (t: string | null): string | null =>
+  t ? new Date(String(t).trim().replace(' ', 'T') + '+09:00').toISOString() : null;
+const scale = (v: unknown): number | null => {
+  const n = Number(v);
+  return isNaN(n) ? null : Math.round(n * API_WEIGHT_SCALE * 10) / 10;
+};
+
+/**
+ * 1안: 벤더 REST API (비즈에이앤씨)
+ *   GET, Header: X-API-Key
+ *   응답: { "TIMESTAMP":"YYYY-MM-DD hh:mm:ss.s", "SILO1":중량, ... "SILO10":중량 }
+ *   SILOn = 화면 순번(사일로 no). 값은 ×10 → ÷10 보정.
+ */
 async function fromApi(): Promise<Map<number, Reading> | null> {
   const url = process.env.SILO_API_URL;
   if (!url) return null;
+  if (apiCache && Date.now() - apiCache.at < API_CACHE_MS) return apiCache.map;
+
   const headers: Record<string, string> = { Accept: 'application/json' };
-  if (process.env.SILO_API_KEY) headers.Authorization = `Bearer ${process.env.SILO_API_KEY}`;
+  if (process.env.SILO_API_KEY) headers['X-API-Key'] = process.env.SILO_API_KEY;
   const res = await fetch(url, { headers, cache: 'no-store' });
   if (!res.ok) throw new Error(`벤더 API 오류 HTTP ${res.status}`);
   const json = await res.json();
   const map = new Map<number, Reading>();
 
-  const pick = (o: Record<string, unknown>, keys: string[]) => { for (const k of keys) if (o[k] != null) return o[k]; return undefined; };
-  // 호기번호 → 우리 사일로 no (호기번호=사일로no 우선, 아니면 hogi 테이블 번호로 매칭)
-  const resolveNos = (hopper: number): number[] => {
-    const direct = SILO_MASTER.filter(s => s.no === hopper).map(s => s.no);
-    if (direct.length) return direct;
-    return SILO_MASTER.filter(s => tableNum(s.table) === hopper).map(s => s.no);
-  };
-
-  if (Array.isArray(json)) {
-    for (const row of json as Record<string, unknown>[]) {
-      const hopper = Number(pick(row, ['호기번호', 'hopper', 'silo', 'no']));
-      const weight = Number(pick(row, ['중량', 'weight', 'ton', 'value']));
-      const t = (pick(row, ['타임스탬프', 'timestamp', 'cr_time', 'time']) ?? null) as string | null;
-      if (!isNaN(hopper)) for (const no of resolveNos(hopper)) map.set(no, { weight: isNaN(weight) ? null : weight, measuredAt: t });
-    }
-  } else if (json && typeof json === 'object') {
-    // { "타임스탬프":"...", "1":중량, "2":중량, ... }
+  if (json && typeof json === 'object' && !Array.isArray(json)) {
     const o = json as Record<string, unknown>;
-    const t = (o['타임스탬프'] ?? o['timestamp'] ?? null) as string | null;
+    const measuredAt = kstToIso((o['TIMESTAMP'] ?? o['타임스탬프'] ?? o['timestamp'] ?? null) as string | null);
     for (const [k, v] of Object.entries(o)) {
-      const hopper = Number(k);
-      if (isNaN(hopper)) continue;
-      const weight = Number(v);
-      for (const no of resolveNos(hopper)) map.set(no, { weight: isNaN(weight) ? null : weight, measuredAt: t });
+      const m = /^SILO\s*(\d+)$/i.exec(k.trim());
+      if (!m) continue;
+      map.set(Number(m[1]), { weight: scale(v), measuredAt });
+    }
+  } else if (Array.isArray(json)) {
+    // 폴백: [{ 호기번호, 중량, 타임스탬프 }]
+    for (const row of json as Record<string, unknown>[]) {
+      const hopper = Number(row['호기번호'] ?? row['hopper'] ?? row['silo'] ?? row['no']);
+      const measuredAt = kstToIso((row['타임스탬프'] ?? row['timestamp'] ?? null) as string | null);
+      if (!isNaN(hopper)) map.set(hopper, { weight: scale(row['중량'] ?? row['weight'] ?? row['value']), measuredAt });
     }
   }
+
+  apiCache = { at: Date.now(), map };
   return map;
 }
 

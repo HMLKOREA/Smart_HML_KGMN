@@ -302,15 +302,28 @@ export default function SettlementPage() {
         pricePg++;
       }
 
-      // company_id::product_id → price
-      const priceMap = new Map<string, number>();
-      ((allPriceData as unknown as UnitPriceRow[]) || []).forEach(p => {
-        priceMap.set(`${p.company_id}::${p.product_id}`, p.price);
+      // company_id::product_id → [{effective_date, price}] (여러 달 단가를 출하일 기준으로 매칭)
+      const priceList = new Map<string, { date: string; price: number }[]>();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ((allPriceData as unknown as any[]) || []).forEach(p => {
+        const key = `${p.company_id}::${p.product_id}`;
+        const arr = priceList.get(key) || [];
+        arr.push({ date: String(p.effective_date ?? ''), price: Number(p.price) || 0 });
+        priceList.set(key, arr);
       });
+      // 각 키의 단가를 유효일 내림차순 정렬
+      priceList.forEach(arr => arr.sort((a, b) => b.date.localeCompare(a.date)));
+      // 출하일에 유효한 단가(출하일 이전 최신 유효일) 조회, 없으면 가장 이른 단가
+      const lookupPrice = (companyId: string, productId: string, shipDate: string): number => {
+        const arr = priceList.get(`${companyId}::${productId}`);
+        if (!arr || !arr.length) return 0;
+        const eff = arr.find(x => x.date <= shipDate);
+        return (eff ?? arr[arr.length - 1]).price;
+      };
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return ((shipData || []) as any[]).map((s: any) => {
-        const unitPrice = priceMap.get(`${s.company_id}::${s.product_id}`) ?? 0;
+        const unitPrice = lookupPrice(s.company_id, s.product_id, String(s.shipment_date ?? ''));
         const wt = Number(s.weight_net) || 0;
         const tt = s.transport_type ?? '';
         const fee = tt === '카고' ? unitPrice : Math.round(unitPrice * wt);

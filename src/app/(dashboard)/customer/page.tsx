@@ -130,11 +130,21 @@ export default function CustomerPage() {
     fetchData();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 제품 목록 (제품명 표시/선택용)
+  // 제품 목록 (제품명 표시/선택용) — 1000행 제한 회피 페이징
   useEffect(() => {
-    supabase.from('products').select('id, name, code').order('name').then(({ data }) => {
-      setProducts((data || []) as LookupProduct[]);
-    });
+    (async () => {
+      const PAGE = 1000;
+      const all: LookupProduct[] = [];
+      let pg = 0, more = true;
+      while (more) {
+        const { data } = await supabase.from('products').select('id, name, code').order('name').range(pg * PAGE, (pg + 1) * PAGE - 1);
+        const rows = (data || []) as LookupProduct[];
+        all.push(...rows);
+        more = rows.length === PAGE;
+        pg++;
+      }
+      setProducts(all);
+    })();
   }, [supabase]);
 
   const sortedData = useMemo(() => {

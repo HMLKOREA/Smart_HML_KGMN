@@ -48,13 +48,24 @@ export default function UnitPricePage() {
   const fetchData = useCallback(async (ym: string) => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('unit_prices')
-        .select('id, company_id, product_id, transport_type, price, effective_date, transport_companies(name), products(name)')
-        .eq('effective_date', firstOfMonth(ym))
-        .order('transport_type');
-      if (error) throw error;
-      setRows((data || []) as unknown as UnitPrice[]);
+      // 1000행 제한 회피 페이징
+      const PAGE = 1000;
+      let all: unknown[] = [];
+      let pg = 0, more = true;
+      while (more) {
+        const { data, error } = await supabase
+          .from('unit_prices')
+          .select('id, company_id, product_id, transport_type, price, effective_date, transport_companies(name), products(name)')
+          .eq('effective_date', firstOfMonth(ym))
+          .order('transport_type')
+          .range(pg * PAGE, (pg + 1) * PAGE - 1);
+        if (error) throw error;
+        const rows = data || [];
+        all = [...all, ...rows];
+        more = rows.length === PAGE;
+        pg++;
+      }
+      setRows(all as unknown as UnitPrice[]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '단가 조회 실패');
       setRows([]);
