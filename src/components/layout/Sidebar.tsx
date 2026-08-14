@@ -1,9 +1,12 @@
 'use client';
 
+import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { UserRole } from '@/types';
 import { useAuth } from '@/lib/hooks/useAuth';
+
+const NAV_LS_KEY = 'smarthml_nav_open_v1';
 
 /* ────── Heroicon SVG mini-components ────── */
 const icons: Record<string, React.ReactNode> = {
@@ -78,22 +81,54 @@ interface NavItem {
   roles: UserRole[];
 }
 
-const navItems: NavItem[] = [
-  { label: '출하관리', path: '/shipping', iconKey: 'shipping', roles: ['admin', 'monitor', 'field'] },
-  { label: '배차관리', path: '/dispatch', iconKey: 'dispatch', roles: ['admin', 'monitor', 'field', 'transporter'] },
-  { label: '운송사관리', path: '/transport-company', iconKey: 'company', roles: ['admin', 'monitor'] },
-  { label: '거래처관리', path: '/customer', iconKey: 'customer', roles: ['admin', 'monitor'] },
-  { label: '기사관리', path: '/driver', iconKey: 'driver', roles: ['admin', 'monitor', 'transporter'] },
-  { label: '제품코드관리', path: '/product-code', iconKey: 'product', roles: ['admin', 'monitor'] },
-  { label: '단가관리', path: '/unit-price', iconKey: 'settlement', roles: ['admin', 'monitor'] },
-  { label: '성적서관리', path: '/report', iconKey: 'report', roles: ['admin', 'monitor', 'field'] },
-  { label: '생산현황', path: '/production', iconKey: 'production', roles: ['admin', 'monitor', 'field'] },
-  { label: '사일로현황', path: '/silo', iconKey: 'production', roles: ['admin', 'monitor', 'field'] },
-  { label: '정산관리', path: '/settlement', iconKey: 'settlement', roles: ['admin', 'monitor'] },
-  { label: '일일보고', path: '/daily-report', iconKey: 'dailyReport', roles: ['admin', 'monitor'] },
-  // 대시보드는 사용자관리 바로 앞으로 이동 (담당자 요청)
-  { label: '대시보드', path: '/home', iconKey: 'dashboard', roles: ['admin', 'monitor', 'field', 'transporter'] },
-  { label: '사용자관리', path: '/admin/users', iconKey: 'users', roles: ['admin'] },
+interface NavGroup {
+  key: string;
+  label: string;   // 표시 이름
+  en: string;      // 영문 캡션
+  iconKey: string;
+  items: NavItem[];
+}
+
+// 좌측 메뉴: 그룹(접기/펼치기) 트리 구조
+const navGroups: NavGroup[] = [
+  {
+    key: 'logistics', label: '운송 관리', en: 'Logistics', iconKey: 'shipping', items: [
+      { label: '출하관리', path: '/shipping', iconKey: 'shipping', roles: ['admin', 'monitor', 'field'] },
+      { label: '배차관리', path: '/dispatch', iconKey: 'dispatch', roles: ['admin', 'monitor', 'field', 'transporter'] },
+    ],
+  },
+  {
+    key: 'product', label: '제품 관리', en: 'Products', iconKey: 'product', items: [
+      { label: '제품코드관리', path: '/product-code', iconKey: 'product', roles: ['admin', 'monitor'] },
+      { label: '단가관리', path: '/unit-price', iconKey: 'settlement', roles: ['admin', 'monitor'] },
+      { label: '성적서관리', path: '/report', iconKey: 'report', roles: ['admin', 'monitor', 'field'] },
+    ],
+  },
+  {
+    key: 'partner', label: '거래 관리', en: 'Partners', iconKey: 'customer', items: [
+      { label: '거래처관리', path: '/customer', iconKey: 'customer', roles: ['admin', 'monitor'] },
+      { label: '운송사관리', path: '/transport-company', iconKey: 'company', roles: ['admin', 'monitor'] },
+      { label: '기사관리', path: '/driver', iconKey: 'driver', roles: ['admin', 'monitor', 'transporter'] },
+    ],
+  },
+  {
+    key: 'plant', label: '공장 현황', en: 'Plant', iconKey: 'production', items: [
+      { label: '생산현황', path: '/production', iconKey: 'production', roles: ['admin', 'monitor', 'field'] },
+      { label: '사일로현황', path: '/silo', iconKey: 'production', roles: ['admin', 'monitor', 'field'] },
+    ],
+  },
+  {
+    key: 'mgmt', label: 'Management', en: '경영 · 현황', iconKey: 'dashboard', items: [
+      { label: '대시보드', path: '/home', iconKey: 'dashboard', roles: ['admin', 'monitor', 'field', 'transporter'] },
+      { label: '일일보고', path: '/daily-report', iconKey: 'dailyReport', roles: ['admin', 'monitor'] },
+      { label: '정산관리', path: '/settlement', iconKey: 'settlement', roles: ['admin', 'monitor'] },
+    ],
+  },
+  {
+    key: 'settings', label: '설정', en: 'Settings', iconKey: 'users', items: [
+      { label: '사용자관리', path: '/admin/users', iconKey: 'users', roles: ['admin'] },
+    ],
+  },
 ];
 
 interface SidebarProps {
@@ -110,7 +145,25 @@ export default function Sidebar({ userRole, userName, collapsed, onToggle, isMob
   const router = useRouter();
   const { logout } = useAuth();
 
-  const filteredNav = navItems.filter(item => item.roles.includes(userRole));
+  // 그룹 접기/펼치기 상태 (기본: 모두 펼침, localStorage 저장)
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    if (typeof window === 'undefined') return {};
+    try { return JSON.parse(localStorage.getItem(NAV_LS_KEY) || '{}'); } catch { return {}; }
+  });
+  const toggleGroup = useCallback((key: string) => {
+    setOpenGroups(prev => {
+      const next = { ...prev, [key]: !(prev[key] ?? true) };
+      try { localStorage.setItem(NAV_LS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+
+  // 역할에 접근 가능한 항목이 있는 그룹만
+  const visibleGroups = navGroups
+    .map(g => ({ ...g, items: g.items.filter(it => it.roles.includes(userRole)) }))
+    .filter(g => g.items.length > 0);
+  // 접힘(아이콘 전용) 모드용 평면 목록
+  const flatItems = visibleGroups.flatMap(g => g.items);
 
   const roleLabel: Record<UserRole, string> = {
     admin: '관리자',
@@ -193,30 +246,75 @@ export default function Sidebar({ userRole, userName, collapsed, onToggle, isMob
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2">
-        <div className="flex flex-col gap-0.5">
-          {filteredNav.map((item) => {
-            const isActive = pathname.startsWith(item.path);
-            return (
-              <Link
-                key={item.path}
-                href={item.path}
-                onClick={handleNavClick}
-                className={`flex items-center gap-3 rounded-lg text-[14px] font-medium transition-all no-underline
-                  ${collapsed && !isMobile ? 'justify-center p-3' : 'px-3 py-2.5'}
-                  ${isActive
-                    ? 'text-white bg-blue-600/85 shadow-[0_4px_12px_rgba(37,99,235,0.25)]'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}
-                `}
-                title={item.label}
-              >
-                <span className={`shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`}>
-                  {icons[item.iconKey]}
-                </span>
-                {(!collapsed || isMobile) && <span className="truncate">{item.label}</span>}
-              </Link>
-            );
-          })}
-        </div>
+        {collapsed && !isMobile ? (
+          /* 접힘(아이콘 전용) 모드: 그룹 없이 아이콘만 */
+          <div className="flex flex-col gap-0.5">
+            {flatItems.map((item) => {
+              const isActive = pathname.startsWith(item.path);
+              return (
+                <Link
+                  key={item.path}
+                  href={item.path}
+                  onClick={handleNavClick}
+                  className={`flex items-center justify-center p-3 rounded-lg transition-all no-underline
+                    ${isActive ? 'text-white bg-blue-600/85 shadow-[0_4px_12px_rgba(37,99,235,0.25)]' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
+                  title={item.label}
+                >
+                  <span className={`shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`}>{icons[item.iconKey]}</span>
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          /* 펼침 모드: 그룹 트리 (접기/펼치기) */
+          <div className="flex flex-col gap-1.5">
+            {visibleGroups.map((group) => {
+              const isOpen = openGroups[group.key] ?? true;
+              const groupActive = group.items.some(it => pathname.startsWith(it.path));
+              return (
+                <div key={group.key}>
+                  {/* 그룹 헤더 */}
+                  <button
+                    onClick={() => toggleGroup(group.key)}
+                    className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors
+                      ${groupActive ? 'text-slate-100' : 'text-slate-400'} hover:bg-white/5`}
+                    title={group.label}
+                  >
+                    <span className={`shrink-0 ${groupActive ? 'text-blue-400' : 'text-slate-500'}`}>{icons[group.iconKey]}</span>
+                    <span className="flex-1 min-w-0 text-left">
+                      <span className="block text-[13.5px] font-bold tracking-tight truncate">{group.label}</span>
+                      <span className="block text-[10px] font-medium uppercase tracking-wider text-slate-500 truncate">{group.en}</span>
+                    </span>
+                    <svg className={`w-3.5 h-3.5 shrink-0 text-slate-500 transition-transform duration-200 ${isOpen ? 'rotate-0' : '-rotate-90'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                    </svg>
+                  </button>
+                  {/* 하위 항목 */}
+                  {isOpen && (
+                    <div className="mt-0.5 ml-3 pl-2.5 border-l border-white/[0.07] flex flex-col gap-0.5">
+                      {group.items.map((item) => {
+                        const isActive = pathname.startsWith(item.path);
+                        return (
+                          <Link
+                            key={item.path}
+                            href={item.path}
+                            onClick={handleNavClick}
+                            className={`flex items-center gap-2.5 rounded-lg text-[13.5px] font-medium transition-all no-underline px-2.5 py-2
+                              ${isActive ? 'text-white bg-blue-600/85 shadow-[0_4px_12px_rgba(37,99,235,0.25)]' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
+                            title={item.label}
+                          >
+                            <span className={`shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`}>{icons[item.iconKey]}</span>
+                            <span className="truncate">{item.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </nav>
 
       {/* Bottom */}
