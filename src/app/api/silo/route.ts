@@ -11,6 +11,7 @@
  * 데이터 저장 없이 호출 시점 최신값만 반환. 3시간 초과 시 stale=true.
  */
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 const STALE_HOURS = 3;
@@ -35,9 +36,8 @@ interface Reading { weight: number | null; measuredAt: string | null; }
 
 // 벤더 값은 실제 톤의 10배(예: SILO1=850 → 85.0톤). 담당자 확인값.
 const API_WEIGHT_SCALE = 0.1;
-// 벤더 호출 제한(1회/60초) 준수용 서버 캐시
-const API_CACHE_MS = 60_000;
-let apiCache: { at: number; map: Map<number, Reading> } | null = null;
+// 벤더 호출 제한(1회/60초) — 전역 스냅샷 캐시 TTL
+const SNAPSHOT_TTL_MS = 60_000;
 
 // "YYYY-MM-DD hh:mm:ss.s" (KST 벽시계) → UTC ISO
 const kstToIso = (t: string | null): string | null =>
@@ -47,31 +47,17 @@ const scale = (v: unknown): number | null => {
   return isNaN(n) ? null : Math.round(n * API_WEIGHT_SCALE * 10) / 10;
 };
 
-/**
- * 1안: 벤더 REST API (비즈에이앤씨)
- *   GET, Header: X-API-Key
- *   응답: { "TIMESTAMP":"YYYY-MM-DD hh:mm:ss.s", "SILO1":중량, ... "SILO10":중량 }
- *   SILOn = 화면 순번(사일로 no). 값은 ×10 → ÷10 보정.
- */
-async function fromApi(): Promise<Map<number, Reading> | null> {
-  const url = process.env.SILO_API_URL;
-  if (!url) return null;
-  if (apiCache && Date.now() - apiCache.at < API_CACHE_MS) return apiCache.map;
+function sbAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key, { auth: { persistSession: false } });
+}
+const mapToJson = (m: Map<number, Reading>) => Object.fromEntries([...m].map(([k, v]) => [k, v]));
+const jsonToMap = (o: Record<string, Reading>): Map<number, Reading> =>
+  new Map(Object.entries(o || {}).map(([k, v]) => [Number(k), v]));
 
-  const headers: Record<string, string> = { Accept: 'application/json' };
-  if (process.env.SILO_API_KEY) headers['X-API-Key'] = process.env.SILO_API_KEY;
-
-  let json: unknown;
-  try {
-    const res = await fetch(url, { headers, cache: 'no-store' });
-    if (!res.ok) throw new Error(`벤더 API 오류 HTTP ${res.status}`);
-    json = await res.json();
-  } catch (e) {
-    // 호출제한(429)·일시 오류 시 마지막 성공값 유지(더미로 떨어지지 않음)
-    if (apiCache) return apiCache.map;
-    throw e;
-  }
-
+function parseVendor(json: unknown): Map<number, Reading> {
   const map = new Map<number, Reading>();
   if (json && typeof json === 'object' && !Array.isArray(json)) {
     const o = json as Record<string, unknown>;
@@ -82,18 +68,51 @@ async function fromApi(): Promise<Map<number, Reading> | null> {
       map.set(Number(m[1]), { weight: scale(v), measuredAt });
     }
   } else if (Array.isArray(json)) {
-    // 폴백: [{ 호기번호, 중량, 타임스탬프 }]
     for (const row of json as Record<string, unknown>[]) {
       const hopper = Number(row['호기번호'] ?? row['hopper'] ?? row['silo'] ?? row['no']);
       const measuredAt = kstToIso((row['타임스탬프'] ?? row['timestamp'] ?? null) as string | null);
       if (!isNaN(hopper)) map.set(hopper, { weight: scale(row['중량'] ?? row['weight'] ?? row['value']), measuredAt });
     }
   }
-
-  // 유효 파싱 실패 시 마지막 성공값 유지
-  if (map.size === 0 && apiCache) return apiCache.map;
-  apiCache = { at: Date.now(), map };
   return map;
+}
+
+/**
+ * 1안: 벤더 REST API (비즈에이앤씨) — 전역 스냅샷 캐시로 호출제한(1회/60초) 준수.
+ *   응답: { "TIMESTAMP":"YYYY-MM-DD hh:mm:ss.s", "SILO1":중량, ... "SILO10":중량 }
+ *   여러 서버 인스턴스가 Supabase silo_snapshot 한 행을 공유 → 60초에 최대 1회만 벤더 호출.
+ */
+async function fromApi(): Promise<Map<number, Reading> | null> {
+  const url = process.env.SILO_API_URL;
+  if (!url) return null;
+  const sb = sbAdmin();
+
+  // 1) 공유 스냅샷 확인 (신선하면 그대로 사용)
+  let snap: { readings: Record<string, Reading>; fetched_at: string } | null = null;
+  if (sb) {
+    const { data } = await sb.from('silo_snapshot').select('readings, fetched_at').eq('id', 1).maybeSingle();
+    if (data) snap = data as typeof snap;
+  }
+  if (snap && Date.now() - new Date(snap.fetched_at).getTime() < SNAPSHOT_TTL_MS) {
+    return jsonToMap(snap.readings);
+  }
+
+  // 2) 벤더 호출
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (process.env.SILO_API_KEY) headers['X-API-Key'] = process.env.SILO_API_KEY;
+  try {
+    const res = await fetch(url, { headers, cache: 'no-store' });
+    if (!res.ok) throw new Error(`벤더 API 오류 HTTP ${res.status}`);
+    const json = await res.json();
+    const map = parseVendor(json);
+    if (map.size === 0) throw new Error('벤더 응답 파싱 실패');
+    if (sb) await sb.from('silo_snapshot').upsert({ id: 1, readings: mapToJson(map), fetched_at: new Date().toISOString() });
+    return map;
+  } catch (e) {
+    // 429/오류 → 마지막 스냅샷 유지(더미로 떨어지지 않음). 없으면 상위에서 더미.
+    if (snap) return jsonToMap(snap.readings);
+    throw e;
+  }
 }
 
 /** 2안: SQL Server(UTongAdmin.hogiNN) 직접 조회 */
