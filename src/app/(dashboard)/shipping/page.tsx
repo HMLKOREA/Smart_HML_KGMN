@@ -669,13 +669,6 @@ export default function ShippingPage() {
     setWaitingPasswordError('');
     setShowWaitingScreen(true);
   };
-  // 별도 팝업 창으로 대기화면 열기 (독립 실행 · 자기 자신 닫기 위해 noopener 미사용)
-  const openWaitingPopup = () => {
-    if (typeof window !== 'undefined') {
-      const w = window.open(`${window.location.pathname}?waiting=1`, 'waitingScreen', 'width=1400,height=900');
-      if (w) w.focus();
-    }
-  };
   // 팝업(?waiting=1)으로 열리면 자동으로 대기화면 표시
   useEffect(() => {
     if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('waiting') === '1') {
@@ -1089,10 +1082,22 @@ export default function ShippingPage() {
               fontSize: 13, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 700,
               background: '#1e293b', color: '#fff', border: 'none',
             }}>배차통보</button>
-            <button onClick={openWaitingPopup} title="출하증 대기화면을 독립된 새 창으로 엽니다 (현장 게시용)" style={{
-              fontSize: 13, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 700,
-              background: '#0ea5e9', color: '#fff', border: 'none',
-            }}>출하증 대기화면 ↗</button>
+            <a
+              href="/shipping?waiting=1"
+              target="waitingScreen"
+              rel="noopener"
+              title="출하증 대기화면을 독립된 새 창으로 엽니다 (현장 게시용)"
+              onClick={(e) => {
+                // 팝업 창 우선 시도 → 성공하면 기본 이동 취소, 차단되면 새 탭(앵커 기본동작)으로 열림
+                const w = window.open('/shipping?waiting=1', 'waitingScreen', 'width=1400,height=900');
+                if (w) { w.focus(); e.preventDefault(); }
+              }}
+              style={{
+                fontSize: 13, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 700,
+                background: '#0ea5e9', color: '#fff', border: 'none', textDecoration: 'none',
+                display: 'inline-flex', alignItems: 'center',
+              }}
+            >출하증 대기화면 ↗</a>
             <button onClick={async () => {
               // 거래처×제품 마스터(custom_mst 미러, 전체) 조회 — 페이징
               const PAGE = 1000;
