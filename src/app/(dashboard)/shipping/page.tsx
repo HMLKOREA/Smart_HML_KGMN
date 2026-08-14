@@ -669,10 +669,11 @@ export default function ShippingPage() {
     setWaitingPasswordError('');
     setShowWaitingScreen(true);
   };
-  // 별도 팝업 창으로 대기화면 열기
+  // 별도 팝업 창으로 대기화면 열기 (독립 실행 · 자기 자신 닫기 위해 noopener 미사용)
   const openWaitingPopup = () => {
     if (typeof window !== 'undefined') {
-      window.open(`${window.location.pathname}?waiting=1`, 'waitingScreen', 'width=1280,height=860,noopener');
+      const w = window.open(`${window.location.pathname}?waiting=1`, 'waitingScreen', 'width=1400,height=900');
+      if (w) w.focus();
     }
   };
   // 팝업(?waiting=1)으로 열리면 자동으로 대기화면 표시
@@ -682,6 +683,11 @@ export default function ShippingPage() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const closeWaitingScreen = () => {
+    // 팝업(새 창)으로 열린 대기화면이면 창을 닫는다 (독립 실행)
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('waiting') === '1') {
+      window.close();
+      return;
+    }
     setShowWaitingScreen(false);
     setWaitingStep('select');
     setWaitingCompanyId('');
@@ -1083,14 +1089,10 @@ export default function ShippingPage() {
               fontSize: 13, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 700,
               background: '#1e293b', color: '#fff', border: 'none',
             }}>배차통보</button>
-            <button onClick={openWaitingScreen} style={{
-              fontSize: 13, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 600,
-              background: '#fff', color: '#475569', border: '1px solid #cbd5e1',
-            }}>출하증대기화면</button>
-            <button onClick={openWaitingPopup} title="대기화면을 별도 창으로 열기" style={{
+            <button onClick={openWaitingPopup} title="출하증 대기화면을 독립된 새 창으로 엽니다 (현장 게시용)" style={{
               fontSize: 13, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 700,
               background: '#0ea5e9', color: '#fff', border: 'none',
-            }}>대기화면 새 창 ↗</button>
+            }}>출하증 대기화면 ↗</button>
             <button onClick={async () => {
               // 거래처×제품 마스터(custom_mst 미러, 전체) 조회 — 페이징
               const PAGE = 1000;
@@ -1496,15 +1498,15 @@ export default function ShippingPage() {
                     <svg style={{ width: 22, height: 22, color: '#38bdf8' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} className="hidden sm:block">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 0 0-.879-2.121l-2.246-2.245A2.999 2.999 0 0 0 16.875 9H14.25m0 0V5.625c0-.621-.504-1.125-1.125-1.125H5.25c-.621 0-1.125.504-1.125 1.125v12.249" />
                     </svg>
-                    <h2 style={{ fontSize: 18, fontWeight: 700 }} className="sm:!text-[22px]">출하증 대기화면</h2>
-                    <span style={{ fontSize: 13, color: '#94a3b8' }} className="hidden sm:inline">운송사를 선택하세요</span>
+                    <h2 style={{ fontSize: 22, fontWeight: 800 }} className="sm:!text-[28px]">출하증 대기화면</h2>
+                    <span style={{ fontSize: 15, color: '#94a3b8' }} className="hidden sm:inline">운송사를 선택하세요</span>
                   </div>
                   <button
                     onClick={closeWaitingScreen}
                     style={{
-                      padding: '8px 16px', fontSize: 14, fontWeight: 600,
-                      backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: 8,
-                      cursor: 'pointer',
+                      padding: '13px 26px', fontSize: 19, fontWeight: 800,
+                      backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: 12,
+                      cursor: 'pointer', flexShrink: 0,
                     }}
                   >
                     닫기
@@ -1658,9 +1660,9 @@ export default function ShippingPage() {
                           setWaitingPasswordError('');
                         }}
                         style={{
-                          flex: 1, padding: '14px 0', fontSize: 16, fontWeight: 600,
+                          flex: 1, padding: '18px 0', fontSize: 20, fontWeight: 700,
                           backgroundColor: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db',
-                          borderRadius: 10, cursor: 'pointer',
+                          borderRadius: 12, cursor: 'pointer',
                         }}
                       >
                         취소
@@ -1668,9 +1670,9 @@ export default function ShippingPage() {
                       <button
                         type="submit"
                         style={{
-                          flex: 1, padding: '14px 0', fontSize: 16, fontWeight: 700,
+                          flex: 1, padding: '18px 0', fontSize: 20, fontWeight: 800,
                           backgroundColor: '#1e40af', color: '#fff', border: 'none',
-                          borderRadius: 10, cursor: 'pointer',
+                          borderRadius: 12, cursor: 'pointer',
                         }}
                       >
                         확인
@@ -1687,20 +1689,12 @@ export default function ShippingPage() {
                 position: 'absolute', inset: 0,
                 backgroundColor: '#f1f5f9', display: 'flex', flexDirection: 'column',
               }}>
-                {/* Header */}
+                {/* Header — 뒤로 버튼을 왼쪽에 크게 (고령 기사 배려) */}
                 <div style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '0 16px', height: 60, backgroundColor: '#1e293b', color: '#fff', flexShrink: 0,
-                }} className="sm:!p-[0_32px] sm:!h-[70px]">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <svg style={{ width: 22, height: 22, color: '#38bdf8' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} className="hidden sm:block">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 0 0-.879-2.121l-2.246-2.245A2.999 2.999 0 0 0 16.875 9H14.25m0 0V5.625c0-.621-.504-1.125-1.125-1.125H5.25c-.621 0-1.125.504-1.125 1.125v12.249" />
-                    </svg>
-                    <h2 style={{ fontSize: 18, fontWeight: 700 }} className="sm:!text-[22px]">{waitingCompanyName}</h2>
-                    <span style={{ fontSize: 13, color: '#94a3b8' }} className="hidden sm:inline">출하 대기 목록</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 13, color: '#94a3b8' }} className="hidden sm:inline">{selectedDate}</span>
+                  padding: '0 16px', minHeight: 74, backgroundColor: '#1e293b', color: '#fff', flexShrink: 0, gap: 14,
+                }} className="sm:!p-[0_24px] sm:!min-h-[88px]">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
                     <button
                       onClick={() => {
                         setWaitingStep('select');
@@ -1709,17 +1703,21 @@ export default function ShippingPage() {
                         setWaitingPassword('');
                       }}
                       style={{
-                        padding: '8px 16px', fontSize: 14, fontWeight: 600,
-                        backgroundColor: '#475569', color: '#fff', border: 'none', borderRadius: 8,
-                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '14px 26px', fontSize: 22, fontWeight: 800,
+                        backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 12,
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
+                        boxShadow: '0 4px 14px rgba(37,99,235,.4)',
                       }}
                     >
-                      <svg style={{ width: 16, height: 16 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <svg style={{ width: 28, height: 28 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
                       </svg>
                       뒤로
                     </button>
+                    <h2 style={{ fontSize: 24, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} className="sm:!text-[30px]">{waitingCompanyName}</h2>
+                    <span style={{ fontSize: 15, color: '#94a3b8' }} className="hidden sm:inline">출하 대기 목록</span>
                   </div>
+                  <span style={{ fontSize: 18, color: '#cbd5e1', fontWeight: 700, whiteSpace: 'nowrap' }} className="hidden sm:inline">{selectedDate}</span>
                 </div>
 
                 {/* Data Table — 큰 폰트 */}
@@ -1781,7 +1779,7 @@ export default function ShippingPage() {
                                         fetchData();
                                       }}
                                       style={{
-                                        padding: '12px 24px', fontSize: 16, fontWeight: 700,
+                                        padding: '15px 30px', fontSize: 19, fontWeight: 800,
                                         backgroundColor: '#f59e0b', color: '#fff', border: 'none', borderRadius: 10,
                                         cursor: 'pointer', whiteSpace: 'nowrap',
                                       }}
@@ -1802,7 +1800,7 @@ export default function ShippingPage() {
                                       fetchData();
                                     }}
                                     style={{
-                                      padding: '12px 24px', fontSize: 16, fontWeight: 700,
+                                      padding: '15px 30px', fontSize: 19, fontWeight: 800,
                                       backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: 10,
                                       cursor: 'pointer', whiteSpace: 'nowrap',
                                       boxShadow: '0 3px 10px rgba(22,163,74,0.35)',
@@ -1814,7 +1812,7 @@ export default function ShippingPage() {
                                 <button
                                   onClick={() => toast.info('성적서 출력 기능은 준비 중입니다.')}
                                   style={{
-                                    padding: '12px 24px', fontSize: 16, fontWeight: 700,
+                                    padding: '15px 30px', fontSize: 19, fontWeight: 800,
                                     backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 10,
                                     cursor: 'pointer', whiteSpace: 'nowrap',
                                   }}
