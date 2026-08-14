@@ -60,11 +60,19 @@ async function fromApi(): Promise<Map<number, Reading> | null> {
 
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (process.env.SILO_API_KEY) headers['X-API-Key'] = process.env.SILO_API_KEY;
-  const res = await fetch(url, { headers, cache: 'no-store' });
-  if (!res.ok) throw new Error(`벤더 API 오류 HTTP ${res.status}`);
-  const json = await res.json();
-  const map = new Map<number, Reading>();
 
+  let json: unknown;
+  try {
+    const res = await fetch(url, { headers, cache: 'no-store' });
+    if (!res.ok) throw new Error(`벤더 API 오류 HTTP ${res.status}`);
+    json = await res.json();
+  } catch (e) {
+    // 호출제한(429)·일시 오류 시 마지막 성공값 유지(더미로 떨어지지 않음)
+    if (apiCache) return apiCache.map;
+    throw e;
+  }
+
+  const map = new Map<number, Reading>();
   if (json && typeof json === 'object' && !Array.isArray(json)) {
     const o = json as Record<string, unknown>;
     const measuredAt = kstToIso((o['TIMESTAMP'] ?? o['타임스탬프'] ?? o['timestamp'] ?? null) as string | null);
@@ -82,6 +90,8 @@ async function fromApi(): Promise<Map<number, Reading> | null> {
     }
   }
 
+  // 유효 파싱 실패 시 마지막 성공값 유지
+  if (map.size === 0 && apiCache) return apiCache.map;
   apiCache = { at: Date.now(), map };
   return map;
 }
