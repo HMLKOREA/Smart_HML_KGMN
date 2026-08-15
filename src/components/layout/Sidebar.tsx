@@ -114,7 +114,7 @@ const navGroups: NavGroup[] = [
   {
     key: 'plant', label: '공장 현황', en: 'Plant', iconKey: 'production', items: [
       { label: '생산현황', path: '/production', iconKey: 'production', roles: ['admin', 'monitor', 'field'] },
-      { label: '사일로현황', path: '/silo', iconKey: 'production', roles: ['admin', 'monitor', 'field'] },
+      { label: '사일로현황', path: '/silo', iconKey: 'production', roles: ['admin', 'monitor', 'field', 'transporter'] },
     ],
   },
   {
