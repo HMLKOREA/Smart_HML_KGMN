@@ -47,7 +47,7 @@ const emptyForm: ProductFormData = {
 };
 
 const UNIT_OPTIONS = ['ton', 'kg', 'm3', 'EA', '대', '루베'];
-const CATEGORY_OPTIONS = ['골재', 'ite석', '모래', '자갈', '석분', '혼합', '기타'];
+const CATEGORY_OPTIONS = ['골재', '쇄석', '모래', '자갈', '석분', '혼합', '기타'];
 
 // ── Component ──────────────────────────────────────────
 export default function ProductCodePage() {
