@@ -177,8 +177,7 @@ export default function SettlementAnalysis({ payload, isAdmin, onClose }: { payl
             <div style={{ border: `1px solid ${LINE}`, borderRadius: 8, overflow: 'hidden', marginBottom: 10 }}>
               {[
                 { l: `운송료 (탱크${(kpi.breakdown.tank.amount + kpi.breakdown.goods.amount) / 1e6 | 0}백만 + 카고${kpi.breakdown.cargo.amount / 1e6 | 0}백만)`, v: won(rec.freight) },
-                { l: '컨설팅 차지', v: won(rec.consulting) },
-                { l: '공급가액 합계', v: won(rec.supply), strong: true },
+                { l: '공급가액 (VAT 별도)', v: won(rec.supply), strong: true },
                 { l: `부가가치세 (${(meta.vatRate * 100).toFixed(0)}%)`, v: won(rec.vat) },
               ].map((r, i) => (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 14px', borderBottom: `1px solid ${LINE}`, background: r.strong ? '#f8fafc' : '#fff', fontWeight: r.strong ? 800 : 500, fontSize: 13.5 }}>
@@ -186,12 +185,11 @@ export default function SettlementAnalysis({ payload, isAdmin, onClose }: { payl
                 </div>
               ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 14px', background: NAVY, color: '#fff', fontWeight: 900, fontSize: 16 }}>
-                <span>청구 총액</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{won(rec.billedTotal)}</span>
+                <span>청구 총액 (VAT 포함)</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{won(rec.billedTotal)}</span>
               </div>
             </div>
             <div style={{ fontSize: 11.5, color: SOFT, lineHeight: 1.7, marginBottom: 24 }}>
-              <div>① 운송비({mil(rec.freight)})는 순수 운임 기준이며, 청구액과의 차액 {mil(rec.consulting)}은 컨설팅 차지입니다.</div>
-              <div>② 상차도 {ton(vn.selfLoadTons)}톤은 운임 미발생(자가상차) 물량으로 운송량엔 포함되나 운송금액에서 제외됩니다. 실 운임 물량은 {ton(vn.billableTons)}톤입니다.</div>
+              <div>※ 상차도 {ton(vn.selfLoadTons)}톤은 운임 미발생(자가상차) 물량으로 운송량엔 포함되나 운송금액에서 제외됩니다. 실 운임 물량은 {ton(vn.billableTons)}톤입니다.</div>
             </div>
 
             {/* 05 정산 상세 부속서 */}
