@@ -83,23 +83,24 @@ function groupByCustomer(shipments: ShipmentInfo[]): Record<string, ShipmentInfo
   return groups;
 }
 
-/** 알림톡/SMS 메시지 본문 생성 */
+/** 출하 건별 내역 라인 (알림톡 #{내용} 변수에 들어가는 본문) */
+function buildItemLines(shipments: ShipmentInfo[]): string {
+  return shipments.map((s, i) =>
+    `${i + 1}. ${s.product_name || '-'} / ${s.company_name || '-'} / ${s.vehicle_number || '-'}${s.driver_name ? ` (${s.driver_name})` : ''}`
+  ).join('\n');
+}
+
+/** SMS 대체발송용 전체 본문 (알림톡 실패 시 문자로 나가는 내용) */
 function buildMessageText(customerName: string, shipments: ShipmentInfo[]): string {
   const date = shipments[0]?.shipment_date || new Date().toISOString().slice(0, 10);
-  const lines = shipments.map((s, i) =>
-    `${i + 1}. ${s.product_name || '-'} / ${s.company_name || '-'} / ${s.vehicle_number || '-'}${s.driver_name ? ` (${s.driver_name})` : ''}`
-  );
-
   return [
     `[경기광업 배차통보]`,
     ``,
-    `${customerName} 귀하`,
-    `${date} 배차가 아래와 같이 통보되었습니다.`,
+    `${customerName}님, ${date} 배차가 아래와 같이 통보되었습니다.`,
     ``,
-    ...lines,
+    buildItemLines(shipments),
     ``,
     `총 ${shipments.length}건`,
-    ``,
     `문의: kgmn@hmlkorea.com`,
   ].join('\n');
 }
@@ -160,7 +161,7 @@ export async function POST(request: NextRequest) {
             variables: {
               '#{고객명}': contact.name,
               '#{날짜}': items[0]?.shipment_date || '',
-              '#{내용}': text,
+              '#{내용}': buildItemLines(items), // 건별 내역만 (템플릿 프레임은 승인문구에)
               '#{건수}': String(items.length),
             },
           },
