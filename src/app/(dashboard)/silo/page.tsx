@@ -103,7 +103,12 @@ export default function SiloPage() {
           )}
         </div>
         <div className="flex items-center gap-4 text-[16px] text-gray-500">
-          {data && <span>조회 {new Date(data.fetchedAt).toLocaleTimeString('ko-KR')}</span>}
+          {data && (
+            <span className="font-semibold text-gray-600">
+              동기화 일시(조회) ·{' '}
+              <span className="tabular-nums">{new Date(data.fetchedAt).toLocaleString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+            </span>
+          )}
           <button onClick={loadBulk} className="px-5 py-3 rounded-xl bg-blue-600 text-white font-bold text-[16px] hover:bg-blue-700 transition-colors">새로고침</button>
         </div>
       </div>
