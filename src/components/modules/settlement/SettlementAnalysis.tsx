@@ -173,7 +173,7 @@ export default function SettlementAnalysis({ payload, isAdmin, onClose }: { payl
         {isAdmin ? (
           <>
             {/* 04 인보이스 대사 */}
-            <SectionTitle no="04" ko="인보이스 대사" en="운송료 → 청구 총액" />
+            <SectionTitle no="04" ko="청구내역 검증" en="Reconciliation" />
             <div style={{ border: `1px solid ${LINE}`, borderRadius: 8, overflow: 'hidden', marginBottom: 10 }}>
               {[
                 { l: `운송료 (탱크${(kpi.breakdown.tank.amount + kpi.breakdown.goods.amount) / 1e6 | 0}백만 + 카고${kpi.breakdown.cargo.amount / 1e6 | 0}백만)`, v: won(rec.freight) },
@@ -227,7 +227,7 @@ export default function SettlementAnalysis({ payload, isAdmin, onClose }: { payl
           </>
         ) : (
           <div style={{ marginTop: 8, padding: '14px 16px', background: '#f8fafc', border: `1px solid ${LINE}`, borderRadius: 8, fontSize: 12.5, color: SOFT }}>
-            인보이스 대사·정산 상세 명세(부속서)는 <b>관리자(하멜코리아)</b> 계정에서 확인할 수 있습니다.
+            청구내역 검증(Reconciliation)·정산 상세 명세(부속서)는 <b>관리자(하멜코리아)</b> 계정에서 확인할 수 있습니다.
           </div>
         )}
       </div>
