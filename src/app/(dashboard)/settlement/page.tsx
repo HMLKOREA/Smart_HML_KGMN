@@ -208,6 +208,13 @@ export default function SettlementPage() {
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const isAdmin = profile?.role === 'admin';
 
+  // ── 정산 확정/이력 ──
+  interface Closing { id: string; period_label: string; period_type: string; period_from: string; period_to: string; scope_company: string | null; row_count: number; total_weight: number; total_fee: number; total_tax: number; total_all: number; confirmed_by_name: string | null; confirmed_at: string; memo: string | null; }
+  const [showHistory, setShowHistory] = useState(false);
+  const [closings, setClosings] = useState<Closing[]>([]);
+  const [closingsLoading, setClosingsLoading] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
   // Filter options
   const [companyOptions, setCompanyOptions] = useState<string[]>([]);
   const [productOptions, setProductOptions] = useState<string[]>([]);
@@ -466,6 +473,61 @@ export default function SettlementPage() {
   const prevCompany = useMemo(() => groupBy(prevSettlements, 'company'), [prevSettlements]);
   const prevCustomer = useMemo(() => groupBy(prevSettlements, 'customer'), [prevSettlements]);
   const prevProduct = useMemo(() => groupBy(prevSettlements, 'product'), [prevSettlements]);
+
+  // ── 정산 확정/이력 핸들러 ──
+  const loadClosings = async () => {
+    setClosingsLoading(true);
+    try {
+      const res = await fetch('/api/admin/settlement-closings', { cache: 'no-store' });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      setClosings(json.closings as Closing[]);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '정산 이력을 불러오지 못했습니다.');
+    } finally {
+      setClosingsLoading(false);
+    }
+  };
+
+  const openHistory = () => { setShowHistory(true); loadClosings(); };
+
+  const handleConfirmSettlement = async () => {
+    if (filteredSettlements.length === 0) { toast.warning('확정할 정산 내역이 없습니다.'); return; }
+    const scope = stlFilterCompany.length === 1 ? stlFilterCompany[0] : stlFilterCompany.length > 1 ? `${stlFilterCompany.length}개 운송사` : null;
+    if (!confirm(`[${dateRange.label}] 정산을 확정하시겠습니까?\n\n· 대상: ${scope || '전체 운송사'}\n· ${fmt(stlTotals.count)}건 · ${stlTotals.totalWeight.toFixed(1)}톤\n· 청구총액 ${fmt(stlTotals.totalAll)}원\n\n확정 시점의 집계가 이력으로 기록됩니다.`)) return;
+    setConfirming(true);
+    try {
+      const res = await fetch('/api/admin/settlement-closings', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          period_type: stlPeriodFilter, period_label: dateRange.label,
+          period_from: dateRange.from, period_to: dateRange.to, scope_company: scope,
+          row_count: stlTotals.count, total_weight: stlTotals.totalWeight,
+          total_fee: stlTotals.totalFee, total_tax: stlTotals.totalTax, total_all: stlTotals.totalAll,
+        }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      toast.success('정산이 확정되었습니다.');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '정산 확정 중 오류가 발생했습니다.');
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  const handleRevokeClosing = async (id: string, label: string) => {
+    if (!confirm(`[${label}] 확정을 취소하시겠습니까?`)) return;
+    try {
+      const res = await fetch(`/api/admin/settlement-closings/${id}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      toast.success('확정이 취소되었습니다.');
+      await loadClosings();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '취소 중 오류가 발생했습니다.');
+    }
+  };
 
   // ── Handlers ──
   const savePriceEdit = async () => {
@@ -995,6 +1057,23 @@ export default function SettlementPage() {
                 >
                   {analysisLoading ? '분석 생성 중…' : '📊 기간분석 리포트'}
                 </button>
+                {isAdmin && (
+                  <button
+                    onClick={handleConfirmSettlement}
+                    disabled={confirming}
+                    className="text-[13px] px-3 py-1.5 rounded-lg cursor-pointer font-semibold bg-emerald-600 text-white border-none hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                    title="현재 조회 기간의 정산을 확정하여 이력에 기록"
+                  >
+                    {confirming ? '확정 중…' : '✅ 정산 확정'}
+                  </button>
+                )}
+                <button
+                  onClick={openHistory}
+                  className="text-[13px] px-3 py-1.5 rounded-lg cursor-pointer font-medium bg-white text-slate-700 border border-gray-300 hover:bg-gray-50 transition-colors"
+                  title="정산 확정 이력"
+                >
+                  정산 이력
+                </button>
                 <button
                   onClick={() => {
                     if (filteredSettlements.length === 0) { toast.warning('출력할 정산 내역이 없습니다.'); return; }
@@ -1207,6 +1286,61 @@ export default function SettlementPage() {
           isAdmin={isAdmin}
           onClose={() => setAnalysisPayload(null)}
         />
+      )}
+
+      {/* ═══ 정산 확정 이력 모달 ═══ */}
+      {showHistory && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 900, maxHeight: '86vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <div style={{ padding: '16px 22px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="flex items-center gap-2">
+                <div style={{ width: 4, height: 20, background: '#059669', borderRadius: 2 }} />
+                <h3 style={{ fontSize: 17, fontWeight: 700, color: '#1e293b', margin: 0 }}>정산 확정 이력</h3>
+                <span className="text-[12px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold">{closings.length}건</span>
+              </div>
+              <button onClick={() => setShowHistory(false)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, width: 32, height: 32, cursor: 'pointer', fontSize: 16, color: '#64748b' }}>✕</button>
+            </div>
+            <div style={{ overflow: 'auto', padding: '4px 0' }}>
+              {closingsLoading ? (
+                <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>불러오는 중…</div>
+              ) : closings.length === 0 ? (
+                <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>확정된 정산이 없습니다.</div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
+                  <thead>
+                    <tr>
+                      {['확정기간', '대상', '건수', '총톤', '공급가액', '청구총액', '확정자', '확정일시', ''].map((h, i) => (
+                        <th key={h} style={{ ...thStyle, textAlign: i >= 2 && i <= 5 ? 'right' : 'left', position: 'static' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {closings.map((c, idx) => (
+                      <tr key={c.id} style={{ background: idx % 2 === 0 ? '#fff' : '#fafbfc' }}>
+                        <td style={{ ...tdStyle, fontWeight: 600 }}>{c.period_label}</td>
+                        <td style={{ ...tdStyle, fontSize: 12, color: '#475569' }}>{c.scope_company || '전체'}</td>
+                        <td style={tdR}>{fmt(c.row_count)}</td>
+                        <td style={tdR}>{Number(c.total_weight).toFixed(1)}</td>
+                        <td style={tdR}>{fmt(Math.round(Number(c.total_fee)))}</td>
+                        <td style={{ ...tdR, fontWeight: 700, color: '#1d4ed8' }}>{fmt(Math.round(Number(c.total_all)))}</td>
+                        <td style={{ ...tdStyle, fontSize: 12 }}>{c.confirmed_by_name || '-'}</td>
+                        <td style={{ ...tdStyle, fontSize: 12, color: '#64748b' }}>{new Date(c.confirmed_at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                        <td style={{ ...tdStyle, textAlign: 'center' }}>
+                          {isAdmin && (
+                            <button onClick={() => handleRevokeClosing(c.id, c.period_label)}
+                              style={{ padding: '3px 9px', fontSize: 11, fontWeight: 600, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 5, cursor: 'pointer' }}>
+                              취소
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
