@@ -5,9 +5,11 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { exportToExcel } from '@/lib/utils/exportExcel';
 import TransactionStatementPrint from '@/components/modules/settlement/TransactionStatementPrint';
+import SettlementAnalysis from '@/components/modules/settlement/SettlementAnalysis';
 import MultiSelectFilter from '@/components/ui/MultiSelectFilter';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/lib/hooks/useAuth';
+import { computeAnalysis, toSettlementLines, type AnalysisPayload, type PeriodMode } from '@/lib/analysis/settlementAnalysis';
 
 // ── Types ──────────────────────────────────────────────
 interface UnitPriceRow {
@@ -201,6 +203,11 @@ export default function SettlementPage() {
   const [settlements, setSettlements] = useState<SettlementRow[]>([]);
   const [prevSettlements, setPrevSettlements] = useState<SettlementRow[]>([]);
 
+  // ── 기간분석 리포트 ──
+  const [analysisPayload, setAnalysisPayload] = useState<AnalysisPayload | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const isAdmin = profile?.role === 'admin';
+
   // Filter options
   const [companyOptions, setCompanyOptions] = useState<string[]>([]);
   const [productOptions, setProductOptions] = useState<string[]>([]);
@@ -373,6 +380,49 @@ export default function SettlementPage() {
       setStlLoading(false);
     }
   }, [dateRange, prevRange, fetchSettlementRange]);
+
+  // ── 기간분석 리포트 생성 ──
+  const openAnalysis = useCallback(async () => {
+    if (settlements.length === 0) { toast.warning('분석할 정산 내역이 없습니다.'); return; }
+    setAnalysisLoading(true);
+    try {
+      // 월별 추이: 연초 ~ 기간말 월별 집계 (엔진과 동일 어댑터로 정합 유지)
+      const yearStart = `${dateRange.from.slice(0, 4)}-01-01`;
+      const yearRows = await fetchSettlementRange(yearStart, dateRange.to);
+      const monthMap = new Map<string, { freightTotal: number; totalTons: number }>();
+      toSettlementLines(yearRows).forEach(l => {
+        const e = monthMap.get(l.month) || { freightTotal: 0, totalTons: 0 };
+        e.freightTotal += l.amount;
+        e.totalTons += l.tons;
+        monthMap.set(l.month, e);
+      });
+      const monthlySeries = [...monthMap.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([month, v]) => ({ month, ...v }));
+
+      const modeMap: Record<PeriodFilter, PeriodMode> = {
+        daily: 'month', monthly: 'month', quarterly: 'quarter', 'semi-annual': 'half', annual: 'year',
+      };
+      const now = new Date();
+      const reportDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+      const payload = computeAnalysis(
+        toSettlementLines(settlements),
+        toSettlementLines(prevSettlements),
+        { consultingCharge: 0, vatRate: 0.10, operationalNotes: [] },
+        {
+          company: '경기광업㈜', periodLabel: dateRange.label, periodKey: dateRange.from.slice(0, 7),
+          prevLabel: prevRange.label, reportDate, supplier: '하멜코리아', mode: modeMap[stlPeriodFilter],
+        },
+        { monthlySeries },
+      );
+      setAnalysisPayload(payload);
+    } catch {
+      toast.error('분석 리포트 생성 중 오류가 발생했습니다.');
+    } finally {
+      setAnalysisLoading(false);
+    }
+  }, [settlements, prevSettlements, dateRange, prevRange, stlPeriodFilter, fetchSettlementRange]);
 
   // ── Effects ──
   useEffect(() => { fetchUnitPrices(); }, []);
@@ -938,6 +988,14 @@ export default function SettlementPage() {
               </div>
               <div className="flex items-center gap-2">
                 <button
+                  onClick={openAnalysis}
+                  disabled={analysisLoading}
+                  className="text-[13px] px-3 py-1.5 rounded-lg cursor-pointer font-semibold bg-gradient-to-r from-indigo-600 to-blue-600 text-white border-none hover:opacity-90 transition-opacity disabled:opacity-50"
+                  title="기간분석 리포트 (월/분기/반기/연간)"
+                >
+                  {analysisLoading ? '분석 생성 중…' : '📊 기간분석 리포트'}
+                </button>
+                <button
                   onClick={() => {
                     if (filteredSettlements.length === 0) { toast.warning('출력할 정산 내역이 없습니다.'); return; }
                     setShowStatement(true);
@@ -1140,6 +1198,14 @@ export default function SettlementPage() {
             tax: s.tax, totalFee: s.totalFee,
           }))}
           onClose={() => setShowStatement(false)}
+        />
+      )}
+
+      {analysisPayload && (
+        <SettlementAnalysis
+          payload={analysisPayload}
+          isAdmin={isAdmin}
+          onClose={() => setAnalysisPayload(null)}
         />
       )}
     </div>
