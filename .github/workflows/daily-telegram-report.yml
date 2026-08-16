@@ -1,6 +1,6 @@
-name: 일일 배차결과 텔레그램 자동전송
+name: 일일 배차결과 자동전송 (텔레그램·네이버웍스)
 
-# 매일 23:59 KST(=14:59 UTC)에 당일 배차결과를 텔레그램으로 전송한다.
+# 매일 23:59 KST(=14:59 UTC)에 당일 배차결과를 텔레그램 + 네이버웍스로 전송한다.
 # 수동 실행(workflow_dispatch)도 가능 — 테스트용.
 on:
   schedule:
@@ -11,25 +11,33 @@ jobs:
   send:
     runs-on: ubuntu-latest
     steps:
-      - name: 당일(KST) 배차결과 전송
+      - name: KST 날짜 계산
+        id: kst
         run: |
-          # KST 기준 날짜 계산. 자정 직후로 지연 실행되면 전날로 보정.
+          # 자정 직후로 지연 실행되면 전날로 보정.
           H=$(TZ=Asia/Seoul date +%H)
           if [ "$H" = "00" ]; then
             DATE=$(TZ=Asia/Seoul date -d 'yesterday' +%F)
           else
             DATE=$(TZ=Asia/Seoul date +%F)
           fi
+          echo "date=$DATE" >> "$GITHUB_OUTPUT"
           echo "전송 대상일(KST): $DATE"
+
+      - name: 텔레그램 전송
+        run: |
           HTTP=$(curl -s -o resp.json -w "%{http_code}" \
             -X POST "https://smart-hml.vercel.app/api/telegram" \
             -H "Content-Type: application/json" \
-            -d "{\"date\":\"$DATE\"}")
-          echo "HTTP $HTTP"
-          cat resp.json
-          echo ""
-          # 2xx가 아니면 실패 처리
-          case "$HTTP" in
-            2*) echo "✅ 전송 요청 성공";;
-            *)  echo "❌ 전송 실패 (HTTP $HTTP)"; exit 1;;
-          esac
+            -d '{"date":"${{ steps.kst.outputs.date }}"}')
+          echo "텔레그램 HTTP $HTTP"; cat resp.json; echo ""
+          case "$HTTP" in 2*) echo "✅ 텔레그램 OK";; *) echo "❌ 텔레그램 실패"; exit 1;; esac
+
+      - name: 네이버웍스 전송
+        run: |
+          HTTP=$(curl -s -o resp2.json -w "%{http_code}" \
+            -X POST "https://smart-hml.vercel.app/api/naverworks" \
+            -H "Content-Type: application/json" \
+            -d '{"date":"${{ steps.kst.outputs.date }}"}')
+          echo "네이버웍스 HTTP $HTTP"; cat resp2.json; echo ""
+          case "$HTTP" in 2*) echo "✅ 네이버웍스 OK";; *) echo "❌ 네이버웍스 실패"; exit 1;; esac
