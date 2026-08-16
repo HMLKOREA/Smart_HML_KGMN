@@ -1,0 +1,18 @@
+name: 일일 시스템 점검 (텔레그램)
+
+# 매일 23:58 KST(=14:58 UTC)에 서버·데이터 상태 점검 리포트를 텔레그램으로 전송.
+on:
+  schedule:
+    - cron: '58 14 * * *'   # 14:58 UTC = 23:58 KST
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 시스템 점검 리포트 전송
+        run: |
+          HTTP=$(curl -s -o resp.json -w "%{http_code}" \
+            -X POST "https://smart-hml.vercel.app/api/cron/health-check")
+          echo "HTTP $HTTP"; cat resp.json; echo ""
+          case "$HTTP" in 2*) echo "✅ 점검 전송 OK";; *) echo "❌ 실패"; exit 1;; esac

@@ -45,12 +45,12 @@ async function gather() {
   const lastShipH = hoursAgo(lastShipAt);
   const siloH = hoursAgo(siloAt);
 
-  // 경고 판정
+  // 경고 판정 — 실제 시스템 이상만. (사일로는 on-demand 갱신이라 경고 제외, 정보로만 표시)
   const warns: string[] = [];
   if (dbError) warns.push('DB 조회 오류');
   if ((shipTotal.count ?? 0) === 0) warns.push('출하 데이터 없음');
   if ((companies.count ?? 0) === 0) warns.push('운송사 마스터 없음');
-  if (siloH != null && siloH > 6) warns.push(`사일로 갱신 지연(${siloH.toFixed(0)}h)`);
+  if ((customers.count ?? 0) === 0) warns.push('거래처 마스터 없음');
 
   return {
     ok: warns.length === 0,
