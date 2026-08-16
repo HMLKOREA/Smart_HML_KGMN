@@ -57,7 +57,9 @@ export default function DailyReportPage() {
   const [report, setReport] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(false);
   const [telegramStatus, setTelegramStatus] = useState<TelegramStatus | null>(null);
+  const [naverworksStatus, setNaverworksStatus] = useState<{ configured: boolean; hasChannel: boolean } | null>(null);
   const [sending, setSending] = useState(false);
+  const [sendingNw, setSendingNw] = useState(false);
   const [sendResult, setSendResult] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'company' | 'product' | 'customer' | 'detail'>('company');
 
@@ -154,9 +156,10 @@ export default function DailyReportPage() {
 
   useEffect(() => { fetchReport(selectedDate); }, [selectedDate, fetchReport]);
 
-  // 텔레그램 상태 확인
+  // 전송 채널 설정 상태 확인
   useEffect(() => {
     fetch('/api/telegram').then(r => r.json()).then(setTelegramStatus).catch(() => {});
+    fetch('/api/naverworks').then(r => r.json()).then(setNaverworksStatus).catch(() => {});
   }, []);
 
   const sendTelegram = async () => {
@@ -178,6 +181,28 @@ export default function DailyReportPage() {
       setSendResult(`❌ 전송 실패: ${err}`);
     } finally {
       setSending(false);
+    }
+  };
+
+  const sendNaverworks = async () => {
+    setSendingNw(true);
+    setSendResult(null);
+    try {
+      const res = await fetch('/api/naverworks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: selectedDate }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSendResult('✅ 네이버웍스 전송 완료!');
+      } else {
+        setSendResult(`❌ ${data.error}`);
+      }
+    } catch (err) {
+      setSendResult(`❌ 전송 실패: ${err}`);
+    } finally {
+      setSendingNw(false);
     }
   };
 
@@ -222,6 +247,17 @@ export default function DailyReportPage() {
               <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
             </svg>
             {sending ? '전송중...' : '텔레그램 전송'}
+          </button>
+          <button
+            onClick={sendNaverworks}
+            disabled={sendingNw || !naverworksStatus?.configured || !naverworksStatus?.hasChannel}
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-[#06C755] text-white rounded-lg text-sm font-medium hover:bg-[#05a648] disabled:opacity-50 disabled:cursor-not-allowed transition whitespace-nowrap"
+            title={!naverworksStatus?.configured ? '네이버웍스 설정이 필요합니다' : !naverworksStatus?.hasChannel ? '네이버웍스 그룹채팅 연결이 필요합니다' : '네이버웍스 그룹으로 보고 전송'}
+          >
+            <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3.75h6m3.75 5.25a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6.75v8.25a2.25 2.25 0 0 0 2.25 2.25H9l3 3 3-3h2.25Z" />
+            </svg>
+            {sendingNw ? '전송중...' : '네이버웍스 전송'}
           </button>
         </div>
       </div>
