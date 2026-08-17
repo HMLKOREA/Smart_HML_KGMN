@@ -98,6 +98,19 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
+    key: 'mgmt', label: 'Management', en: '경영 · 현황', iconKey: 'dashboard', items: [
+      { label: '대시보드', path: '/home', iconKey: 'dashboard', roles: ['admin', 'monitor', 'field', 'transporter'] },
+      { label: '일일보고', path: '/daily-report', iconKey: 'dailyReport', roles: ['admin', 'monitor'] },
+      { label: '정산관리', path: '/settlement', iconKey: 'settlement', roles: ['admin', 'monitor'] },
+    ],
+  },
+  {
+    key: 'plant', label: '공장 현황', en: 'Plant', iconKey: 'production', items: [
+      { label: '생산현황', path: '/production', iconKey: 'production', roles: ['admin', 'monitor', 'field'] },
+      { label: '사일로현황', path: '/silo', iconKey: 'production', roles: ['admin', 'monitor', 'field', 'transporter'] },
+    ],
+  },
+  {
     key: 'product', label: '제품 관리', en: 'Products', iconKey: 'product', items: [
       { label: '제품코드관리', path: '/product-code', iconKey: 'product', roles: ['admin', 'monitor'] },
       { label: '단가관리', path: '/unit-price', iconKey: 'settlement', roles: ['admin', 'monitor'] },
@@ -109,19 +122,6 @@ const navGroups: NavGroup[] = [
       { label: '거래처관리', path: '/customer', iconKey: 'customer', roles: ['admin', 'monitor'] },
       { label: '운송사관리', path: '/transport-company', iconKey: 'company', roles: ['admin', 'monitor'] },
       { label: '기사관리', path: '/driver', iconKey: 'driver', roles: ['admin', 'monitor', 'transporter'] },
-    ],
-  },
-  {
-    key: 'plant', label: '공장 현황', en: 'Plant', iconKey: 'production', items: [
-      { label: '생산현황', path: '/production', iconKey: 'production', roles: ['admin', 'monitor', 'field'] },
-      { label: '사일로현황', path: '/silo', iconKey: 'production', roles: ['admin', 'monitor', 'field', 'transporter'] },
-    ],
-  },
-  {
-    key: 'mgmt', label: 'Management', en: '경영 · 현황', iconKey: 'dashboard', items: [
-      { label: '대시보드', path: '/home', iconKey: 'dashboard', roles: ['admin', 'monitor', 'field', 'transporter'] },
-      { label: '일일보고', path: '/daily-report', iconKey: 'dailyReport', roles: ['admin', 'monitor'] },
-      { label: '정산관리', path: '/settlement', iconKey: 'settlement', roles: ['admin', 'monitor'] },
     ],
   },
   {
