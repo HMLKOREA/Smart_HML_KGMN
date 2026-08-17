@@ -26,11 +26,12 @@ async function gather() {
 
   const cnt = (table: string) => svc.from(table).select('*', { count: 'exact', head: true });
 
-  const [shipTotal, shipToday, lastShip, silo, companies, customers, drivers, prices] = await Promise.all([
+  const [shipTotal, shipToday, lastUpd, silo, sync, companies, customers, drivers, prices] = await Promise.all([
     cnt('shipments'),
     svc.from('shipments').select('*', { count: 'exact', head: true }).eq('shipment_date', kstToday),
-    svc.from('shipments').select('created_at').order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    svc.from('shipments').select('updated_at').order('updated_at', { ascending: false }).limit(1).maybeSingle(),
     svc.from('silo_snapshot').select('fetched_at').order('fetched_at', { ascending: false }).limit(1).maybeSingle(),
+    svc.from('sync_status').select('last_run_at, is_delta').eq('id', 'main').maybeSingle(),
     cnt('transport_companies'),
     cnt('customers'),
     cnt('drivers'),
@@ -40,10 +41,12 @@ async function gather() {
   const latency = Date.now() - t0;
   const dbError = shipTotal.error || companies.error;
 
-  const lastShipAt = (lastShip.data as { created_at?: string } | null)?.created_at || null;
+  const lastUpdAt = (lastUpd.data as { updated_at?: string } | null)?.updated_at || null;
   const siloAt = (silo.data as { fetched_at?: string } | null)?.fetched_at || null;
-  const lastShipH = hoursAgo(lastShipAt);
+  const syncAt = (sync.data as { last_run_at?: string } | null)?.last_run_at || null;
+  const lastUpdH = hoursAgo(lastUpdAt);
   const siloH = hoursAgo(siloAt);
+  const syncMin = syncAt ? (Date.now() - new Date(syncAt).getTime()) / 60_000 : null;
 
   // 경고 판정 — 실제 시스템 이상만. (사일로는 on-demand 갱신이라 경고 제외, 정보로만 표시)
   const warns: string[] = [];
@@ -59,7 +62,8 @@ async function gather() {
     kstToday,
     shipTotal: shipTotal.count ?? 0,
     shipToday: shipToday.count ?? 0,
-    lastShipAt, lastShipH,
+    lastUpdAt, lastUpdH,
+    syncAt, syncMin,
     siloAt, siloH,
     companies: companies.count ?? 0,
     customers: customers.count ?? 0,
@@ -81,8 +85,10 @@ function format(r: Awaited<ReturnType<typeof gather>>): string {
   m += r.dbError ? `  ❌ DB 오류: ${r.dbError}\n` : `  ✅ 앱 · Supabase 정상 (응답 ${r.latency}ms)\n`;
   m += `\n`;
 
+  const syncFresh = r.syncMin == null ? '' : r.syncMin < 60 ? ` (${Math.round(r.syncMin)}분 전)` : ` (${(r.syncMin / 60).toFixed(0)}시간 전)`;
   m += `<b>■ 데이터 동기화</b>\n`;
-  m += `  · 최근 출하 등록: ${kstStr(r.lastShipAt)}${fresh(r.lastShipH)}\n`;
+  m += `  · 마지막 동기화 실행: ${r.syncAt ? kstStr(r.syncAt) + syncFresh : '기록 없음'}\n`;
+  m += `  · 최근 데이터 반영: ${kstStr(r.lastUpdAt)}${fresh(r.lastUpdH)}\n`;
   m += `  · 오늘 출하: ${r.shipToday}건\n`;
   m += `  · 사일로 조회: ${kstStr(r.siloAt)}${fresh(r.siloH)}\n`;
   m += `\n`;

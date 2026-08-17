@@ -546,6 +546,14 @@ export async function runSync(deltaOverride) {
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     log(`========================================`);
     log(`동기화 완료! (${elapsed}초 소요)`);
+
+    // 동기화 하트비트 기록 (health-check 신선도 판정용)
+    try {
+      const nowIso = new Date().toISOString();
+      await supabase.from('sync_status').upsert({
+        id: 'main', last_run_at: nowIso, is_delta: isDelta, duration_sec: Number(elapsed), updated_at: nowIso,
+      });
+    } catch (e) { log(`  ⚠️ 하트비트 기록 실패: ${e.message}`); }
   } catch (err) {
     log(`❌ 오류: ${err.message}`);
     console.error(err);
