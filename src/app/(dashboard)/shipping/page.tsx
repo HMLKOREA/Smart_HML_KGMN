@@ -1469,6 +1469,11 @@ export default function ShippingPage() {
             ? allRows.filter(r => r.company_id === waitingCompanyId)
             : [];
 
+        // 완료(출하확정 또는 출하증 발급) 건은 아래로, 색으로 구분
+        const isDone = (r: typeof allRows[number]) => r.is_shipped || !!r.certificate_time;
+        const sortedWaitingRows = [...waitingRows].sort((a, b) => (isDone(a) ? 1 : 0) - (isDone(b) ? 1 : 0));
+        const waitingDoneCount = waitingRows.filter(isDone).length;
+
         // 버튼 배경색 팔레트
         const btnColors = [
           { bg: '#ecfdf5', border: '#86efac', hover: '#d1fae5' },
@@ -1720,9 +1725,14 @@ export default function ShippingPage() {
                       뒤로
                     </button>
                     <h2 style={{ fontSize: 24, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} className="sm:!text-[30px]">{waitingCompanyName}</h2>
-                    <span style={{ fontSize: 15, color: '#94a3b8' }} className="hidden sm:inline">출하 대기 목록</span>
                   </div>
-                  <span style={{ fontSize: 18, color: '#cbd5e1', fontWeight: 700, whiteSpace: 'nowrap' }} className="hidden sm:inline">{selectedDate}</span>
+                  {/* 날짜 네비게이션 — 전날/다음날/직접선택 (기사·현장 배려 크게) */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    <button onClick={handlePrevDay} style={{ padding: '11px 18px', fontSize: 18, fontWeight: 800, background: '#334155', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', whiteSpace: 'nowrap' }}>◀ 전날</button>
+                    <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
+                      style={{ fontSize: 17, fontWeight: 700, padding: '9px 12px', borderRadius: 10, border: 'none', color: '#1e293b' }} />
+                    <button onClick={handleNextDay} style={{ padding: '11px 18px', fontSize: 18, fontWeight: 800, background: '#334155', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', whiteSpace: 'nowrap' }}>다음날 ▶</button>
+                  </div>
                 </div>
 
                 {/* Data Table — 큰 폰트 */}
@@ -1740,35 +1750,41 @@ export default function ShippingPage() {
                       borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
                     }}>
                       <thead>
-                        <tr style={{ backgroundColor: '#f8fafc', borderBottom: '3px solid #e2e8f0' }}>
-                          <th style={{ padding: '16px 14px', fontSize: 16, fontWeight: 700, color: '#475569', textAlign: 'center', width: 50 }}>#</th>
+                        <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '3px solid #cbd5e1' }}>
+                          <th style={{ padding: '15px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'center', width: 46 }}>#</th>
                           {waitingCompanyId === '__ALL__' && (
-                            <th style={{ padding: '16px 14px', fontSize: 16, fontWeight: 700, color: '#475569', textAlign: 'left' }}>운송사</th>
+                            <th style={{ padding: '15px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'left' }}>운송사</th>
                           )}
-                          <th style={{ padding: '16px 14px', fontSize: 16, fontWeight: 700, color: '#475569', textAlign: 'left' }}>거래처</th>
-                          <th style={{ padding: '16px 14px', fontSize: 16, fontWeight: 700, color: '#475569', textAlign: 'left' }}>제품명</th>
-                          <th style={{ padding: '16px 14px', fontSize: 16, fontWeight: 700, color: '#475569', textAlign: 'left' }}>차량정보</th>
-                          <th style={{ padding: '16px 14px', fontSize: 16, fontWeight: 700, color: '#475569', textAlign: 'left' }}>기타</th>
-                          <th style={{ padding: '16px 14px', fontSize: 16, fontWeight: 700, color: '#475569', textAlign: 'center', minWidth: 280 }}>출하증 / 성적서</th>
+                          <th style={{ padding: '15px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'left', whiteSpace: 'nowrap' }}>출하요청일자</th>
+                          <th style={{ padding: '15px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'left' }}>거래처</th>
+                          <th style={{ padding: '15px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'left' }}>제품명</th>
+                          <th style={{ padding: '15px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'left' }}>차량번호</th>
+                          <th style={{ padding: '15px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'left' }}>기사</th>
+                          <th style={{ padding: '15px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'center' }}>사일로</th>
+                          <th style={{ padding: '15px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'left' }}>비고</th>
+                          <th style={{ padding: '15px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'center', minWidth: 270 }}>출하증 / 성적서</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {waitingRows.map((row, idx) => (
+                        {sortedWaitingRows.map((row, idx) => (
                           <tr
                             key={row.id}
                             style={{
-                              borderBottom: '2px solid #f1f5f9',
-                              backgroundColor: idx % 2 === 0 ? '#fff' : '#f8fafc',
+                              borderBottom: '2px solid #eef2f6',
+                              backgroundColor: isDone(row) ? '#dcfce7' : (idx % 2 === 0 ? '#fff' : '#f8fafc'),
                             }}
                           >
-                            <td style={{ padding: '18px 14px', fontSize: 18, textAlign: 'center', color: '#94a3b8', fontWeight: 600 }}>{idx + 1}</td>
+                            <td style={{ padding: '16px 12px', fontSize: 17, textAlign: 'center', color: isDone(row) ? '#15803d' : '#94a3b8', fontWeight: 700 }}>{idx + 1}</td>
                             {waitingCompanyId === '__ALL__' && (
-                              <td style={{ padding: '18px 14px', fontSize: 18, color: '#1e293b', fontWeight: 700 }}>{row.company_name || '-'}</td>
+                              <td style={{ padding: '16px 12px', fontSize: 17, color: '#1e293b', fontWeight: 700 }}>{row.company_name || '-'}</td>
                             )}
-                            <td style={{ padding: '18px 14px', fontSize: 18, color: '#1e293b', fontWeight: 600 }}>{row.customer_name || '-'}</td>
-                            <td style={{ padding: '18px 14px', fontSize: 18, color: '#374151' }}>{row.product_name || '-'}</td>
-                            <td style={{ padding: '18px 14px', fontSize: 18, color: '#374151', fontWeight: 500 }}>{row.vehicle_number || '-'}</td>
-                            <td style={{ padding: '18px 14px', fontSize: 16, color: '#6b7280' }}>{row.notes || ''}</td>
+                            <td style={{ padding: '16px 12px', fontSize: 15, color: '#64748b', whiteSpace: 'nowrap' }}>{row.shipment_date || '-'}</td>
+                            <td style={{ padding: '16px 12px', fontSize: 17, color: '#1e293b', fontWeight: 600 }}>{row.customer_name || '-'}</td>
+                            <td style={{ padding: '16px 12px', fontSize: 17, color: '#374151' }}>{row.product_name || '-'}</td>
+                            <td style={{ padding: '16px 12px', fontSize: 17, color: '#374151', fontWeight: 600 }}>{row.vehicle_number || '-'}</td>
+                            <td style={{ padding: '16px 12px', fontSize: 16, color: '#374151' }}>{row.driver_name || '-'}</td>
+                            <td style={{ padding: '16px 12px', fontSize: 17, textAlign: 'center', color: '#1d4ed8', fontWeight: 700 }}>{row.silo || '-'}</td>
+                            <td style={{ padding: '16px 12px', fontSize: 15, color: '#6b7280' }}>{row.notes || ''}</td>
                             <td style={{ padding: '14px', textAlign: 'center' }}>
                               <div style={{ display: 'flex', gap: 10, justifyContent: 'center', alignItems: 'center' }}>
                                 {row.certificate_time ? (
@@ -1835,10 +1851,15 @@ export default function ShippingPage() {
 
                 {/* Footer */}
                 <div style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 24,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 28, flexWrap: 'wrap',
                   padding: '16px 32px', backgroundColor: '#1e293b', color: '#fff', flexShrink: 0,
                 }}>
                   <span style={{ fontSize: 18, fontWeight: 700 }}>총 {waitingRows.length}건</span>
+                  <span style={{ fontSize: 18, fontWeight: 700, color: '#fcd34d' }}>대기 {waitingRows.length - waitingDoneCount}건</span>
+                  <span style={{ fontSize: 18, fontWeight: 700, color: '#86efac', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 16, height: 16, borderRadius: 4, background: '#86efac', display: 'inline-block' }} />
+                    완료 {waitingDoneCount}건 (초록색·하단)
+                  </span>
                 </div>
               </div>
             )}
