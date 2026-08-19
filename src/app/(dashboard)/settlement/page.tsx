@@ -340,8 +340,9 @@ export default function SettlementPage() {
         const unitPrice = lookupPrice(s.company_id, s.product_id, String(s.shipment_date ?? ''));
         const wt = Number(s.weight_net) || 0;
         const tt = s.transport_type ?? '';
-        const fee = tt === '카고' ? unitPrice : Math.round(unitPrice * wt);
-        const tax = Math.round(fee * 0.1);
+        // 소수점 유지(반올림 없음): 운송료 = 단가×수량, 부가세 = 운송료×10%
+        const fee = tt === '카고' ? unitPrice : unitPrice * wt;
+        const tax = fee * 0.1;
         return {
           id: s.id,
           date: s.shipment_date,
@@ -452,6 +453,43 @@ export default function SettlementPage() {
     return r;
   }, [settlements, stlFilterCompany, stlFilterCustomer, stlFilterTransport, stlFilterProduct]);
 
+  // ── 세부 테이블: 컬럼 정렬 + 컬럼별 검색 ──
+  const [stlSort, setStlSort] = useState<{ key: keyof SettlementRow | null; dir: 'asc' | 'desc' }>({ key: null, dir: 'asc' });
+  const [stlColFilter, setStlColFilter] = useState<Record<string, string>>({});
+  const [stlOpenFilter, setStlOpenFilter] = useState<string | null>(null);
+  const toggleStlSort = (key: keyof SettlementRow) =>
+    setStlSort(prev => (prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
+
+  const displaySettlements = useMemo(() => {
+    let r = filteredSettlements;
+    const active = Object.entries(stlColFilter).filter(([, v]) => v.trim());
+    if (active.length) {
+      r = r.filter(row => active.every(([k, v]) =>
+        String((row as unknown as Record<string, unknown>)[k] ?? '').toLowerCase().includes(v.trim().toLowerCase())));
+    }
+    if (stlSort.key) {
+      const k = stlSort.key;
+      r = [...r].sort((a, b) => {
+        const av = a[k] as unknown, bv = b[k] as unknown;
+        if (av == null && bv == null) return 0;
+        if (av == null || av === '') return 1;
+        if (bv == null || bv === '') return -1;
+        if (typeof av === 'number' && typeof bv === 'number') return av - bv;
+        return String(av).localeCompare(String(bv), 'ko', { numeric: true });
+      });
+      if (stlSort.dir === 'desc') r.reverse();
+    }
+    return r;
+  }, [filteredSettlements, stlColFilter, stlSort]);
+
+  const displayTotals = useMemo(() => ({
+    count: displaySettlements.length,
+    totalWeight: displaySettlements.reduce((s, r) => s + r.weightNet, 0),
+    totalFee: displaySettlements.reduce((s, r) => s + r.transportFee, 0),
+    totalTax: displaySettlements.reduce((s, r) => s + r.tax, 0),
+    totalAll: displaySettlements.reduce((s, r) => s + r.totalFee, 0),
+  }), [displaySettlements]);
+
   const stlTotals = useMemo(() => ({
     count: filteredSettlements.length,
     totalWeight: filteredSettlements.reduce((s, r) => s + r.weightNet, 0),
@@ -494,7 +532,7 @@ export default function SettlementPage() {
   const handleConfirmSettlement = async () => {
     if (filteredSettlements.length === 0) { toast.warning('확정할 정산 내역이 없습니다.'); return; }
     const scope = stlFilterCompany.length === 1 ? stlFilterCompany[0] : stlFilterCompany.length > 1 ? `${stlFilterCompany.length}개 운송사` : null;
-    if (!confirm(`[${dateRange.label}] 정산을 확정하시겠습니까?\n\n· 대상: ${scope || '전체 운송사'}\n· ${fmt(stlTotals.count)}건 · ${stlTotals.totalWeight.toFixed(1)}톤\n· 청구총액 ${fmt(stlTotals.totalAll)}원\n\n확정 시점의 집계가 이력으로 기록됩니다.`)) return;
+    if (!confirm(`[${dateRange.label}] 정산을 확정하시겠습니까?\n\n· 대상: ${scope || '전체 운송사'}\n· ${fmt(stlTotals.count)}건 · ${stlTotals.totalWeight.toFixed(2)}톤\n· 청구총액 ${fmt(stlTotals.totalAll)}원\n\n확정 시점의 집계가 이력으로 기록됩니다.`)) return;
     setConfirming(true);
     try {
       const res = await fetch('/api/admin/settlement-closings', {
@@ -553,7 +591,18 @@ export default function SettlementPage() {
   };
 
   const handleExcelSettlement = () => {
-    exportToExcel(filteredSettlements as unknown as Record<string, unknown>[], [
+    // 현재 화면(정렬·검색 반영) 그대로 내보내고, 맨 아래 합계 행 추가
+    const rows: Record<string, unknown>[] = displaySettlements.map(r => ({
+      date: r.date, company: r.company, customer: r.customer, transportType: r.transportType,
+      product: r.product, weightNet: r.weightNet, unitPrice: r.unitPrice,
+      transportFee: r.transportFee, tax: r.tax, totalFee: r.totalFee,
+    }));
+    rows.push({
+      date: '합계', company: '', customer: '', transportType: '', product: `${displayTotals.count}건`,
+      weightNet: displayTotals.totalWeight, unitPrice: '', transportFee: displayTotals.totalFee,
+      tax: displayTotals.totalTax, totalFee: displayTotals.totalAll,
+    });
+    exportToExcel(rows, [
       { key: 'date', header: '날짜' }, { key: 'company', header: '운송사' },
       { key: 'customer', header: '거래처' }, { key: 'transportType', header: '운송구분' },
       { key: 'product', header: '제품명' }, { key: 'weightNet', header: '계근수량' },
@@ -562,7 +611,8 @@ export default function SettlementPage() {
     ], `정산관리_${dateRange.label}`);
   };
 
-  const fmt = (n: number) => n.toLocaleString('ko-KR');
+  // 금액/수량: 소수점 2자리까지 허용(있을 때만 표시), 반올림 없음
+  const fmt = (n: number) => n.toLocaleString('ko-KR', { maximumFractionDigits: 2 });
 
   // ── Inline styles used only for dynamic/computed values ──
   const thStyle: React.CSSProperties = {
@@ -1098,7 +1148,7 @@ export default function SettlementPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-4 md:mb-5">
                 {[
                   { label: '총 건수', value: `${fmt(stlTotals.count)}건`, prev: `전기 ${fmt(prevTotals.count)}건`, color: '#2563eb', bg: '#eff6ff', icon: '📋' },
-                  { label: '총 계근수량', value: `${stlTotals.totalWeight.toFixed(1)} 톤`, prev: `전기 ${prevTotals.totalWeight.toFixed(1)}톤`, color: '#16a34a', bg: '#f0fdf4', icon: '⚖️' },
+                  { label: '총 계근수량', value: `${stlTotals.totalWeight.toFixed(2)} 톤`, prev: `전기 ${prevTotals.totalWeight.toFixed(2)}톤`, color: '#16a34a', bg: '#f0fdf4', icon: '⚖️' },
                   { label: '총 운송료 (공급가액)', value: `${fmt(stlTotals.totalFee)} 원`, prev: `전기 ${fmt(prevTotals.totalFee)}원`, color: '#d97706', bg: '#fefce8', icon: '💰' },
                   { label: '총 합계 (세포함)', value: `${fmt(stlTotals.totalAll)} 원`, prev: `전기 ${fmt(prevTotals.totalAll)}원`, color: '#7c3aed', bg: '#f5f3ff', icon: '📊' },
                 ].map(card => (
@@ -1199,21 +1249,44 @@ export default function SettlementPage() {
                             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1100 }}>
                               <thead>
                                 <tr>
-                                  <th style={{ ...thStyle, width: 40, textAlign: 'center' }}>#</th>
-                                  <th style={{ ...thStyle, minWidth: 90 }}>날짜</th>
-                                  <th style={{ ...thStyle, minWidth: 70 }}>운송사</th>
-                                  <th style={{ ...thStyle, minWidth: 150 }}>거래처</th>
-                                  <th style={{ ...thStyle, minWidth: 60 }}>운송구분</th>
-                                  <th style={{ ...thStyle, minWidth: 130 }}>제품명</th>
-                                  <th style={{ ...thStyle, minWidth: 80, textAlign: 'right' }}>계근수량</th>
-                                  <th style={{ ...thStyle, minWidth: 90, textAlign: 'right' }}>단가(원)</th>
-                                  <th style={{ ...thStyle, minWidth: 110, textAlign: 'right' }}>운송료(원)</th>
-                                  <th style={{ ...thStyle, minWidth: 90, textAlign: 'right' }}>세액(원)</th>
-                                  <th style={{ ...thStyle, minWidth: 120, textAlign: 'right' }}>합계(원)</th>
+                                  {([
+                                    { label: '#', w: 40, align: 'center' as const },
+                                    { label: '날짜', key: 'date' as keyof SettlementRow, filter: true, minW: 90 },
+                                    { label: '운송사', key: 'company' as keyof SettlementRow, filter: true, minW: 70 },
+                                    { label: '거래처', key: 'customer' as keyof SettlementRow, filter: true, minW: 150 },
+                                    { label: '운송구분', key: 'transportType' as keyof SettlementRow, filter: true, minW: 60 },
+                                    { label: '제품명', key: 'product' as keyof SettlementRow, filter: true, minW: 130 },
+                                    { label: '계근수량', key: 'weightNet' as keyof SettlementRow, align: 'right' as const, minW: 80 },
+                                    { label: '단가(원)', key: 'unitPrice' as keyof SettlementRow, align: 'right' as const, minW: 90 },
+                                    { label: '운송료(원)', key: 'transportFee' as keyof SettlementRow, align: 'right' as const, minW: 110 },
+                                    { label: '세액(원)', key: 'tax' as keyof SettlementRow, align: 'right' as const, minW: 90 },
+                                    { label: '합계(원)', key: 'totalFee' as keyof SettlementRow, align: 'right' as const, minW: 120 },
+                                  ] as { label: string; key?: keyof SettlementRow; filter?: boolean; align?: 'left' | 'right' | 'center'; minW?: number; w?: number }[]).map(col => {
+                                    const active = col.key && stlSort.key === col.key;
+                                    const filtering = !!(col.key && stlColFilter[col.key]?.trim());
+                                    return (
+                                      <th key={col.label} style={{ ...thStyle, ...(col.w ? { width: col.w } : {}), ...(col.minW ? { minWidth: col.minW } : {}), textAlign: col.align || 'left', whiteSpace: 'nowrap' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: col.align === 'right' ? 'flex-end' : 'flex-start' }}>
+                                          <span onClick={col.key ? () => toggleStlSort(col.key!) : undefined} style={{ cursor: col.key ? 'pointer' : 'default', userSelect: 'none' }}>
+                                            {col.label}{active && <span style={{ color: '#2563eb', marginLeft: 2 }}>{stlSort.dir === 'asc' ? '▲' : '▼'}</span>}
+                                          </span>
+                                          {col.filter && (
+                                            <span onClick={() => setStlOpenFilter(stlOpenFilter === col.key ? null : (col.key as string))} title="검색" style={{ cursor: 'pointer', color: filtering ? '#2563eb' : '#cbd5e1', fontSize: 12 }}>🔍</span>
+                                          )}
+                                        </div>
+                                        {col.filter && stlOpenFilter === col.key && (
+                                          <input autoFocus value={(col.key && stlColFilter[col.key]) || ''} placeholder="검색…"
+                                            onClick={e => e.stopPropagation()}
+                                            onChange={e => setStlColFilter(p => ({ ...p, [col.key as string]: e.target.value }))}
+                                            style={{ marginTop: 4, width: '100%', fontSize: 11, fontWeight: 400, padding: '3px 6px', border: '1px solid #93c5fd', borderRadius: 4, boxSizing: 'border-box' }} />
+                                        )}
+                                      </th>
+                                    );
+                                  })}
                                 </tr>
                               </thead>
                               <tbody>
-                                {filteredSettlements.map((row, idx) => (
+                                {displaySettlements.map((row, idx) => (
                                   <tr
                                     key={row.id}
                                     style={{ backgroundColor: idx % 2 === 0 ? '#fff' : '#fafbfc' }}
@@ -1246,12 +1319,12 @@ export default function SettlementPage() {
                                   </tr>
                                 ))}
                                 <tr style={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #cbd5e1' }}>
-                                  <td colSpan={6} style={{ ...tdStyle, fontWeight: 700, textAlign: 'center', color: '#334155' }}>합계 ({filteredSettlements.length}건)</td>
-                                  <td style={{ ...tdR, fontWeight: 700 }}>{stlTotals.totalWeight.toFixed(2)}</td>
+                                  <td colSpan={6} style={{ ...tdStyle, fontWeight: 700, textAlign: 'center', color: '#334155' }}>합계 ({displayTotals.count}건)</td>
+                                  <td style={{ ...tdR, fontWeight: 700 }}>{displayTotals.totalWeight.toFixed(2)}</td>
                                   <td style={tdR} />
-                                  <td style={{ ...tdR, fontWeight: 700 }}>{fmt(stlTotals.totalFee)}</td>
-                                  <td style={{ ...tdR, fontWeight: 700 }}>{fmt(stlTotals.totalTax)}</td>
-                                  <td style={{ ...tdR, fontWeight: 700, fontSize: 14, color: '#1d4ed8' }}>{fmt(stlTotals.totalAll)}</td>
+                                  <td style={{ ...tdR, fontWeight: 700 }}>{fmt(displayTotals.totalFee)}</td>
+                                  <td style={{ ...tdR, fontWeight: 700 }}>{fmt(displayTotals.totalTax)}</td>
+                                  <td style={{ ...tdR, fontWeight: 700, fontSize: 14, color: '#1d4ed8' }}>{fmt(displayTotals.totalAll)}</td>
                                 </tr>
                               </tbody>
                             </table>
@@ -1320,7 +1393,7 @@ export default function SettlementPage() {
                         <td style={{ ...tdStyle, fontWeight: 600 }}>{c.period_label}</td>
                         <td style={{ ...tdStyle, fontSize: 12, color: '#475569' }}>{c.scope_company || '전체'}</td>
                         <td style={tdR}>{fmt(c.row_count)}</td>
-                        <td style={tdR}>{Number(c.total_weight).toFixed(1)}</td>
+                        <td style={tdR}>{Number(c.total_weight).toFixed(2)}</td>
                         <td style={tdR}>{fmt(Math.round(Number(c.total_fee)))}</td>
                         <td style={{ ...tdR, fontWeight: 700, color: '#1d4ed8' }}>{fmt(Math.round(Number(c.total_all)))}</td>
                         <td style={{ ...tdStyle, fontSize: 12 }}>{c.confirmed_by_name || '-'}</td>
