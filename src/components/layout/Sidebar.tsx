@@ -119,9 +119,9 @@ const navGroups: NavGroup[] = [
   },
   {
     key: 'partner', label: '거래 관리', en: 'Partners', iconKey: 'customer', items: [
-      { label: '거래처관리', path: '/customer', iconKey: 'customer', roles: ['admin', 'monitor', 'field'] },
-      { label: '운송사관리', path: '/transport-company', iconKey: 'company', roles: ['admin', 'monitor', 'field'] },
-      { label: '기사관리', path: '/driver', iconKey: 'driver', roles: ['admin', 'monitor', 'transporter', 'field'] },
+      { label: '거래처관리', path: '/customer', iconKey: 'customer', roles: ['admin', 'monitor'] },
+      { label: '운송사관리', path: '/transport-company', iconKey: 'company', roles: ['admin', 'monitor'] },
+      { label: '기사관리', path: '/driver', iconKey: 'driver', roles: ['admin', 'monitor', 'transporter'] },
     ],
   },
   {
