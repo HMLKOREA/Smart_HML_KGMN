@@ -98,6 +98,22 @@ export default function DispatchPage() {
 
   // ── Data State ──
   const [data, setData] = useState<Shipment[]>([]);
+  const [sort, setSort] = useState<{ key: string | null; dir: 'asc' | 'desc' }>({ key: null, dir: 'asc' });
+  const sortedData = useMemo(() => {
+    if (!sort.key) return data;
+    const k = sort.key as keyof Shipment;
+    const arr = [...data].sort((a, b) => {
+      const av = a[k] as unknown, bv = b[k] as unknown;
+      if (av == null && bv == null) return 0;
+      if (av == null || av === '') return 1;   // 빈값은 뒤로
+      if (bv == null || bv === '') return -1;
+      if (typeof av === 'number' && typeof bv === 'number') return av - bv;
+      return String(av).localeCompare(String(bv), 'ko', { numeric: true });
+    });
+    return sort.dir === 'asc' ? arr : arr.reverse();
+  }, [data, sort]);
+  const toggleSort = (key: string) =>
+    setSort(prev => (prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
   const [loading, setLoading] = useState(true);
   const [companies, setCompanies] = useState<LookupCompany[]>([]);
   const [drivers, setDrivers] = useState<LookupDriver[]>([]);
@@ -579,24 +595,38 @@ export default function DispatchPage() {
             <table className="data-table" style={{ fontSize: 13 }}>
               <thead>
                 <tr>
-                  <th style={{ width: 32, textAlign: 'center', padding: '7px 6px' }}>#</th>
-                  <th style={{ minWidth: 70, padding: '7px 6px' }}>운송사</th>
-                  <th style={{ minWidth: 90, padding: '7px 6px' }}>상차요청일</th>
-                  <th style={{ minWidth: 130, padding: '7px 6px' }}>거래처</th>
-                  <th style={{ minWidth: 120, padding: '7px 6px' }}>제품명</th>
-                  <th style={{ minWidth: 60, padding: '7px 6px' }}>사일로</th>
-                  <th style={{ minWidth: 120, padding: '7px 6px' }}>비고</th>
-                  <th style={{ minWidth: 60, padding: '7px 6px' }}>차량종류</th>
-                  <th style={{ minWidth: 100, padding: '7px 6px' }}>차량번호</th>
-                  <th style={{ minWidth: 80, padding: '7px 6px' }}>기사성명</th>
-                  <th style={{ minWidth: 110, padding: '7px 6px' }}>기사연락처</th>
-                  <th style={{ minWidth: 80, textAlign: 'right', padding: '7px 6px' }}>계근수량(D+1)</th>
-                  <th style={{ minWidth: 140, padding: '7px 6px' }}>출하증발급시간</th>
-                  <th style={{ width: 50, textAlign: 'center', padding: '7px 6px' }}>작업</th>
+                  {([
+                    { label: '#', k: null, st: { width: 32, textAlign: 'center' as const } },
+                    { label: '운송사', k: 'company_name', st: { minWidth: 70 } },
+                    { label: '상차요청일', k: 'shipment_date', st: { minWidth: 90 } },
+                    { label: '거래처', k: 'customer_name', st: { minWidth: 130 } },
+                    { label: '제품명', k: 'product_name', st: { minWidth: 120 } },
+                    { label: '사일로', k: 'silo', st: { minWidth: 60 } },
+                    { label: '비고', k: 'notes', st: { minWidth: 120 } },
+                    { label: '차량종류', k: 'transport_type', st: { minWidth: 60 } },
+                    { label: '차량번호', k: 'vehicle_number', st: { minWidth: 100 } },
+                    { label: '기사성명', k: 'driver_name', st: { minWidth: 80 } },
+                    { label: '기사연락처', k: 'driver_phone', st: { minWidth: 110 } },
+                    { label: '계근수량(D+1)', k: 'weight_net', st: { minWidth: 80, textAlign: 'right' as const } },
+                    { label: '출하증발급시간', k: 'certificate_time', st: { minWidth: 140 } },
+                    { label: '작업', k: null, st: { width: 50, textAlign: 'center' as const } },
+                  ] as { label: string; k: string | null; st: React.CSSProperties }[]).map(({ label, k, st }) => (
+                    <th
+                      key={label}
+                      onClick={k ? () => toggleSort(k) : undefined}
+                      title={k ? '클릭하여 정렬' : undefined}
+                      style={{ padding: '7px 6px', whiteSpace: 'nowrap', userSelect: 'none', cursor: k ? 'pointer' : 'default', ...st }}
+                    >
+                      {label}
+                      {k && sort.key === k && (
+                        <span style={{ color: '#2563eb', marginLeft: 3 }}>{sort.dir === 'asc' ? '▲' : '▼'}</span>
+                      )}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {data.map((row, idx) => {
+                {sortedData.map((row, idx) => {
                   const isEditingRow = editingId === row.id;
 
                   if (isEditingRow && editData) {
