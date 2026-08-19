@@ -1751,18 +1751,18 @@ export default function ShippingPage() {
                     }}>
                       <thead>
                         <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '3px solid #cbd5e1' }}>
-                          <th style={{ padding: '15px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'center', width: 46 }}>#</th>
+                          <th style={{ padding: '9px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'center', width: 46 }}>#</th>
                           {waitingCompanyId === '__ALL__' && (
-                            <th style={{ padding: '15px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'left' }}>운송사</th>
+                            <th style={{ padding: '9px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'left' }}>운송사</th>
                           )}
-                          <th style={{ padding: '15px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'left', whiteSpace: 'nowrap' }}>출하요청일자</th>
-                          <th style={{ padding: '15px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'left' }}>거래처</th>
-                          <th style={{ padding: '15px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'left' }}>제품명</th>
-                          <th style={{ padding: '15px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'left' }}>차량번호</th>
-                          <th style={{ padding: '15px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'left' }}>기사</th>
-                          <th style={{ padding: '15px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'center' }}>사일로</th>
-                          <th style={{ padding: '15px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'left' }}>비고</th>
-                          <th style={{ padding: '15px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'center', minWidth: 270 }}>출하증 / 성적서</th>
+                          <th style={{ padding: '9px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'left', whiteSpace: 'nowrap' }}>출하요청일자</th>
+                          <th style={{ padding: '9px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'left' }}>거래처</th>
+                          <th style={{ padding: '9px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'left' }}>제품명</th>
+                          <th style={{ padding: '9px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'left' }}>차량번호</th>
+                          <th style={{ padding: '9px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'left' }}>기사</th>
+                          <th style={{ padding: '9px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'center' }}>사일로</th>
+                          <th style={{ padding: '9px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'left' }}>비고</th>
+                          <th style={{ padding: '9px 12px', fontSize: 15, fontWeight: 700, color: '#475569', textAlign: 'center', minWidth: 270 }}>출하증 / 성적서</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1774,18 +1774,18 @@ export default function ShippingPage() {
                               backgroundColor: isDone(row) ? '#dcfce7' : (idx % 2 === 0 ? '#fff' : '#f8fafc'),
                             }}
                           >
-                            <td style={{ padding: '16px 12px', fontSize: 17, textAlign: 'center', color: isDone(row) ? '#15803d' : '#94a3b8', fontWeight: 700 }}>{idx + 1}</td>
+                            <td style={{ padding: '8px 12px', fontSize: 17, textAlign: 'center', color: isDone(row) ? '#15803d' : '#94a3b8', fontWeight: 700 }}>{idx + 1}</td>
                             {waitingCompanyId === '__ALL__' && (
-                              <td style={{ padding: '16px 12px', fontSize: 17, color: '#1e293b', fontWeight: 700 }}>{row.company_name || '-'}</td>
+                              <td style={{ padding: '8px 12px', fontSize: 17, color: '#1e293b', fontWeight: 700 }}>{row.company_name || '-'}</td>
                             )}
-                            <td style={{ padding: '16px 12px', fontSize: 15, color: '#64748b', whiteSpace: 'nowrap' }}>{row.shipment_date || '-'}</td>
-                            <td style={{ padding: '16px 12px', fontSize: 17, color: '#1e293b', fontWeight: 600 }}>{row.customer_name || '-'}</td>
-                            <td style={{ padding: '16px 12px', fontSize: 17, color: '#374151' }}>{row.product_name || '-'}</td>
-                            <td style={{ padding: '16px 12px', fontSize: 17, color: '#374151', fontWeight: 600 }}>{row.vehicle_number || '-'}</td>
-                            <td style={{ padding: '16px 12px', fontSize: 16, color: '#374151' }}>{row.driver_name || '-'}</td>
-                            <td style={{ padding: '16px 12px', fontSize: 17, textAlign: 'center', color: '#1d4ed8', fontWeight: 700 }}>{row.silo || '-'}</td>
-                            <td style={{ padding: '16px 12px', fontSize: 15, color: '#6b7280' }}>{row.notes || ''}</td>
-                            <td style={{ padding: '14px', textAlign: 'center' }}>
+                            <td style={{ padding: '8px 12px', fontSize: 15, color: '#64748b', whiteSpace: 'nowrap' }}>{row.shipment_date || '-'}</td>
+                            <td style={{ padding: '8px 12px', fontSize: 17, color: '#1e293b', fontWeight: 600 }}>{row.customer_name || '-'}</td>
+                            <td style={{ padding: '8px 12px', fontSize: 17, color: '#374151' }}>{row.product_name || '-'}</td>
+                            <td style={{ padding: '8px 12px', fontSize: 17, color: '#374151', fontWeight: 600 }}>{row.vehicle_number || '-'}</td>
+                            <td style={{ padding: '8px 12px', fontSize: 16, color: '#374151' }}>{row.driver_name || '-'}</td>
+                            <td style={{ padding: '8px 12px', fontSize: 17, textAlign: 'center', color: '#1d4ed8', fontWeight: 700 }}>{row.silo || '-'}</td>
+                            <td style={{ padding: '8px 12px', fontSize: 15, color: '#6b7280' }}>{row.notes || ''}</td>
+                            <td style={{ padding: '6px 8px', textAlign: 'center' }}>
                               <div style={{ display: 'flex', gap: 10, justifyContent: 'center', alignItems: 'center' }}>
                                 {row.certificate_time ? (
                                   <>
@@ -1800,7 +1800,7 @@ export default function ShippingPage() {
                                         fetchData();
                                       }}
                                       style={{
-                                        padding: '15px 30px', fontSize: 19, fontWeight: 800,
+                                        padding: '9px 24px', fontSize: 19, fontWeight: 800,
                                         backgroundColor: '#f59e0b', color: '#fff', border: 'none', borderRadius: 10,
                                         cursor: 'pointer', whiteSpace: 'nowrap',
                                       }}
@@ -1821,7 +1821,7 @@ export default function ShippingPage() {
                                       fetchData();
                                     }}
                                     style={{
-                                      padding: '15px 30px', fontSize: 19, fontWeight: 800,
+                                      padding: '9px 24px', fontSize: 19, fontWeight: 800,
                                       backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: 10,
                                       cursor: 'pointer', whiteSpace: 'nowrap',
                                       boxShadow: '0 3px 10px rgba(22,163,74,0.35)',
@@ -1833,7 +1833,7 @@ export default function ShippingPage() {
                                 <button
                                   onClick={() => toast.info('성적서 출력 기능은 준비 중입니다.')}
                                   style={{
-                                    padding: '15px 30px', fontSize: 19, fontWeight: 800,
+                                    padding: '9px 24px', fontSize: 19, fontWeight: 800,
                                     backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 10,
                                     cursor: 'pointer', whiteSpace: 'nowrap',
                                   }}
