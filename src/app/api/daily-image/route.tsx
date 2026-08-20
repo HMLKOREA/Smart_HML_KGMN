@@ -4,7 +4,7 @@
 import { ImageResponse } from 'next/og';
 import { fetchDayRows, nextDayOf, dayNameOf } from '@/lib/notify/dailyReport';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 const COLS = [
   { key: 'date', label: '출하일자', w: 110 },
