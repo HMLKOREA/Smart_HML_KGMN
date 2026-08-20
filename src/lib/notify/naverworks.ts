@@ -80,6 +80,21 @@ export async function sendChannelMessage(text: string, channelId = CHANNEL_ID): 
   }
 }
 
+// ── 채널(그룹) 이미지 발송 ──
+export async function sendChannelImage(imageUrl: string, channelId = CHANNEL_ID): Promise<void> {
+  if (!channelId) throw new Error('NAVERWORKS_CHANNEL_ID 미설정');
+  const token = await getAccessToken();
+  const res = await fetch(`${API_BASE}/bots/${BOT_ID}/channels/${channelId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ content: { type: 'image', previewImageUrl: imageUrl, originalContentUrl: imageUrl } }),
+  });
+  if (res.status !== 200 && res.status !== 201) {
+    const detail = await res.text();
+    throw new Error(`네이버웍스 이미지 발송 실패 (HTTP ${res.status}): ${detail}`);
+  }
+}
+
 // ── 채널 생성 (봇 + 멤버) → channelId 반환 ──
 export async function createChannel(title: string, memberIds: string[]): Promise<string> {
   const token = await getAccessToken();

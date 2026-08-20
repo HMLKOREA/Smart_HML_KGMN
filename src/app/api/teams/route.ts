@@ -4,11 +4,12 @@
  * 환경변수: TEAMS_WEBHOOK_URL  (Teams 채널 → Workflows "웹훅 요청 시 채널에 게시" URL)
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchDailyDigest, formatDigestPlain } from '@/lib/notify/dailyReport';
+import { fetchDailyDigest, formatCaption } from '@/lib/notify/dailyReport';
 
 export const runtime = 'nodejs';
 
 const WEBHOOK = process.env.TEAMS_WEBHOOK_URL || '';
+const IMG_BASE = 'https://smart-hml.vercel.app/api/daily-image';
 
 export async function GET() {
   return NextResponse.json({ configured: !!WEBHOOK });
@@ -23,8 +24,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const digest = await fetchDailyDigest(dateStr);
-    const text = formatDigestPlain(digest);
-    // Adaptive Card (Workflows 웹훅 형식)
+    const text = formatCaption(digest);
+    // Adaptive Card (Workflows 웹훅 형식) — 요약 + 다음날 배차 표 이미지
     const payload = {
       type: 'message',
       attachments: [{
@@ -36,6 +37,7 @@ export async function POST(request: NextRequest) {
           body: [
             { type: 'TextBlock', text: `경기광업 일일 배차 보고 · ${digest.date} (${digest.dayName})`, weight: 'Bolder', size: 'Medium', wrap: true },
             { type: 'TextBlock', text: text, wrap: true },
+            { type: 'Image', url: `${IMG_BASE}?date=${dateStr}`, altText: '다음날 배차 내역' },
           ],
         },
       }],

@@ -4,8 +4,10 @@
  * GET  /api/naverworks  → 설정 상태
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchDailyDigest, formatDigestPlain } from '@/lib/notify/dailyReport';
-import { isConfigured, hasChannel, sendChannelMessage } from '@/lib/notify/naverworks';
+import { fetchDailyDigest, formatCaption } from '@/lib/notify/dailyReport';
+import { isConfigured, hasChannel, sendChannelMessage, sendChannelImage } from '@/lib/notify/naverworks';
+
+const IMG_BASE = 'https://smart-hml.vercel.app/api/daily-image';
 
 export const runtime = 'nodejs';
 
@@ -25,9 +27,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const digest = await fetchDailyDigest(dateStr);
-    const text = formatDigestPlain(digest);
-    await sendChannelMessage(text);
-    return NextResponse.json({ success: true, date: dateStr, messageLength: text.length });
+    await sendChannelImage(`${IMG_BASE}?date=${dateStr}`); // 다음날 배차 표 이미지
+    await sendChannelMessage(formatCaption(digest));        // 요약 텍스트
+    return NextResponse.json({ success: true, date: dateStr, mode: 'image+text' });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }

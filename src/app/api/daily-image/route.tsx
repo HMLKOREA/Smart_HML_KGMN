@@ -65,7 +65,7 @@ export async function GET(req: Request) {
         {rows.map((r, i) => (
           <div key={i} style={{ display: 'flex' }}>
             <div style={tdStyle(COLS[0].w, true, i % 2 === 1)}>{r.date}</div>
-            <div style={tdStyle(COLS[1].w, true, i % 2 === 1)}>{r.type || '-'}</div>
+            <div style={tdStyle(COLS[1].w, true, i % 2 === 1)}>{r.type || (/BAG/i.test(r.product) ? '카고' : '-')}</div>
             <div style={tdStyle(COLS[2].w, false, i % 2 === 1)}>{r.customer}</div>
             <div style={tdStyle(COLS[3].w, false, i % 2 === 1)}>{r.product}</div>
             <div style={tdStyle(COLS[4].w, true, i % 2 === 1)}>{r.company || '-'}</div>

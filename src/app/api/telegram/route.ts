@@ -4,12 +4,13 @@
  * 내용: 다음날 배차 목록 / 그날 완료 결과 / 특이사항
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchDailyDigest, formatDigestHTML } from '@/lib/notify/dailyReport';
+import { fetchDailyDigest, formatCaption } from '@/lib/notify/dailyReport';
 
 export const runtime = 'nodejs';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
+const IMG_BASE = 'https://smart-hml.vercel.app/api/daily-image';
 
 export async function GET() {
   return NextResponse.json({
@@ -31,15 +32,16 @@ export async function POST(request: NextRequest) {
 
   try {
     const digest = await fetchDailyDigest(dateStr);
-    const message = formatDigestHTML(digest);
-    const tgRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    const caption = formatCaption(digest);
+    // 다음날 배차 표 이미지 + 요약 캡션
+    const tgRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: CHAT_ID, text: message, parse_mode: 'HTML', disable_web_page_preview: true }),
+      body: JSON.stringify({ chat_id: CHAT_ID, photo: `${IMG_BASE}?date=${dateStr}`, caption }),
     });
     const tgData = await tgRes.json();
     if (!tgData.ok) return NextResponse.json({ error: '텔레그램 전송 실패', detail: tgData }, { status: 500 });
-    return NextResponse.json({ success: true, date: dateStr, messageLength: message.length });
+    return NextResponse.json({ success: true, date: dateStr, mode: 'photo' });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

@@ -125,6 +125,18 @@ const vw = (s: string) => [...s].reduce((n, ch) => n + (/[ᄀ-ᅟ⺀-꓏가-힣�
 const padR = (s: string, w: number) => s + ' '.repeat(Math.max(0, w - vw(s)));
 const padL = (s: string, w: number) => ' '.repeat(Math.max(0, w - vw(s))) + s;
 
+/** 이미지 동반용 짧은 요약 캡션 (오늘 완료 + 특이사항 + 다음날 건수) */
+export function formatCaption(d: DailyDigest): string {
+  const t = d.today;
+  const pct = t.total > 0 ? Math.round((t.completed / t.total) * 100) : 0;
+  let m = `📋 경기광업 배차 · ${d.date}(${d.dayName})\n`;
+  m += `· 오늘 완료 ${t.completed}/${t.total}건 (${pct}%) · ${t.completedWeight.toFixed(1)}톤\n`;
+  if (d.issues.pendingToday > 0) m += `· ⚠ 오늘 미완료 ${d.issues.pendingToday}건\n`;
+  for (const x of d.issues.notes.slice(0, 5)) m += `· [${x.when}] ${x.customer} — ${x.note}\n`;
+  m += `· 다음날(${d.nextDate}) 배차 ${d.next.total}건 → 첨부 표 참고`;
+  return m;
+}
+
 // ── HTML (텔레그램) — 모노스페이스 표 ──
 export function formatDigestHTML(d: DailyDigest): string {
   const t = d.today, n = d.next;
