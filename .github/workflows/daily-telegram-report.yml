@@ -41,3 +41,12 @@ jobs:
             -d '{"date":"${{ steps.kst.outputs.date }}"}')
           echo "네이버웍스 HTTP $HTTP"; cat resp2.json; echo ""
           case "$HTTP" in 2*) echo "✅ 네이버웍스 OK";; *) echo "❌ 네이버웍스 실패"; exit 1;; esac
+
+      - name: Teams 전송
+        run: |
+          HTTP=$(curl -s -o resp3.json -w "%{http_code}" \
+            -X POST "https://smart-hml.vercel.app/api/teams" \
+            -H "Content-Type: application/json" \
+            -d '{"date":"${{ steps.kst.outputs.date }}"}')
+          echo "Teams HTTP $HTTP"; cat resp3.json; echo ""
+          case "$HTTP" in 2*) echo "✅ Teams OK";; *) echo "❌ Teams 실패"; exit 1;; esac
