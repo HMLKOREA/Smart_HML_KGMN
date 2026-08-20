@@ -1,6 +1,7 @@
-name: 일일 배차결과 자동전송 (텔레그램·네이버웍스)
+name: 일일 배차 보고 자동전송 (네이버웍스·Teams)
 
-# 매일 23:59 KST(=14:59 UTC)에 당일 배차결과를 텔레그램 + 네이버웍스로 전송한다.
+# 매일 23:59 KST(=14:59 UTC)에 배차 보고를 네이버웍스 + Teams로 전송한다.
+# (텔레그램은 배차보고에서 제외 — 텔레그램은 시스템 점검만)
 # 수동 실행(workflow_dispatch)도 가능 — 테스트용.
 on:
   schedule:
@@ -23,15 +24,6 @@ jobs:
           fi
           echo "date=$DATE" >> "$GITHUB_OUTPUT"
           echo "전송 대상일(KST): $DATE"
-
-      - name: 텔레그램 전송
-        run: |
-          HTTP=$(curl -s -o resp.json -w "%{http_code}" \
-            -X POST "https://smart-hml.vercel.app/api/telegram" \
-            -H "Content-Type: application/json" \
-            -d '{"date":"${{ steps.kst.outputs.date }}"}')
-          echo "텔레그램 HTTP $HTTP"; cat resp.json; echo ""
-          case "$HTTP" in 2*) echo "✅ 텔레그램 OK";; *) echo "❌ 텔레그램 실패"; exit 1;; esac
 
       - name: 네이버웍스 전송
         run: |
