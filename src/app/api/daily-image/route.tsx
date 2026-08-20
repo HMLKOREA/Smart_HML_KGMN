@@ -15,18 +15,12 @@ const COLS = [
 ] as const;
 const MAXROWS = 45;
 
-async function loadFont(text: string): Promise<ArrayBuffer | null> {
-  const UA = { 'User-Agent': 'Mozilla/5.0 (compatible; MSIE 6.0; Windows NT 5.1)' }; // 구형 UA → TTF 응답
+// Noto Sans KR (한국어 서브셋 WOFF, Satori 호환)
+const FONT_URL = 'https://cdn.jsdelivr.net/npm/@fontsource/noto-sans-kr@5.0.19/files/noto-sans-kr-korean-400-normal.woff';
+async function loadFont(): Promise<ArrayBuffer | null> {
   try {
-    const url = `https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@500&text=${encodeURIComponent(text)}`;
-    const css = await (await fetch(url, { headers: UA })).text();
-    const m = css.match(/src:\s*url\((https?:\/\/[^)]+)\)/);
-    if (!m) return null;
-    const buf = await (await fetch(m[1], { headers: UA })).arrayBuffer();
-    // woff2(wOF2) 시그니처면 Satori가 못 읽음 → 버림
-    const sig = new Uint8Array(buf.slice(0, 4));
-    if (sig[0] === 0x77 && sig[1] === 0x4f && sig[2] === 0x46 && sig[3] === 0x32) return null;
-    return buf;
+    const res = await fetch(FONT_URL);
+    return res.ok ? await res.arrayBuffer() : null;
   } catch { return null; }
 }
 
@@ -45,9 +39,7 @@ export async function GET(req: Request) {
   const rows = allRows.slice(0, MAXROWS);
   const title = `경기광업 · 다음날 배차 내역  ${nd} (${dayNameOf(nd)}) · 총 ${total}건`;
 
-  const charset = new Set<string>(title + '출하일자운송구분거래처제품명운송사외건 -().:/,0123456789');
-  for (const r of rows) for (const v of [r.date, r.type, r.customer, r.product, r.company]) for (const ch of String(v || '')) charset.add(ch);
-  const font = await loadFont([...charset].join(''));
+  const font = await loadFont();
 
   const W = COLS.reduce((s, c) => s + c.w, 0);
   const rowH = 30, headH = 36, titleH = 44;
