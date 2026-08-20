@@ -305,10 +305,10 @@ export default function SettlementPage() {
       let pricePg = 0;
       let priceMore = true;
       while (priceMore) {
+        // 활성 필터 없이 전체 단가 조회 → 출하월 기준 최신 단가로 매칭 (레거시 confirm은 미사용)
         const { data: priceChunk, error: priceChunkErr } = await supabase
           .from('unit_prices')
-          .select(`*, transport_companies(id, name), products(id, name)`)
-          .eq('is_active', true)
+          .select(`company_id, customer_id, price, effective_date`)
           .range(pricePg * PRICE_PAGE, (pricePg + 1) * PRICE_PAGE - 1);
         if (priceChunkErr) throw priceChunkErr;
         const priceRows = priceChunk || [];
@@ -317,20 +317,20 @@ export default function SettlementPage() {
         pricePg++;
       }
 
-      // company_id::product_id → [{effective_date, price}] (여러 달 단가를 출하일 기준으로 매칭)
+      // 단가 = 운송사 × 거래처 × 월 (레거시 unit_mst 구조). key = company_id::customer_id
       const priceList = new Map<string, { date: string; price: number }[]>();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ((allPriceData as unknown as any[]) || []).forEach(p => {
-        const key = `${p.company_id}::${p.product_id}`;
+        const key = `${p.company_id}::${p.customer_id}`;
         const arr = priceList.get(key) || [];
         arr.push({ date: String(p.effective_date ?? ''), price: Number(p.price) || 0 });
         priceList.set(key, arr);
       });
       // 각 키의 단가를 유효일 내림차순 정렬
       priceList.forEach(arr => arr.sort((a, b) => b.date.localeCompare(a.date)));
-      // 출하일에 유효한 단가(출하일 이전 최신 유효일) 조회, 없으면 가장 이른 단가
-      const lookupPrice = (companyId: string, productId: string, shipDate: string): number => {
-        const arr = priceList.get(`${companyId}::${productId}`);
+      // 출하일에 유효한 단가(출하일 이전 최신 유효월) 조회, 없으면 가장 이른 단가
+      const lookupPrice = (companyId: string, customerId: string, shipDate: string): number => {
+        const arr = priceList.get(`${companyId}::${customerId}`);
         if (!arr || !arr.length) return 0;
         const eff = arr.find(x => x.date <= shipDate);
         return (eff ?? arr[arr.length - 1]).price;
@@ -338,7 +338,7 @@ export default function SettlementPage() {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return ((shipData || []) as any[]).map((s: any) => {
-        const unitPrice = lookupPrice(s.company_id, s.product_id, String(s.shipment_date ?? ''));
+        const unitPrice = lookupPrice(s.company_id, s.customer_id, String(s.shipment_date ?? ''));
         const wt = Number(s.weight_net) || 0;
         const tt = s.transport_type ?? '';
         // 소수점 유지(반올림 없음): 운송료 = 단가×수량, 부가세 = 운송료×10%

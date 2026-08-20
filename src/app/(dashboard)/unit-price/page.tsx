@@ -6,17 +6,18 @@ import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/components/ui/Toast';
 import { getSession } from '@/lib/auth/session';
 import AccessDenied from '@/components/ui/AccessDenied';
+import { smartCompare } from '@/lib/utils/sortCompare';
 
 // ── Types ──
+// 단가 = 운송사 × 거래처 × 월 (레거시 unit_mst 구조). 제품·운송구분은 단가에 없음.
 interface UnitPrice {
   id: string;
   company_id: string | null;
-  product_id: string | null;
-  transport_type: string | null;
+  customer_id: string | null;
   price: number;
   effective_date: string;
   transport_companies: { name: string } | null;
-  products: { name: string } | null;
+  customers: { name: string } | null;
 }
 
 const TRANSPORT_TYPES = ['카고', '탱크', '원석'];
@@ -55,9 +56,9 @@ export default function UnitPricePage() {
       while (more) {
         const { data, error } = await supabase
           .from('unit_prices')
-          .select('id, company_id, product_id, transport_type, price, effective_date, transport_companies(name), products(name)')
+          .select('id, company_id, customer_id, price, effective_date, transport_companies(name), customers(name)')
           .eq('effective_date', firstOfMonth(ym))
-          .order('transport_type')
+          .order('company_id')
           .range(pg * PAGE, (pg + 1) * PAGE - 1);
         if (error) throw error;
         const rows = data || [];
@@ -65,7 +66,11 @@ export default function UnitPricePage() {
         more = rows.length === PAGE;
         pg++;
       }
-      setRows(all as unknown as UnitPrice[]);
+      // 운송사 → 거래처 순 정렬 (영문 우선 → 가나다)
+      const sorted = (all as unknown as UnitPrice[]).sort((a, b) =>
+        smartCompare(a.transport_companies?.name, b.transport_companies?.name)
+        || smartCompare(a.customers?.name, b.customers?.name));
+      setRows(sorted);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '단가 조회 실패');
       setRows([]);
@@ -98,15 +103,15 @@ export default function UnitPricePage() {
     try {
       const { data: prev, error: e1 } = await supabase
         .from('unit_prices')
-        .select('company_id, product_id, transport_type, price')
+        .select('company_id, customer_id, price, is_active')
         .eq('effective_date', firstOfMonth(prevMonth(month)));
       if (e1) throw e1;
       if (!prev || prev.length === 0) { toast.warning('전월 단가가 없습니다.'); return; }
 
-      // 현재 월에 이미 있는 (company,product,transport) 조합은 건너뜀
-      const existing = new Set(rows.map(r => `${r.company_id}|${r.product_id}|${r.transport_type}`));
+      // 현재 월에 이미 있는 (운송사,거래처) 조합은 건너뜀
+      const existing = new Set(rows.map(r => `${r.company_id}|${r.customer_id}`));
       const toInsert = prev
-        .filter(p => !existing.has(`${p.company_id}|${p.product_id}|${p.transport_type}`))
+        .filter(p => !existing.has(`${p.company_id}|${p.customer_id}`))
         .map(p => ({ ...p, effective_date: firstOfMonth(month) }));
 
       if (toInsert.length === 0) { toast.info('복사할 새 단가가 없습니다.'); return; }
@@ -167,8 +172,7 @@ export default function UnitPricePage() {
               <thead>
                 <tr>
                   <th>운송사</th>
-                  <th>제품</th>
-                  <th>운송구분</th>
+                  <th>거래처</th>
                   <th>단가(원/톤)</th>
                   {canEdit && <th>작업</th>}
                 </tr>
@@ -177,8 +181,7 @@ export default function UnitPricePage() {
                 {rows.map(r => (
                   <tr key={r.id}>
                     <td className="font-medium">{r.transport_companies?.name || '-'}</td>
-                    <td>{r.products?.name || '-'}</td>
-                    <td>{r.transport_type || '-'}</td>
+                    <td>{r.customers?.name || '-'}</td>
                     <td>
                       {editId === r.id ? (
                         <input
