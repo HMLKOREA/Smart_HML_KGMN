@@ -16,12 +16,17 @@ const COLS = [
 const MAXROWS = 45;
 
 async function loadFont(text: string): Promise<ArrayBuffer | null> {
+  const UA = { 'User-Agent': 'Mozilla/5.0 (compatible; MSIE 6.0; Windows NT 5.1)' }; // 구형 UA → TTF 응답
   try {
     const url = `https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@500&text=${encodeURIComponent(text)}`;
-    const css = await (await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; MSIE 6.0)' } })).text();
-    const m = css.match(/src:\s*url\((https?:\/\/[^)]+)\)/); // 포맷 태그 무관, 첫 url
+    const css = await (await fetch(url, { headers: UA })).text();
+    const m = css.match(/src:\s*url\((https?:\/\/[^)]+)\)/);
     if (!m) return null;
-    return await (await fetch(m[1])).arrayBuffer();
+    const buf = await (await fetch(m[1], { headers: UA })).arrayBuffer();
+    // woff2(wOF2) 시그니처면 Satori가 못 읽음 → 버림
+    const sig = new Uint8Array(buf.slice(0, 4));
+    if (sig[0] === 0x77 && sig[1] === 0x4f && sig[2] === 0x46 && sig[3] === 0x32) return null;
+    return buf;
   } catch { return null; }
 }
 
