@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { exportToExcel } from '@/lib/utils/exportExcel';
+import { downloadWehago, type WehagoRow } from '@/lib/utils/exportWehago';
 import TransactionStatementPrint from '@/components/modules/settlement/TransactionStatementPrint';
 import SettlementAnalysis from '@/components/modules/settlement/SettlementAnalysis';
 import MultiSelectFilter from '@/components/ui/MultiSelectFilter';
@@ -614,6 +615,46 @@ export default function SettlementPage() {
   // 금액/수량: 소수점 2자리까지 허용(있을 때만 표시), 반올림 없음
   const fmt = (n: number) => n.toLocaleString('ko-KR', { maximumFractionDigits: 2 });
 
+  // ── 위하고(SMART A) 출고처리 엑셀 내보내기 (조회 기간의 출하 건별, 우리 몫만) ──
+  const [wehagoLoading, setWehagoLoading] = useState(false);
+  const handleWehagoExport = async () => {
+    setWehagoLoading(true);
+    try {
+      const PAGE = 1000;
+      let all: Record<string, unknown>[] = [];
+      let page = 0, more = true;
+      while (more) {
+        const { data, error } = await supabase
+          .from('v_shipments')
+          .select('shipment_date, customer_name, product_name, weight_net, vehicle_number, silo')
+          .gte('shipment_date', dateRange.from).lte('shipment_date', dateRange.to)
+          .order('shipment_date')
+          .range(page * PAGE, (page + 1) * PAGE - 1);
+        if (error) throw error;
+        const rows = data || [];
+        all = [...all, ...rows];
+        more = rows.length === PAGE;
+        page++;
+      }
+      if (all.length === 0) { toast.warning('해당 기간 출하 내역이 없습니다.'); return; }
+      const rows: WehagoRow[] = (all as Record<string, unknown>[]).map(s => ({
+        date: String(s.shipment_date ?? ''),
+        customer: (s.customer_name as string) || '미지정',
+        product: (s.product_name as string) || '',
+        weight: Number(s.weight_net) || 0,
+        vehicle: (s.vehicle_number as string) || '',
+        silo: (s.silo as string) || '',
+      }));
+      const label = stlPeriodFilter === 'monthly' ? `${stlYear}-${String(stlMonth).padStart(2, '0')}` : dateRange.label.replace(/[^\w가-힣()~-]/g, '_');
+      downloadWehago(rows, label);
+      toast.success(`위하고 파일 생성 완료 (${rows.length}건)`);
+    } catch {
+      toast.error('위하고 내보내기 중 오류가 발생했습니다.');
+    } finally {
+      setWehagoLoading(false);
+    }
+  };
+
   // ── Inline styles used only for dynamic/computed values ──
   const thStyle: React.CSSProperties = {
     padding: '8px 10px', fontSize: 12, fontWeight: 700, color: '#475569',
@@ -1139,6 +1180,16 @@ export default function SettlementPage() {
                 >
                   엑셀내보내기
                 </button>
+                {isAdmin && (
+                  <button
+                    onClick={handleWehagoExport}
+                    disabled={wehagoLoading}
+                    className="text-[13px] px-3 py-1.5 rounded-lg cursor-pointer font-medium bg-teal-600 text-white border-none hover:bg-teal-700 transition-colors disabled:opacity-50"
+                    title="조회 기간을 위하고(SMART A) 출고처리 업로드 양식으로 내보내기 (우리 몫만 채움)"
+                  >
+                    {wehagoLoading ? '생성 중…' : '위하고 내보내기'}
+                  </button>
+                )}
               </div>
             </div>
 
