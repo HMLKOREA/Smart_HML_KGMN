@@ -19,7 +19,7 @@ async function loadFont(text: string): Promise<ArrayBuffer | null> {
   try {
     const url = `https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@500&text=${encodeURIComponent(text)}`;
     const css = await (await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; MSIE 6.0)' } })).text();
-    const m = css.match(/src:\s*url\((.+?)\)\s*format\('(?:truetype|opentype)'\)/);
+    const m = css.match(/src:\s*url\((https?:\/\/[^)]+)\)/); // 포맷 태그 무관, 첫 url
     if (!m) return null;
     return await (await fetch(m[1])).arrayBuffer();
   } catch { return null; }
@@ -79,6 +79,6 @@ export async function GET(req: Request) {
         )}
       </div>
     ),
-    { width: W, height: H, fonts: font ? [{ name: 'NSK', data: font, weight: 500, style: 'normal' }] : [] },
+    { width: W, height: H, ...(font ? { fonts: [{ name: 'NSK', data: font, weight: 500 as const, style: 'normal' as const }] } : {}) },
   );
 }
