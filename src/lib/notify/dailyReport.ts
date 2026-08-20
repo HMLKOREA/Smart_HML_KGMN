@@ -1,6 +1,7 @@
 /**
- * 일일 배차결과 리포트 — 공용 데이터 조회 + 포맷터
- * 텔레그램(HTML)·네이버웍스(평문) 등 여러 채널에서 재사용.
+ * 일일 배차 다이제스트 — 공용 데이터 조회 + 포맷터
+ * 구성: ① 다음날 배차 목록  ② 그날 배차 완료 결과  ③ 특이사항
+ * 텔레그램(HTML)·네이버웍스/Teams(평문)에서 재사용.
  */
 import { createClient } from '@supabase/supabase-js';
 
@@ -11,26 +12,30 @@ const supabase = createClient(
 );
 
 const PAGE_SIZE = 1000;
+const DAY = ['일', '월', '화', '수', '목', '금', '토'];
 
-export interface DailyReport {
-  date: string;
-  dayName: string;
-  count: number;
-  totalWeight: number;
-  completed: number;
-  byCompany: Array<[string, { count: number; weight: number }]>;
-  byType: Array<[string, { count: number; weight: number }]>;
+/** 'YYYY-MM-DD'에 일수 더하기 (UTC 기준, TZ 무관) */
+function addDays(dateStr: string, n: number): string {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+const dayName = (dateStr: string) => DAY[new Date(dateStr + 'T00:00:00Z').getUTCDay()];
+
+interface Row {
+  date: string; customer: string; product: string; company: string;
+  vehicle: string; driver: string; silo: string; weight: number;
+  done: boolean; note: string;
 }
 
-export async function fetchDailyReport(dateStr: string): Promise<DailyReport> {
+async function fetchRange(from: string, to: string): Promise<Row[]> {
   const all: Record<string, unknown>[] = [];
-  let page = 0;
-  let hasMore = true;
+  let page = 0, hasMore = true;
   while (hasMore) {
     const { data, error } = await supabase
       .from('shipments')
       .select(`*, transport_companies!shipments_company_id_fkey(name), customers!shipments_customer_id_fkey(name), products!shipments_product_id_fkey(name)`)
-      .eq('shipment_date', dateStr)
+      .gte('shipment_date', from).lte('shipment_date', to)
       .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
     if (error) throw error;
     const rows = (data || []) as Record<string, unknown>[];
@@ -38,57 +43,126 @@ export async function fetchDailyReport(dateStr: string): Promise<DailyReport> {
     hasMore = rows.length === PAGE_SIZE;
     page++;
   }
-
-  const rows = all.map(s => ({
-    company: (s.transport_companies as Record<string, string>)?.name || '미지정',
+  return all.map(s => ({
+    date: String(s.shipment_date || ''),
+    customer: (s.customers as Record<string, string>)?.name || '미지정',
     product: (s.products as Record<string, string>)?.name || '미지정',
+    company: (s.transport_companies as Record<string, string>)?.name || '미지정',
+    vehicle: (s.vehicle_number as string) || '',
+    driver: (s.driver_name as string) || '',
+    silo: (s.silo as string) || '',
     weight: Number(s.weight_net) || 0,
-    type: (s.transport_type as string) || '기타',
-    status: s.status as string,
+    done: !!s.is_shipped || !!s.certificate_time,
+    note: (s.notes as string) || '',
   }));
+}
 
-  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-  const totalWeight = rows.reduce((sum, r) => sum + r.weight, 0);
-  const completed = rows.filter(r => r.status === 'completed').length;
+export interface DailyDigest {
+  date: string; dayName: string; nextDate: string; nextDayName: string;
+  today: { total: number; completed: number; totalWeight: number; completedWeight: number;
+           byCompany: Array<{ name: string; count: number; done: number; weight: number }> };
+  next: { total: number; byCustomer: Array<{ customer: string; count: number; products: string[]; companies: string[] }> };
+  issues: { pendingToday: number; notes: Array<{ when: string; customer: string; company: string; note: string }> };
+}
 
-  const byCompanyMap = new Map<string, { count: number; weight: number }>();
-  const byTypeMap = new Map<string, { count: number; weight: number }>();
-  for (const r of rows) {
-    const c = byCompanyMap.get(r.company) || { count: 0, weight: 0 };
-    byCompanyMap.set(r.company, { count: c.count + 1, weight: c.weight + r.weight });
-    const t = byTypeMap.get(r.type) || { count: 0, weight: 0 };
-    byTypeMap.set(r.type, { count: t.count + 1, weight: t.weight + r.weight });
+export async function fetchDailyDigest(dateStr: string): Promise<DailyDigest> {
+  const nextDate = addDays(dateStr, 1);
+  const rows = await fetchRange(dateStr, nextDate);
+  const today = rows.filter(r => r.date === dateStr);
+  const next = rows.filter(r => r.date === nextDate);
+
+  // ② 오늘 완료 결과
+  const compMap = new Map<string, { count: number; done: number; weight: number }>();
+  for (const r of today) {
+    const e = compMap.get(r.company) || { count: 0, done: 0, weight: 0 };
+    e.count++; if (r.done) e.done++; e.weight += r.weight;
+    compMap.set(r.company, e);
+  }
+  const completed = today.filter(r => r.done).length;
+  const completedWeight = today.filter(r => r.done).reduce((s, r) => s + r.weight, 0);
+
+  // ① 다음날 목록 — 거래처별 묶음
+  const custMap = new Map<string, { count: number; products: Set<string>; companies: Set<string> }>();
+  for (const r of next) {
+    const e = custMap.get(r.customer) || { count: 0, products: new Set<string>(), companies: new Set<string>() };
+    e.count++; if (r.product) e.products.add(r.product); if (r.company) e.companies.add(r.company);
+    custMap.set(r.customer, e);
   }
 
+  // ③ 특이사항 — 오늘 미완료 + 비고 있는 건(오늘/내일)
+  const noted = [...today.map(r => ({ ...r, when: '오늘' })), ...next.map(r => ({ ...r, when: '내일' }))]
+    .filter(r => r.note && r.note.trim())
+    .slice(0, 10)
+    .map(r => ({ when: r.when, customer: r.customer, company: r.company, note: r.note.trim() }));
+
   return {
-    date: dateStr,
-    dayName: dayNames[new Date(dateStr).getDay()],
-    count: rows.length,
-    totalWeight,
-    completed,
-    byCompany: [...byCompanyMap.entries()].sort((a, b) => b[1].weight - a[1].weight),
-    byType: [...byTypeMap.entries()],
+    date: dateStr, dayName: dayName(dateStr), nextDate, nextDayName: dayName(nextDate),
+    today: {
+      total: today.length, completed, totalWeight: today.reduce((s, r) => s + r.weight, 0), completedWeight,
+      byCompany: [...compMap.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => b.weight - a.weight),
+    },
+    next: {
+      total: next.length,
+      byCustomer: [...custMap.entries()].map(([customer, v]) => ({ customer, count: v.count, products: [...v.products], companies: [...v.companies] }))
+        .sort((a, b) => b.count - a.count),
+    },
+    issues: { pendingToday: today.length - completed, notes: noted },
   };
 }
 
-/** 평문 포맷 (네이버웍스 봇 등 — HTML 미지원 채널용) */
-export function formatPlainText(d: DailyReport): string {
-  const pct = d.count > 0 ? Math.round((d.completed / d.count) * 100) : 0;
-  let m = `[경기광업 일일 배차결과]\n`;
-  m += `${d.date} (${d.dayName})\n\n`;
-  m += `■ 총괄\n`;
-  m += `- 출하 ${d.count}건 / ${d.totalWeight.toFixed(1)}톤\n`;
-  m += `- 완료 ${d.completed}건 (${pct}%)\n`;
-  m += `- 운송사 ${d.byCompany.length}개사\n\n`;
-  if (d.byCompany.length) {
-    m += `■ 운송사별\n`;
-    for (const [name, v] of d.byCompany) m += `- ${name}: ${v.count}건 / ${v.weight.toFixed(1)}t\n`;
-    m += `\n`;
+// ── HTML (텔레그램) ──
+export function formatDigestHTML(d: DailyDigest): string {
+  const t = d.today, n = d.next;
+  const pct = t.total > 0 ? Math.round((t.completed / t.total) * 100) : 0;
+  let m = `📋 <b>경기광업 일일 배차 보고</b>\n`;
+  m += `🗓 ${d.date} (${d.dayName})\n\n`;
+
+  m += `<b>▶ 다음날 배차 (${d.nextDate} ${d.nextDayName})</b>\n`;
+  if (n.total === 0) m += `  예정 배차 없음\n`;
+  else {
+    m += `  총 <b>${n.total}건</b> · 거래처 ${n.byCustomer.length}곳\n`;
+    for (const c of n.byCustomer) m += `  · ${c.customer} ${c.count}건 <i>(${c.products.join(',')} / ${c.companies.join(',')})</i>\n`;
   }
-  if (d.byType.length) {
-    m += `■ 운송유형별\n`;
-    for (const [type, v] of d.byType) m += `- ${type}: ${v.count}건 / ${v.weight.toFixed(1)}t\n`;
+  m += `\n`;
+
+  m += `<b>▶ 오늘 배차 완료 결과</b>\n`;
+  m += `  완료 <b>${t.completed}/${t.total}건</b> (${pct}%) · ${t.completedWeight.toFixed(1)}/${t.totalWeight.toFixed(1)}톤\n`;
+  for (const c of t.byCompany) m += `  · ${c.name}: ${c.done}/${c.count}건 · ${c.weight.toFixed(1)}t\n`;
+  m += `\n`;
+
+  m += `<b>▶ 특이사항</b>\n`;
+  if (d.issues.pendingToday > 0) m += `  ⚠ 오늘 미완료 ${d.issues.pendingToday}건\n`;
+  if (d.issues.notes.length) for (const x of d.issues.notes) m += `  · [${x.when}] ${x.customer} — ${x.note}\n`;
+  if (d.issues.pendingToday === 0 && d.issues.notes.length === 0) m += `  없음\n`;
+
+  m += `\n🔗 <a href="https://smart-hml.vercel.app/daily-report">상세보기</a>`;
+  return m;
+}
+
+// ── 평문 (네이버웍스 / Teams) ──
+export function formatDigestPlain(d: DailyDigest): string {
+  const t = d.today, n = d.next;
+  const pct = t.total > 0 ? Math.round((t.completed / t.total) * 100) : 0;
+  let m = `[경기광업 일일 배차 보고]\n${d.date} (${d.dayName})\n\n`;
+
+  m += `▶ 다음날 배차 (${d.nextDate} ${d.nextDayName})\n`;
+  if (n.total === 0) m += `- 예정 배차 없음\n`;
+  else {
+    m += `- 총 ${n.total}건 · 거래처 ${n.byCustomer.length}곳\n`;
+    for (const c of n.byCustomer) m += `  · ${c.customer} ${c.count}건 (${c.products.join(',')} / ${c.companies.join(',')})\n`;
   }
-  m += `\n▶ 상세보기: https://smart-hml.vercel.app/daily-report`;
+  m += `\n`;
+
+  m += `▶ 오늘 배차 완료 결과\n`;
+  m += `- 완료 ${t.completed}/${t.total}건 (${pct}%) · ${t.completedWeight.toFixed(1)}/${t.totalWeight.toFixed(1)}톤\n`;
+  for (const c of t.byCompany) m += `  · ${c.name}: ${c.done}/${c.count}건 · ${c.weight.toFixed(1)}t\n`;
+  m += `\n`;
+
+  m += `▶ 특이사항\n`;
+  if (d.issues.pendingToday > 0) m += `- 오늘 미완료 ${d.issues.pendingToday}건\n`;
+  if (d.issues.notes.length) for (const x of d.issues.notes) m += `  · [${x.when}] ${x.customer} — ${x.note}\n`;
+  if (d.issues.pendingToday === 0 && d.issues.notes.length === 0) m += `- 없음\n`;
+
+  m += `\n▶ 상세: https://smart-hml.vercel.app/daily-report`;
   return m;
 }

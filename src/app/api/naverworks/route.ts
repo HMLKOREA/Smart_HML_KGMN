@@ -4,7 +4,7 @@
  * GET  /api/naverworks  → 설정 상태
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchDailyReport, formatPlainText } from '@/lib/notify/dailyReport';
+import { fetchDailyDigest, formatDigestPlain } from '@/lib/notify/dailyReport';
 import { isConfigured, hasChannel, sendChannelMessage } from '@/lib/notify/naverworks';
 
 export const runtime = 'nodejs';
@@ -21,11 +21,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'NAVERWORKS_CHANNEL_ID가 설정되지 않았습니다 (그룹채팅 연결 필요).' }, { status: 400 });
   }
   const body = await request.json().catch(() => ({}));
-  const dateStr = body.date || new Date().toISOString().slice(0, 10);
+  const dateStr = body.date || new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10); // KST 오늘
 
   try {
-    const report = await fetchDailyReport(dateStr);
-    const text = formatPlainText(report);
+    const digest = await fetchDailyDigest(dateStr);
+    const text = formatDigestPlain(digest);
     await sendChannelMessage(text);
     return NextResponse.json({ success: true, date: dateStr, messageLength: text.length });
   } catch (err) {
