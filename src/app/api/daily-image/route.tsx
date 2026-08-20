@@ -27,6 +27,12 @@ async function loadFont(text: string): Promise<ArrayBuffer | null> {
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
+  if (searchParams.get('test')) {
+    return new ImageResponse(
+      (<div style={{ display: 'flex', width: 320, height: 120, background: '#204080', color: '#fff', fontSize: 30, alignItems: 'center', justifyContent: 'center' }}>TEST OK</div>),
+      { width: 320, height: 120 },
+    );
+  }
   const date = searchParams.get('date') || new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
   const nd = nextDayOf(date);
   const allRows = await fetchDayRows(nd);
