@@ -15,6 +15,7 @@ import { useToast } from '@/components/ui/Toast';
 import { getSession } from '@/lib/auth/session';
 import AccessDenied from '@/components/ui/AccessDenied';
 import MultiSelectFilter from '@/components/ui/MultiSelectFilter';
+import { smartCompare } from '@/lib/utils/sortCompare';
 
 // ── Types ──────────────────────────────────────────────
 interface Shipment {
@@ -327,12 +328,7 @@ export default function ShippingPage() {
     arr.sort((a, b) => {
       const av = (a as unknown as Record<string, unknown>)[sort.key];
       const bv = (b as unknown as Record<string, unknown>)[sort.key];
-      if (av == null && bv == null) return 0;
-      if (av == null) return 1;
-      if (bv == null) return -1;
-      let cmp: number;
-      if (typeof av === 'number' && typeof bv === 'number') cmp = av - bv;
-      else cmp = String(av).localeCompare(String(bv), 'ko');
+      const cmp = smartCompare(av, bv);
       return sort.dir === 'asc' ? cmp : -cmp;
     });
     return arr;

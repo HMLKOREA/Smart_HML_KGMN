@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { format, addDays, subDays, endOfMonth } from 'date-fns';
 import { exportToExcel } from '@/lib/utils/exportExcel';
+import { smartCompare } from '@/lib/utils/sortCompare';
 import { useToast } from '@/components/ui/Toast';
 import { getSession } from '@/lib/auth/session';
 
@@ -102,14 +103,7 @@ export default function DispatchPage() {
   const sortedData = useMemo(() => {
     if (!sort.key) return data;
     const k = sort.key as keyof Shipment;
-    const arr = [...data].sort((a, b) => {
-      const av = a[k] as unknown, bv = b[k] as unknown;
-      if (av == null && bv == null) return 0;
-      if (av == null || av === '') return 1;   // 빈값은 뒤로
-      if (bv == null || bv === '') return -1;
-      if (typeof av === 'number' && typeof bv === 'number') return av - bv;
-      return String(av).localeCompare(String(bv), 'ko', { numeric: true });
-    });
+    const arr = [...data].sort((a, b) => smartCompare(a[k] as unknown, b[k] as unknown));
     return sort.dir === 'asc' ? arr : arr.reverse();
   }, [data, sort]);
   const toggleSort = (key: string) =>
