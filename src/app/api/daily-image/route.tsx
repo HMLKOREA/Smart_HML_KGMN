@@ -27,6 +27,7 @@ async function loadFont(text: string): Promise<ArrayBuffer | null> {
 }
 
 export async function GET(req: Request) {
+ try {
   const { searchParams } = new URL(req.url);
   const date = searchParams.get('date') || new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
   const nd = nextDayOf(date);
@@ -80,4 +81,7 @@ export async function GET(req: Request) {
     width: W + 2, height: H,
     fonts: font ? [{ name: 'NSK', data: font, weight: 500, style: 'normal' }] : [],
   });
+ } catch (err) {
+  return new Response('IMG_ERR: ' + (err instanceof Error ? (err.stack || err.message) : String(err)), { status: 500, headers: { 'content-type': 'text/plain; charset=utf-8' } });
+ }
 }
