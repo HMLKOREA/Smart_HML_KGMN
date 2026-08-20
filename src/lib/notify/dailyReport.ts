@@ -22,11 +22,12 @@ function addDays(dateStr: string, n: number): string {
 }
 const dayName = (dateStr: string) => DAY[new Date(dateStr + 'T00:00:00Z').getUTCDay()];
 
-interface Row {
-  date: string; customer: string; product: string; company: string;
+export interface DispatchRow {
+  date: string; type: string; customer: string; product: string; company: string;
   vehicle: string; driver: string; silo: string; weight: number;
   done: boolean; note: string;
 }
+type Row = DispatchRow;
 
 async function fetchRange(from: string, to: string): Promise<Row[]> {
   const all: Record<string, unknown>[] = [];
@@ -45,6 +46,7 @@ async function fetchRange(from: string, to: string): Promise<Row[]> {
   }
   return all.map(s => ({
     date: String(s.shipment_date || ''),
+    type: (s.transport_type as string) || '',
     customer: (s.customers as Record<string, string>)?.name || '미지정',
     product: (s.products as Record<string, string>)?.name || '미지정',
     company: (s.transport_companies as Record<string, string>)?.name || '미지정',
@@ -110,34 +112,58 @@ export async function fetchDailyDigest(dateStr: string): Promise<DailyDigest> {
   };
 }
 
-// ── HTML (텔레그램) ──
+/** 특정 날짜의 배차 건별 행 (이미지 표 등) — 거래처·제품·운송사 순 정렬 */
+export async function fetchDayRows(dateStr: string): Promise<DispatchRow[]> {
+  const rows = await fetchRange(dateStr, dateStr);
+  return rows.sort((a, b) => a.customer.localeCompare(b.customer, 'ko') || a.product.localeCompare(b.product, 'ko'));
+}
+export const nextDayOf = (dateStr: string) => addDays(dateStr, 1);
+export const dayNameOf = (dateStr: string) => dayName(dateStr);
+
+// 표시폭 기반 패딩 (한글·CJK = 2칸)
+const vw = (s: string) => [...s].reduce((n, ch) => n + (/[ᄀ-ᅟ⺀-꓏가-힣豈-﫿＀-｠￠-￦]/.test(ch) ? 2 : 1), 0);
+const padR = (s: string, w: number) => s + ' '.repeat(Math.max(0, w - vw(s)));
+const padL = (s: string, w: number) => ' '.repeat(Math.max(0, w - vw(s))) + s;
+
+// ── HTML (텔레그램) — 모노스페이스 표 ──
 export function formatDigestHTML(d: DailyDigest): string {
   const t = d.today, n = d.next;
   const pct = t.total > 0 ? Math.round((t.completed / t.total) * 100) : 0;
-  let m = `📋 <b>경기광업 일일 배차 보고</b>\n`;
-  m += `🗓 ${d.date} (${d.dayName})\n\n`;
+  let m = `📋 <b>경기광업 일일 배차 보고</b> · ${d.date}(${d.dayName})\n`;
 
-  m += `<b>▶ 다음날 배차 (${d.nextDate} ${d.nextDayName})</b>\n`;
-  if (n.total === 0) m += `  예정 배차 없음\n`;
+  // ① 다음날
+  m += `\n<b>▶ 다음날 배차</b>  ${d.nextDate}(${d.nextDayName}) · <b>${n.total}건</b>\n`;
+  if (n.total === 0) m += `<pre>예정 배차 없음</pre>`;
   else {
-    m += `  총 <b>${n.total}건</b> · 거래처 ${n.byCustomer.length}곳\n`;
-    for (const c of n.byCustomer) m += `  · ${c.customer} ${c.count}건 <i>(${c.products.join(',')} / ${c.companies.join(',')})</i>\n`;
+    const rows = n.byCustomer.slice(0, 10);
+    const cw = Math.min(16, Math.max(6, ...rows.map(c => vw(c.customer))));
+    let tbl = padR('거래처', cw) + ' 건 제품\n';
+    for (const c of rows) tbl += padR(c.customer, cw) + ' ' + padL(String(c.count), 2) + ' ' + c.products.join(',').slice(0, 22) + '\n';
+    if (n.byCustomer.length > 10) tbl += `…외 ${n.byCustomer.length - 10}곳\n`;
+    m += `<pre>${esc(tbl)}</pre>`;
   }
-  m += `\n`;
 
-  m += `<b>▶ 오늘 배차 완료 결과</b>\n`;
-  m += `  완료 <b>${t.completed}/${t.total}건</b> (${pct}%) · ${t.completedWeight.toFixed(1)}/${t.totalWeight.toFixed(1)}톤\n`;
-  for (const c of t.byCompany) m += `  · ${c.name}: ${c.done}/${c.count}건 · ${c.weight.toFixed(1)}t\n`;
-  m += `\n`;
+  // ② 오늘 완료
+  m += `\n<b>▶ 오늘 완료</b>  <b>${t.completed}/${t.total}건</b>(${pct}%) · ${t.completedWeight.toFixed(1)}/${t.totalWeight.toFixed(1)}톤\n`;
+  if (t.total > 0) {
+    const rows = t.byCompany.slice(0, 12);
+    const cw = Math.min(14, Math.max(6, ...rows.map(c => vw(c.name))));
+    let tbl = padR('운송사', cw) + ' 완료   톤\n';
+    for (const c of rows) tbl += padR(c.name, cw) + ' ' + padL(`${c.done}/${c.count}`, 5) + ' ' + padL(c.weight.toFixed(1), 6) + '\n';
+    m += `<pre>${esc(tbl)}</pre>`;
+  }
 
-  m += `<b>▶ 특이사항</b>\n`;
-  if (d.issues.pendingToday > 0) m += `  ⚠ 오늘 미완료 ${d.issues.pendingToday}건\n`;
-  if (d.issues.notes.length) for (const x of d.issues.notes) m += `  · [${x.when}] ${x.customer} — ${x.note}\n`;
-  if (d.issues.pendingToday === 0 && d.issues.notes.length === 0) m += `  없음\n`;
+  // ③ 특이사항
+  m += `\n<b>▶ 특이사항</b>\n`;
+  const lines: string[] = [];
+  if (d.issues.pendingToday > 0) lines.push(`⚠ 오늘 미완료 ${d.issues.pendingToday}건`);
+  for (const x of d.issues.notes.slice(0, 6)) lines.push(`[${x.when}] ${x.customer} — ${x.note}`);
+  m += lines.length ? esc(lines.join('\n')) : '없음';
 
-  m += `\n🔗 <a href="https://smart-hml.vercel.app/daily-report">상세보기</a>`;
+  m += `\n\n🔗 <a href="https://smart-hml.vercel.app/daily-report">상세보기</a>`;
   return m;
 }
+const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 // ── 평문 (네이버웍스 / Teams) ──
 export function formatDigestPlain(d: DailyDigest): string {
