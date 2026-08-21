@@ -527,6 +527,43 @@ async function syncQualityReports(conn) {
 
 // ─── 메인 실행 ─────────────────────────────────────
 // deltaOverride: true=증분, false=전체, undefined=argv 기준 (라우트/크론에서 호출용)
+// 삭제 반영: 최근 구간에서 레거시(out_info)에 더 이상 없는 출하를 우리 DB에서 제거.
+// (레거시가 미배정/중복 출하를 삭제해도 upsert만으로는 고아행이 남는 문제 해결)
+async function reconcileDeletedShipments(conn) {
+  log('── 삭제 반영(출하 정리) ──');
+  const RECONCILE_DAYS = 14;
+  const d = new Date();
+  d.setDate(d.getDate() - RECONCILE_DAYS);
+  const since = d.toISOString().slice(0, 10);
+
+  const [live] = await conn.query(`SELECT uid FROM out_info WHERE out_date >= '${since}'`);
+  if (!live.length) { log('  레거시 조회 0건 → 삭제 반영 건너뜀(안전장치)'); return; }
+  const liveSet = new Set(live.map(x => `OUT-${x.uid}`));
+
+  const ours = [];
+  let pg = 0, more = true;
+  while (more) {
+    const { data } = await supabase.from('shipments')
+      .select('id, shipment_number').gte('shipment_date', since)
+      .range(pg * 1000, (pg + 1) * 1000 - 1);
+    const ch = data || [];
+    ours.push(...ch);
+    more = ch.length === 1000;
+    pg++;
+  }
+  const orphanIds = ours.filter(o => !liveSet.has(o.shipment_number)).map(o => o.id);
+  if (!orphanIds.length) { log('  고아 출하 없음'); return; }
+
+  let del = 0;
+  for (let i = 0; i < orphanIds.length; i += 200) {
+    const chunk = orphanIds.slice(i, i + 200);
+    const { error } = await supabase.from('shipments').delete().in('id', chunk);
+    if (!error) del += chunk.length;
+    else log(`  ⚠️ 삭제 오류: ${error.message}`);
+  }
+  log(`  삭제 반영: ${del}건 (레거시에서 제거된 출하 정리)`);
+}
+
 export async function runSync(deltaOverride) {
   if (deltaOverride !== undefined) isDelta = deltaOverride;
   const startTime = Date.now();
@@ -549,6 +586,7 @@ export async function runSync(deltaOverride) {
 
     // 트랜잭션 데이터
     await syncShipments(conn);
+    await reconcileDeletedShipments(conn);
     await syncUnitPrices(conn);
     await syncQualityReports(conn);
 
