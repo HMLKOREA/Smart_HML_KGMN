@@ -12,8 +12,16 @@ interface ShipmentPrintProps {
     shipment_number: string;
     customer_name?: string;
     product_name?: string;
+    product_code?: string;
+    quantity?: number;
+    unit?: string;
+    driver_name?: string;
     company_name?: string;
     vehicle_number?: string;
+    weight_empty?: number;
+    weight_loaded?: number;
+    weight_net?: number;
+    delivery_address?: string;
     certificate_time?: string;
     memo?: string;
     notes?: string;
