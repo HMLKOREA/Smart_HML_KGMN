@@ -437,6 +437,13 @@ export default function SettlementPage() {
   }, [settlements, prevSettlements, dateRange, prevRange, stlPeriodFilter, fetchSettlementRange]);
 
   // ── Effects ──
+  // 태블릿/모바일(≤1024): 좌측 조회조건 패널 자동 접기
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setStlFilterCollapsed(true);
+      setUpFilterCollapsed(true);
+    }
+  }, []);
   useEffect(() => { fetchUnitPrices(); }, []);
   useEffect(() => { if (activeTab === 'settlement') loadSettlements(); }, [activeTab, dateRange.from, dateRange.to]);
 

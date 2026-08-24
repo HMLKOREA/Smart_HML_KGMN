@@ -311,6 +311,10 @@ export default function ShippingPage() {
   }, [supabase, toast]);
 
   useEffect(() => { fetchLookups(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // 태블릿/모바일(≤1024)에서는 조회조건 패널을 자동 접어 리스트에 폭을 몰아준다
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) setFilterCollapsed(true);
+  }, []);
   // 날짜/모드 변경 시 자동 조회
   useEffect(() => { fetchData(); }, [selectedDate, dateMode, periodFrom, periodTo]); // eslint-disable-line react-hooks/exhaustive-deps
 

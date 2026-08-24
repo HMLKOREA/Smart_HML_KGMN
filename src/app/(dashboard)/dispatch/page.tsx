@@ -135,7 +135,7 @@ export default function DispatchPage() {
   // Auto-collapse filter on mobile
   useEffect(() => {
     const checkMobile = () => {
-      if (window.innerWidth < 768) setFilterCollapsed(true);
+      if (window.innerWidth < 1024) setFilterCollapsed(true);
     };
     checkMobile();
   }, []);
