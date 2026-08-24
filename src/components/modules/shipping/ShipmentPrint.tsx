@@ -3,323 +3,143 @@
 import { useEffect } from 'react';
 
 /**
- * 출하증 출력 컴포넌트
- * 경기광업주식회사 스타일 — A4 용지에 2매 복사본 (상/하)
- *
- * 레이아웃 계산 (A4 = 210mm × 297mm):
- *   @page margin: 0  →  전체 297mm 사용
- *   내부 padding: 14mm 상하, 20mm 좌우
- *   가용 높이: 297 - 28 = 269mm
- *   각 복사본: (269 - 5mm 절취선) / 2 ≈ 132mm
- *   복사본 콘텐츠: ~105mm → 27mm 여유 (space-between으로 배분)
+ * 출하증 출력 — 경기광업주식회사 양식 (기존 출하증과 동일)
+ * A4 1장에 2매(상/하), 여백 좁게.
  */
-
 interface ShipmentPrintProps {
   shipment: {
     shipment_date: string;
     shipment_number: string;
     customer_name?: string;
     product_name?: string;
-    product_code?: string;
-    quantity: number;
-    unit: string;
-    driver_name?: string;
-    vehicle_number?: string;
     company_name?: string;
-    weight_empty?: number;
-    weight_loaded?: number;
-    weight_net?: number;
-    delivery_address?: string;
-    memo?: string;
+    vehicle_number?: string;
     certificate_time?: string;
+    memo?: string;
     notes?: string;
   };
   onClose: () => void;
 }
 
-/** 단일 출하증 복사본 (상/하 반복용) */
-function CertificateCopy({ shipment, issuedTime }: { shipment: ShipmentPrintProps['shipment']; issuedTime: string }) {
-  // 중량 표시: weight_net 우선, 없으면 공차/적재 표시
-  const weightDisplay = shipment.weight_net
-    ? `${shipment.weight_net} ton`
-    : shipment.weight_loaded && shipment.weight_empty
-      ? `공차 ${shipment.weight_empty}t / 적재 ${shipment.weight_loaded}t`
-      : shipment.weight_loaded
-        ? `적재 ${shipment.weight_loaded}t`
-        : shipment.weight_empty
-          ? `공차 ${shipment.weight_empty}t`
-          : '-';
+const pad = (n: number) => String(n).padStart(2, '0');
+const fmtDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const fmtDateTime = (d: Date) => `${fmtDate(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 
-  // 수량 표시
-  const quantityDisplay = shipment.quantity
-    ? `${shipment.quantity} ${shipment.unit || ''}`
-    : '-';
-
+/** 단일 출하증 복사본 */
+function CertificateCopy({ shipment, shipDate, issuedTime }: { shipment: ShipmentPrintProps['shipment']; shipDate: string; issuedTime: string }) {
   const rows: [string, string][] = [
-    ['출하일시', issuedTime],
-    ['출    하', '경기광업'],
-    ['거 래 처', shipment.customer_name || '-'],
-    ['배 송 지', shipment.delivery_address || '-'],
-    ['제 품 명', shipment.product_name || '-'],
-    ['수    량', quantityDisplay],
-    ['운 송 사', shipment.company_name || '-'],
-    ['기 사 명', shipment.driver_name || '-'],
+    ['출하일시', shipDate],
+    ['출하', '경기광업'],
+    ['거래처', shipment.customer_name || '-'],
+    ['제품명', shipment.product_name || '-'],
+    ['운송사', shipment.company_name || '-'],
     ['차량정보', shipment.vehicle_number || '-'],
-    ['중    량', weightDisplay],
-    ['기    타', shipment.notes || shipment.memo || ''],
+    ['중량', '계량 기준에 따름'],
+    ['기타', shipment.notes || shipment.memo || ''],
   ];
 
   return (
-    <div className="print-doc" style={{
-      height: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'space-between',
-    }}>
-      {/* ── 상단: 로고 + 제목 + 테이블 ── */}
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', fontFamily: "'Malgun Gothic','맑은 고딕',sans-serif" }}>
+      {/* 상단: 경기광업 로고 + 제목 + 표 */}
       <div>
-        {/* 경기광업 로고 (PNG: 로고마크 + 경기광업주식회사 텍스트 포함) */}
-        <div style={{ marginBottom: 8 }}>
+        {/* 경기광업 로고 (마크 + 경기광업주식회사 텍스트 포함) — 중앙 */}
+        <div style={{ textAlign: 'center', marginBottom: 6 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/kgmn-logo.png"
-            alt="경기광업주식회사"
-            style={{ height: 28, objectFit: 'contain', display: 'block' }}
-          />
+          <img src="/kgmn-logo.png" alt="경기광업주식회사" style={{ height: 34, objectFit: 'contain', display: 'inline-block' }} />
         </div>
 
         {/* 제목 */}
-        <div style={{
-          textAlign: 'center',
-          marginTop: 28,
-          marginBottom: 10,
-          borderBottom: '2px solid #1e293b',
-          paddingBottom: 6,
-        }}>
-          <h2 style={{
-            fontSize: 22,
-            fontWeight: 800,
-            color: '#1e293b',
-            letterSpacing: '0.4em',
-            textDecoration: 'underline',
-            textUnderlineOffset: 5,
-            textDecorationThickness: 2,
-            textDecorationColor: '#1e293b',
-            margin: 0,
-            padding: 0,
-            lineHeight: 1.3,
-          }}>
-            출 하 증
-          </h2>
+        <div style={{ textAlign: 'center', margin: '6px 0 10px' }}>
+          <span style={{ fontSize: 20, fontWeight: 800, color: '#111', letterSpacing: '0.15em' }}>출하증</span>
         </div>
 
-        {/* 테이블 */}
-        <table style={{
-          width: '100%',
-          borderCollapse: 'collapse',
-          border: '1.5px solid #374151',
-        }}>
+        {/* 표 (중앙, 좌우 여백) */}
+        <table style={{ width: '80%', margin: '0 auto', borderCollapse: 'collapse', border: '1px solid #555' }}>
           <tbody>
             {rows.map(([label, value], i) => (
               <tr key={i}>
                 <td style={{
-                  width: 100,
-                  padding: '6px 14px',
-                  backgroundColor: '#f3f4f6',
-                  borderBottom: i < rows.length - 1 ? '1px solid #d1d5db' : 'none',
-                  borderRight: '1.5px solid #374151',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: '#374151',
-                  whiteSpace: 'pre',
-                  letterSpacing: '0.06em',
-                  lineHeight: 1.4,
-                }}>
-                  {label}
-                </td>
+                  width: '30%', padding: '6px 8px', textAlign: 'center', verticalAlign: 'middle',
+                  border: '1px solid #9aa0a6', fontSize: 12.5, fontWeight: 700, color: '#222', whiteSpace: 'nowrap',
+                }}>{label}</td>
                 <td style={{
-                  padding: '6px 16px',
-                  borderBottom: i < rows.length - 1 ? '1px solid #d1d5db' : 'none',
-                  fontSize: 13,
-                  color: '#111827',
-                  lineHeight: 1.4,
-                }}>
-                  {value}
-                </td>
+                  padding: '6px 10px', textAlign: 'center', verticalAlign: 'middle',
+                  border: '1px solid #9aa0a6', fontSize: 12.5, color: '#111',
+                }}>{value}</td>
               </tr>
             ))}
           </tbody>
         </table>
+
+        {/* 발급시각 (표 아래 우측) */}
+        <div style={{ width: '80%', margin: '6px auto 0', textAlign: 'right', fontSize: 11, color: '#333' }}>
+          출하일시:&nbsp;&nbsp;&nbsp;{issuedTime}
+        </div>
       </div>
 
-      {/* ── 하단: 발급시간 + HAMEL 정보 ── */}
-      <div>
-        <div style={{
-          fontSize: 10,
-          color: '#6b7280',
-          marginBottom: 6,
-          lineHeight: 1,
-        }}>
-          출하일시: {issuedTime}
-        </div>
-        <div style={{
-          borderTop: '1px solid #d1d5db',
-          paddingTop: 8,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/hamel-logo.png"
-              alt="HAMEL KOREA"
-              style={{ height: 24, objectFit: 'contain' }}
-            />
-            <div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#374151', lineHeight: 1.4 }}>
-                HAMEL KOREA CO., LTD
-              </div>
-              <div style={{ fontSize: 8, color: '#6b7280', lineHeight: 1.4 }}>
-                서울시 강남구 선릉로 638
-              </div>
-            </div>
-          </div>
-          <div style={{ fontSize: 8, color: '#6b7280', textAlign: 'right', lineHeight: 1.6 }}>
-            <div>kgmn@hmlkorea.com</div>
-            <div>www.moqv.kr</div>
-          </div>
-        </div>
+      {/* 하단: 하멜 로고 + 회사정보 (중앙) */}
+      <div style={{ textAlign: 'center', marginTop: 8 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/hamel-logo.png" alt="HAMEL KOREA" style={{ height: 30, objectFit: 'contain', display: 'inline-block', marginBottom: 3 }} />
+        <div style={{ fontSize: 10, fontWeight: 700, color: '#222', lineHeight: 1.6 }}>HAMEL KOREA CO., LTD</div>
+        <div style={{ fontSize: 9, color: '#444', lineHeight: 1.6 }}>W.SHANGHAI HAMEL SUPPLYCHAIN TECHNOLOGY</div>
+        <div style={{ fontSize: 9, color: '#444', lineHeight: 1.6 }}>서울특별시 강남구 삼성동 34-1 예림빌딩 2F</div>
+        <div style={{ fontSize: 9, color: '#444', lineHeight: 1.6 }}>T. 02-6956-6710 / F. 02-6956-6712</div>
       </div>
     </div>
   );
 }
 
 export default function ShipmentPrint({ shipment, onClose }: ShipmentPrintProps) {
-  const now = new Date();
-  const issuedTime = shipment.certificate_time
-    ? (() => {
-        const d = new Date(shipment.certificate_time);
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-      })()
-    : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const issued = shipment.certificate_time ? new Date(shipment.certificate_time) : new Date();
+  const issuedTime = fmtDateTime(issued);
+  const shipDate = shipment.shipment_date
+    ? String(shipment.shipment_date).slice(0, 10)
+    : fmtDate(issued);
 
-  // 자동 인쇄
   useEffect(() => {
     const timer = setTimeout(() => window.print(), 400);
     return () => clearTimeout(timer);
   }, []);
-
-  // ESC 키로 닫기
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
   }, [onClose]);
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center">
-      {/* 인쇄/닫기 버튼 — 화면에서만 표시 */}
       <div className="no-print fixed top-4 right-4 flex gap-2 z-[210]">
-        <button
-          onClick={() => window.print()}
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-        >
-          인쇄
-        </button>
-        <button
-          onClick={onClose}
-          className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-medium"
-        >
-          닫기
-        </button>
+        <button onClick={() => window.print()} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">인쇄</button>
+        <button onClick={onClose} className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-medium">닫기</button>
       </div>
 
-      {/* ── 출하증 본문 (A4) ──
-          화면: 210mm × 297mm 고정 크기 미리보기
-          인쇄: @page margin:0 + 내부 padding으로 여백 제어
-      */}
       <div
         id="print-shipment-area"
         style={{
-          width: '210mm',
-          height: '297mm',
-          backgroundColor: '#fff',
-          boxShadow: '0 4px 24px rgba(0,0,0,0.15)',
-          boxSizing: 'border-box',
-          padding: '14mm 20mm',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
+          width: '210mm', height: '297mm', backgroundColor: '#fff', boxShadow: '0 4px 24px rgba(0,0,0,0.15)',
+          boxSizing: 'border-box', padding: '9mm 12mm', display: 'flex', flexDirection: 'column', overflow: 'hidden',
         }}
       >
-        {/* 1매 — 상단 절반 */}
         <div style={{ flex: 1, minHeight: 0 }}>
-          <CertificateCopy shipment={shipment} issuedTime={issuedTime} />
+          <CertificateCopy shipment={shipment} shipDate={shipDate} issuedTime={issuedTime} />
         </div>
-
-        {/* 절취선 */}
-        <div style={{
-          flexShrink: 0,
-          padding: '6px 0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          position: 'relative',
-        }}>
-          <div style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            borderBottom: '1px dashed #9ca3af',
-          }} />
-          <span style={{
-            position: 'relative',
-            backgroundColor: '#fff',
-            padding: '0 12px',
-            fontSize: 9,
-            color: '#9ca3af',
-          }}>
-            ✂ 절취선
-          </span>
+        <div style={{ flexShrink: 0, padding: '5px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+          <div style={{ position: 'absolute', left: 0, right: 0, borderBottom: '1px dashed #9ca3af' }} />
+          <span style={{ position: 'relative', backgroundColor: '#fff', padding: '0 12px', fontSize: 9, color: '#9ca3af' }}>✂ 절취선</span>
         </div>
-
-        {/* 2매 — 하단 절반 */}
         <div style={{ flex: 1, minHeight: 0 }}>
-          <CertificateCopy shipment={shipment} issuedTime={issuedTime} />
+          <CertificateCopy shipment={shipment} shipDate={shipDate} issuedTime={issuedTime} />
         </div>
       </div>
 
-      {/* 인쇄 전용 스타일 — @page margin:0 으로 잘림 방지 */}
       <style>{`
         @media print {
-          @page {
-            size: A4;
-            margin: 0;
-          }
-          body * {
-            visibility: hidden;
-          }
-          #print-shipment-area, #print-shipment-area * {
-            visibility: visible;
-          }
-          #print-shipment-area {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 210mm;
-            height: 297mm;
-            padding: 14mm 20mm;
-            box-sizing: border-box;
-            box-shadow: none !important;
-          }
-          .no-print {
-            display: none !important;
-          }
+          @page { size: A4; margin: 0; }
+          body * { visibility: hidden; }
+          #print-shipment-area, #print-shipment-area * { visibility: visible; }
+          #print-shipment-area { position: absolute; left: 0; top: 0; width: 210mm; height: 297mm; padding: 9mm 12mm; box-sizing: border-box; box-shadow: none !important; }
+          .no-print { display: none !important; }
         }
       `}</style>
     </div>
