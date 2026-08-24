@@ -1211,11 +1211,12 @@ export default function ShippingPage() {
                     const base: React.CSSProperties = { position: 'sticky', top: 0, padding: '7px 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
                     const sortable: React.CSSProperties = { ...base, cursor: 'pointer', userSelect: 'none' };
                     const arrow = (k: string) => (sort?.key === k ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '');
+                    // 필터 버튼 — 셀 우측 상단(엑셀식). 리사이즈 핸들(right:0) 왼쪽에 배치.
                     const fIcon = (k: string) => (
                       <span
                         onClick={(e) => { e.stopPropagation(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setFilterSearch(''); setOpenFilter(openFilter?.key === k ? null : { key: k, x: r.left, y: r.bottom }); }}
                         title="필터"
-                        style={{ marginLeft: 3, cursor: 'pointer', fontSize: 10, color: colFilter[k]?.length ? '#2563eb' : '#c7ccd3' }}
+                        style={{ position: 'absolute', top: 2, right: 10, cursor: 'pointer', fontSize: 9, lineHeight: 1, padding: '2px 3px', borderRadius: 3, zIndex: 1, color: colFilter[k]?.length ? '#fff' : '#64748b', background: colFilter[k]?.length ? '#2563eb' : '#e8ebef' }}
                       >▼</span>
                     );
                     return (
