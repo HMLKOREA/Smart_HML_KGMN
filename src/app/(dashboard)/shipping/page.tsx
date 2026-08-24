@@ -313,8 +313,11 @@ export default function ShippingPage() {
   // 날짜/모드 변경 시 자동 조회
   useEffect(() => { fetchData(); }, [selectedDate, dateMode, periodFrom, periodTo]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── 정렬 (헤더 클릭: 오름차순 → 내림차순 → 해제) ──
+  // ── 정렬 + 엑셀식 컬럼 필터 ──
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
+  const [colFilter, setColFilter] = useState<Record<string, string[]>>({});
+  const [openFilter, setOpenFilter] = useState<{ key: string; x: number; y: number } | null>(null);
+  const [filterSearch, setFilterSearch] = useState('');
   const toggleSort = useCallback((key: string) => {
     setSort(prev =>
       !prev || prev.key !== key ? { key, dir: 'asc' }
@@ -322,17 +325,25 @@ export default function ShippingPage() {
           : null
     );
   }, []);
+  const cellStr = (row: unknown, key: string) => String((row as Record<string, unknown>)[key] ?? '');
   const sortedData = useMemo(() => {
-    if (!sort) return data;
-    const arr = [...data];
-    arr.sort((a, b) => {
-      const av = (a as unknown as Record<string, unknown>)[sort.key];
-      const bv = (b as unknown as Record<string, unknown>)[sort.key];
-      const cmp = smartCompare(av, bv);
-      return sort.dir === 'asc' ? cmp : -cmp;
-    });
+    let arr = data;
+    const active = Object.entries(colFilter); // 존재하는 키 = 활성 필터
+    if (active.length) arr = arr.filter(row => active.every(([k, vals]) => vals.includes(cellStr(row, k))));
+    if (sort) {
+      arr = [...arr].sort((a, b) => {
+        const cmp = smartCompare((a as unknown as Record<string, unknown>)[sort.key], (b as unknown as Record<string, unknown>)[sort.key]);
+        return sort.dir === 'asc' ? cmp : -cmp;
+      });
+    }
     return arr;
-  }, [data, sort]);
+  }, [data, sort, colFilter]);
+  // 컬럼 고유값 (필터 옵션) — 전체 data 기준
+  const distinctVals = useCallback((key: string) => {
+    const s = new Set<string>();
+    for (const row of data) s.add(cellStr(row, key));
+    return [...s].sort((a, b) => smartCompare(a, b));
+  }, [data]);
 
   // ── Selection ──
   const allRows = useMemo(() => [...newRows, ...sortedData], [newRows, sortedData]);
@@ -1200,6 +1211,13 @@ export default function ShippingPage() {
                     const base: React.CSSProperties = { position: 'sticky', top: 0, padding: '7px 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
                     const sortable: React.CSSProperties = { ...base, cursor: 'pointer', userSelect: 'none' };
                     const arrow = (k: string) => (sort?.key === k ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '');
+                    const fIcon = (k: string) => (
+                      <span
+                        onClick={(e) => { e.stopPropagation(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setFilterSearch(''); setOpenFilter(openFilter?.key === k ? null : { key: k, x: r.left, y: r.bottom }); }}
+                        title="필터"
+                        style={{ marginLeft: 3, cursor: 'pointer', fontSize: 10, color: colFilter[k]?.length ? '#2563eb' : '#c7ccd3' }}
+                      >▼</span>
+                    );
                     return (
                       <>
                         <th style={{ ...base, textAlign: 'center' }}>#<Handle ck="rownum" /></th>
@@ -1207,13 +1225,13 @@ export default function ShippingPage() {
                           <input type="checkbox" checked={selectedIds.size === allRows.length && allRows.length > 0} onChange={toggleSelectAll} />
                           <Handle ck="check" />
                         </th>
-                        <th onClick={() => toggleSort('shipment_date')} title="클릭 시 정렬" style={sortable}>출하일자{arrow('shipment_date')}<Handle ck="shipment_date" /></th>
-                        <th onClick={() => toggleSort('transport_type')} title="클릭 시 정렬" style={sortable}>운송구분{arrow('transport_type')}<Handle ck="transport_type" /></th>
-                        <th onClick={() => toggleSort('customer_name')} title="클릭 시 정렬" style={sortable}>거래처{arrow('customer_name')}<Handle ck="customer_name" /></th>
-                        <th onClick={() => toggleSort('product_name')} title="클릭 시 정렬" style={sortable}>제품명{arrow('product_name')}<Handle ck="product_name" /></th>
-                        <th onClick={() => toggleSort('company_name')} title="클릭 시 정렬" style={sortable}>운송사{arrow('company_name')}<Handle ck="company_name" /></th>
+                        <th onClick={() => toggleSort('shipment_date')} title="클릭 시 정렬" style={sortable}>출하일자{arrow('shipment_date')}{fIcon('shipment_date')}<Handle ck="shipment_date" /></th>
+                        <th onClick={() => toggleSort('transport_type')} title="클릭 시 정렬" style={sortable}>운송구분{arrow('transport_type')}{fIcon('transport_type')}<Handle ck="transport_type" /></th>
+                        <th onClick={() => toggleSort('customer_name')} title="클릭 시 정렬" style={sortable}>거래처{arrow('customer_name')}{fIcon('customer_name')}<Handle ck="customer_name" /></th>
+                        <th onClick={() => toggleSort('product_name')} title="클릭 시 정렬" style={sortable}>제품명{arrow('product_name')}{fIcon('product_name')}<Handle ck="product_name" /></th>
+                        <th onClick={() => toggleSort('company_name')} title="클릭 시 정렬" style={sortable}>운송사{arrow('company_name')}{fIcon('company_name')}<Handle ck="company_name" /></th>
                         <th onClick={() => toggleSort('vehicle_number')} title="클릭 시 정렬" style={sortable}>차량정보{arrow('vehicle_number')}<Handle ck="vehicle_number" /></th>
-                        <th onClick={() => toggleSort('silo')} title="클릭 시 정렬" style={sortable}>사일로{arrow('silo')}<Handle ck="silo" /></th>
+                        <th onClick={() => toggleSort('silo')} title="클릭 시 정렬" style={sortable}>사일로{arrow('silo')}{fIcon('silo')}<Handle ck="silo" /></th>
                         <th style={{ ...base, textAlign: 'center' }}>출하<Handle ck="shipped" /></th>
                         <th onClick={() => toggleSort('weight_net')} title="클릭 시 정렬" style={sortable}>계근결과{arrow('weight_net')}<Handle ck="weight_net" /></th>
                         <th style={base}>기타<Handle ck="notes" /></th>
@@ -1450,6 +1468,52 @@ export default function ShippingPage() {
       })()}
 
       {/* ═══ 출하증대기화면 — 3단계 플로우 ═══ */}
+      {/* ═══ 엑셀식 컬럼 필터 드롭다운 ═══ */}
+      {openFilter && (() => {
+        const key = openFilter.key;
+        const label: Record<string, string> = { shipment_date: '출하일자', transport_type: '운송구분', customer_name: '거래처', product_name: '제품명', company_name: '운송사', silo: '사일로' };
+        const vals = distinctVals(key);
+        const sel = colFilter[key]; // undefined = 전체
+        const isChecked = (v: string) => !sel || sel.includes(v);
+        const apply = (next: string[]) => setColFilter(p => {
+          const cp = { ...p };
+          if (next.length >= vals.length) delete cp[key]; else cp[key] = next;
+          return cp;
+        });
+        const toggleVal = (v: string) => { const cur = sel ?? vals; apply(cur.includes(v) ? cur.filter(x => x !== v) : [...cur, v]); };
+        const shown = vals.filter(v => !filterSearch || (v === '' ? '(빈값)' : v).toLowerCase().includes(filterSearch.toLowerCase()));
+        const allShownChecked = shown.every(isChecked);
+        return (
+          <>
+            <div onClick={() => setOpenFilter(null)} style={{ position: 'fixed', inset: 0, zIndex: 300 }} />
+            <div style={{ position: 'fixed', left: Math.max(6, Math.min(openFilter.x, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 254)), top: openFilter.y + 2, zIndex: 301, width: 244, background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, boxShadow: '0 10px 28px rgba(0,0,0,.18)', padding: 8, display: 'flex', flexDirection: 'column', maxHeight: 380 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>{label[key] || key} 필터</div>
+              <input autoFocus placeholder="검색…" value={filterSearch} onChange={e => setFilterSearch(e.target.value)}
+                style={{ fontSize: 12, padding: '5px 8px', border: '1px solid #d1d5db', borderRadius: 6, marginBottom: 6 }} />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 4px', fontSize: 12.5, fontWeight: 600, borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}>
+                <input type="checkbox" checked={allShownChecked} onChange={() => apply(allShownChecked ? (sel ?? vals).filter(v => !shown.includes(v)) : [...new Set([...(sel ?? []), ...shown])])} />
+                (모두)
+              </label>
+              <div style={{ overflowY: 'auto', flex: 1, marginTop: 2 }}>
+                {shown.map(v => (
+                  <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 4px', fontSize: 12.5, cursor: 'pointer', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                    <input type="checkbox" checked={isChecked(v)} onChange={() => toggleVal(v)} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{v === '' ? '(빈값)' : v}</span>
+                  </label>
+                ))}
+                {shown.length === 0 && <div style={{ fontSize: 12, color: '#9ca3af', padding: 8 }}>검색 결과 없음</div>}
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <button onClick={() => { setColFilter(p => { const cp = { ...p }; delete cp[key]; return cp; }); }}
+                  style={{ flex: 1, fontSize: 12, padding: '6px 0', border: '1px solid #d1d5db', borderRadius: 6, background: '#f8fafc', cursor: 'pointer', color: '#475569', fontWeight: 600 }}>필터 해제</button>
+                <button onClick={() => setOpenFilter(null)}
+                  style={{ flex: 1, fontSize: 12, padding: '6px 0', border: 'none', borderRadius: 6, background: '#2563eb', color: '#fff', cursor: 'pointer', fontWeight: 700 }}>닫기</button>
+              </div>
+            </div>
+          </>
+        );
+      })()}
+
       {showWaitingScreen && (() => {
         // 정렬된 운송사 목록
         const sortedCompanies = [...companies].sort((a, b) => {
