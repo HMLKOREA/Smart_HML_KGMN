@@ -7,6 +7,7 @@ import { useToast } from '@/components/ui/Toast';
 import { getSession } from '@/lib/auth/session';
 import AccessDenied from '@/components/ui/AccessDenied';
 import { smartCompare } from '@/lib/utils/sortCompare';
+import * as XLSX from 'xlsx';
 
 // ── Types ──
 // 단가 = 운송사 × 거래처 × 월 (레거시 unit_mst). 제품·운송구분은 단가에 없음.
@@ -47,6 +48,9 @@ export default function UnitPricePage() {
   const [editVal, setEditVal] = useState<number>(0);
   const [copying, setCopying] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'change', dir: 'desc' });
+  const [fCompany, setFCompany] = useState('');
+  const [fCustomer, setFCustomer] = useState('');
+  const [exporting, setExporting] = useState(false);
 
   const fetchData = useCallback(async (ym: string) => {
     setLoading(true);
@@ -110,7 +114,52 @@ export default function UnitPricePage() {
     return arr;
   }, [rows, sort]);
 
-  const changedCount = useMemo(() => rows.filter(r => (r.delta !== null && r.delta !== 0) || r.prevPrice === null).length, [rows]);
+  // 조회조건(운송사·거래처) 적용된 표시 행
+  const companyOptions = useMemo(() => [...new Set(rows.map(r => r.transport_companies?.name).filter(Boolean) as string[])].sort((a, b) => smartCompare(a, b)), [rows]);
+  const viewRows = useMemo(() => sortedRows.filter(r =>
+    (!fCompany || r.transport_companies?.name === fCompany) &&
+    (!fCustomer || (r.customers?.name || '').toLowerCase().includes(fCustomer.toLowerCase()))
+  ), [sortedRows, fCompany, fCustomer]);
+  const changedCount = useMemo(() => viewRows.filter(r => (r.delta !== null && r.delta !== 0) || r.prevPrice === null).length, [viewRows]);
+
+  // 전체(모든 월) 단가 엑셀 다운로드 — 조회조건 있으면 반영
+  const handleExcel = async () => {
+    setExporting(true);
+    try {
+      const PAGE = 1000;
+      let all: unknown[] = [];
+      let pg = 0, more = true;
+      while (more) {
+        const { data, error } = await supabase
+          .from('unit_prices')
+          .select('company_id, customer_id, price, effective_date, transport_companies(name), customers(name)')
+          .range(pg * PAGE, (pg + 1) * PAGE - 1);
+        if (error) throw error;
+        const r = data || [];
+        all = [...all, ...r];
+        more = r.length === PAGE;
+        pg++;
+      }
+      const list = (all as unknown as UnitPrice[])
+        .filter(r => (!fCompany || r.transport_companies?.name === fCompany)
+          && (!fCustomer || (r.customers?.name || '').toLowerCase().includes(fCustomer.toLowerCase())))
+        .sort((a, b) => smartCompare(a.transport_companies?.name, b.transport_companies?.name)
+          || smartCompare(a.customers?.name, b.customers?.name)
+          || String(a.effective_date).localeCompare(String(b.effective_date)));
+      if (!list.length) { toast.warning('내보낼 단가가 없습니다.'); return; }
+      const aoa: (string | number)[][] = [['운송사', '거래처', '적용월', '단가(원/톤)']];
+      for (const r of list) aoa.push([r.transport_companies?.name || '', r.customers?.name || '', String(r.effective_date).slice(0, 7), Number(r.price)]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), '단가');
+      const tag = fCompany || fCustomer ? '_조회' : '_전체';
+      XLSX.writeFile(wb, `단가${tag}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      toast.success(`엑셀 ${list.length}건 내보내기 완료`);
+    } catch {
+      toast.error('엑셀 내보내기 중 오류가 발생했습니다.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const saveEdit = async (id: string) => {
     try {
@@ -170,6 +219,17 @@ export default function UnitPricePage() {
         <label className="text-sm font-semibold text-gray-700">조회 월</label>
         <input type="month" value={month} onChange={e => setMonth(e.target.value)}
           className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+        {/* 조회조건 */}
+        <select value={fCompany} onChange={e => setFCompany(e.target.value)}
+          className="px-2 py-1.5 border border-gray-300 rounded text-sm bg-white">
+          <option value="">운송사 전체</option>
+          {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <input type="text" value={fCustomer} onChange={e => setFCustomer(e.target.value)} placeholder="거래처 검색"
+          className="px-3 py-1.5 border border-gray-300 rounded text-sm w-36 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+        {(fCompany || fCustomer) && (
+          <button onClick={() => { setFCompany(''); setFCustomer(''); }} className="px-2 py-1.5 text-sm text-gray-500 border border-gray-200 rounded hover:bg-gray-50">초기화</button>
+        )}
         {canEdit && (
           <button onClick={copyFromPrevMonth} disabled={copying}
             className="px-3 py-1.5 bg-[var(--color-primary)] text-white text-sm rounded hover:bg-[var(--color-primary-dark)] transition-colors disabled:opacity-50"
@@ -177,18 +237,23 @@ export default function UnitPricePage() {
             {copying ? '복사중...' : '전월 단가 복사'}
           </button>
         )}
+        <button onClick={handleExcel} disabled={exporting}
+          className="px-3 py-1.5 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700 transition-colors disabled:opacity-50"
+          title="전체 월 단가를 엑셀로 다운로드 (조회조건 있으면 반영)">
+          {exporting ? '생성 중…' : '엑셀 다운로드'}
+        </button>
         <span className="ml-auto text-sm text-[var(--color-text-secondary)]">
-          총 {rows.length}건 · <span className="text-rose-600 font-semibold">변동 {changedCount}건</span>
+          {month} {viewRows.length}건 · <span className="text-rose-600 font-semibold">변동 {changedCount}건</span>
         </span>
       </div>
 
       <div className="flex-1 overflow-auto px-4 sm:px-6 py-2">
         {loading ? (
           <div className="flex items-center justify-center h-40 text-sm text-gray-500">데이터를 불러오는 중...</div>
-        ) : rows.length === 0 ? (
+        ) : viewRows.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 gap-2 text-sm text-gray-500">
-            <p>{month} 단가가 없습니다.</p>
-            {canEdit && <p className="text-gray-400">‘전월 단가 복사’로 빠르게 채울 수 있습니다.</p>}
+            <p>{rows.length === 0 ? `${month} 단가가 없습니다.` : '조회 결과가 없습니다.'}</p>
+            {canEdit && rows.length === 0 && <p className="text-gray-400">‘전월 단가 복사’로 빠르게 채울 수 있습니다.</p>}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -204,7 +269,7 @@ export default function UnitPricePage() {
                 </tr>
               </thead>
               <tbody>
-                {sortedRows.map(r => {
+                {viewRows.map(r => {
                   const isNew = r.prevPrice === null;
                   const up = (r.delta ?? 0) > 0, down = (r.delta ?? 0) < 0;
                   return (
