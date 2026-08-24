@@ -127,7 +127,7 @@ const navGroups: NavGroup[] = [
   {
     key: 'settings', label: '설정', en: 'Settings', iconKey: 'users', items: [
       { label: '사용자관리', path: '/admin/users', iconKey: 'users', roles: ['admin'] },
-      { label: '입력 로그', path: '/admin/logs', iconKey: 'report', roles: ['admin', 'monitor'] },
+      { label: '입력 로그', path: '/admin/logs', iconKey: 'report', roles: ['admin'] },
     ],
   },
 ];
