@@ -15,6 +15,18 @@ interface AuthState {
 // loginId(KC, ADMIN…) → Supabase Auth 이메일
 const emailFor = (loginId: string) => `${loginId.trim().toLowerCase()}@smarthml.com`;
 
+/** 접속 로그(서버에서 IP 기록) — fire-and-forget */
+function postAccessLog(action: 'login' | 'login_fail' | 'logout', info: { login?: string; name?: string | null; role?: string | null }) {
+  try {
+    fetch('/api/access-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, ...info }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch { /* ignore */ }
+}
+
 export function useAuth() {
   const router = useRouter();
 
@@ -62,6 +74,7 @@ export function useAuth() {
       password: password.trim().toUpperCase(),
     });
     if (error || !data.user) {
+      postAccessLog('login_fail', { login: loginId });
       setState({ profile: null, loading: false, error: '아이디 또는 비밀번호가 올바르지 않습니다.' });
       return false;
     }
@@ -69,17 +82,20 @@ export function useAuth() {
     const { data: profile, error: pErr } = await supabase
       .from('user_profiles').select('*').eq('id', data.user.id).single();
     if (pErr || !profile) {
+      postAccessLog('login_fail', { login: loginId });
       await supabase.auth.signOut();
       setState({ profile: null, loading: false, error: '사용자 프로필을 찾을 수 없습니다.' });
       return false;
     }
     if (profile.is_active === false) {
+      postAccessLog('login_fail', { login: profile.username || loginId, name: profile.name, role: profile.role });
       await supabase.auth.signOut();
       setState({ profile: null, loading: false, error: '비활성화된 계정입니다.' });
       return false;
     }
 
     const now = new Date().toISOString();
+    postAccessLog('login', { login: profile.username || loginId, name: profile.name, role: profile.role });
     setSession({ profile: profile as UserProfile, loginId: profile.username || loginId, loginAt: now });
     setState({ profile: profile as UserProfile, loading: false, error: null });
     return true;
@@ -88,6 +104,8 @@ export function useAuth() {
   // 로그아웃
   const logout = useCallback(async () => {
     const supabase = createClient();
+    const cur = getSession();
+    postAccessLog('logout', { login: cur?.loginId, name: cur?.profile?.name, role: cur?.profile?.role });
     await supabase.auth.signOut();
     clearSession();
     setState({ profile: null, loading: false, error: null });
