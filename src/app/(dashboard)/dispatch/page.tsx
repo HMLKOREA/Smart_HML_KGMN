@@ -7,6 +7,7 @@ import { format, addDays, subDays, endOfMonth } from 'date-fns';
 import { exportToExcel } from '@/lib/utils/exportExcel';
 import { smartCompare } from '@/lib/utils/sortCompare';
 import { ColumnFilterButton, applyColumnFilters } from '@/components/ui/ColumnFilter';
+import { logActivity } from '@/lib/audit/logActivity';
 import { useToast } from '@/components/ui/Toast';
 import { getSession } from '@/lib/auth/session';
 
@@ -304,6 +305,11 @@ export default function DispatchPage() {
       const { error } = await supabase.from('shipments').update(updatePayload).eq('id', editingId);
       if (error) throw error;
 
+      logActivity({
+        module: 'dispatch', action: 'update', targetId: editingId,
+        targetLabel: `${row?.customer_name ?? ''} / ${editData.vehicle_number || ''}`.trim(),
+        details: { ...updatePayload },
+      });
       toast.success('저장되었습니다.');
       cancelEdit();
       fetchData();

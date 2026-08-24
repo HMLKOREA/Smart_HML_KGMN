@@ -10,6 +10,7 @@ import SettlementAnalysis from '@/components/modules/settlement/SettlementAnalys
 import MultiSelectFilter from '@/components/ui/MultiSelectFilter';
 import { ColumnFilterButton, applyColumnFilters } from '@/components/ui/ColumnFilter';
 import { smartCompare } from '@/lib/utils/sortCompare';
+import { logActivity } from '@/lib/audit/logActivity';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { computeAnalysis, toSettlementLines, type AnalysisPayload, type PeriodMode } from '@/lib/analysis/settlementAnalysis';
@@ -549,6 +550,7 @@ export default function SettlementPage() {
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
+      logActivity({ module: 'settlement', action: 'confirm', targetLabel: dateRange.label, details: { scope, count: stlTotals.count, total_all: stlTotals.totalAll } });
       toast.success('정산이 확정되었습니다.');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '정산 확정 중 오류가 발생했습니다.');
@@ -563,6 +565,7 @@ export default function SettlementPage() {
       const res = await fetch(`/api/admin/settlement-closings/${id}`, { method: 'DELETE' });
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
+      logActivity({ module: 'settlement', action: 'unconfirm', targetId: id, targetLabel: label });
       toast.success('확정이 취소되었습니다.');
       await loadClosings();
     } catch (e) {
@@ -574,9 +577,11 @@ export default function SettlementPage() {
   const savePriceEdit = async () => {
     if (!editingPriceId) return;
     try {
+      const before = unitPrices.find(p => p.id === editingPriceId);
       const { error } = await supabase.from('unit_prices').update({ price: editingPriceValue }).eq('id', editingPriceId);
       if (error) throw error;
       setUnitPrices(prev => prev.map(p => p.id === editingPriceId ? { ...p, price: editingPriceValue } : p));
+      logActivity({ module: 'unit_price', action: 'update', targetId: editingPriceId, targetLabel: `${before?.company ?? ''} / ${before?.product ?? ''}`.trim(), details: { before: before?.price, after: editingPriceValue } });
       toast.success('단가가 수정되었습니다.');
     } catch {
       toast.error('단가 수정 중 오류가 발생했습니다.');

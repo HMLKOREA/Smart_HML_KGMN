@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { logActivity } from '@/lib/audit/logActivity';
 import { format } from 'date-fns';
 
 interface SavePayload {
@@ -68,12 +69,14 @@ export function useShipmentCrud() {
       if (existingId) {
         const { error } = await supabase.from('shipments').update(payload).eq('id', existingId);
         if (error) throw error;
+        logActivity({ module: 'shipping', action: 'update', targetId: existingId, details: { ...payload } });
       } else {
-        const { error } = await supabase.from('shipments').insert({
+        const { data: inserted, error } = await supabase.from('shipments').insert({
           ...payload,
           shipment_number: generateShipmentNumber(),
-        });
+        }).select('id').single();
         if (error) throw error;
+        logActivity({ module: 'shipping', action: 'create', targetId: inserted?.id ?? null, details: { ...payload } });
       }
 
       return { success: true };
@@ -92,6 +95,7 @@ export function useShipmentCrud() {
     try {
       const { error } = await supabase.from('shipments').delete().in('id', ids);
       if (error) throw error;
+      logActivity({ module: 'shipping', action: 'delete', targetId: ids.join(','), details: { count: ids.length, ids } });
       return { success: true };
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : '삭제 실패' };
@@ -106,6 +110,7 @@ export function useShipmentCrud() {
       }
       const { error } = await supabase.from('shipments').update(updateData).eq('id', id);
       if (error) throw error;
+      logActivity({ module: 'shipping', action: currentValue ? 'unship' : 'ship', targetId: id, details: { is_shipped: !currentValue } });
       return { success: true };
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : '상태 변경 실패' };
@@ -129,6 +134,7 @@ export function useShipmentCrud() {
       }));
       const { error } = await supabase.from('shipments').insert(records);
       if (error) throw error;
+      logActivity({ module: 'shipping', action: 'create_batch', details: { count: records.length } });
       return { success: true };
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : '등록 실패' };
@@ -139,6 +145,11 @@ export function useShipmentCrud() {
     try {
       const { error } = await supabase.from('shipments').update(updates).in('id', ids);
       if (error) throw error;
+      {
+        const act = 'is_confirmed' in updates ? (updates.is_confirmed ? 'confirm' : 'unconfirm')
+          : 'dispatch_notified' in updates ? 'notify' : 'update_batch';
+        logActivity({ module: 'shipping', action: act, targetId: ids.join(','), details: { count: ids.length, updates } });
+      }
       return { success: true };
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : '업데이트 실패' };
@@ -152,6 +163,7 @@ export function useShipmentCrud() {
         .update({ certificate_time: new Date().toISOString() })
         .eq('id', id);
       if (error) throw error;
+      logActivity({ module: 'shipping', action: 'issue_cert', targetId: id });
       return { success: true };
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : '출하증 발급 실패' };

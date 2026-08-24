@@ -8,6 +8,7 @@ import { getSession } from '@/lib/auth/session';
 import AccessDenied from '@/components/ui/AccessDenied';
 import { smartCompare } from '@/lib/utils/sortCompare';
 import { ColumnFilterButton, applyColumnFilters } from '@/components/ui/ColumnFilter';
+import { logActivity } from '@/lib/audit/logActivity';
 import * as XLSX from 'xlsx';
 
 // ── Types ──
@@ -173,9 +174,11 @@ export default function UnitPricePage() {
 
   const saveEdit = async (id: string) => {
     try {
+      const before = rows.find(r => r.id === id);
       const { error } = await supabase.from('unit_prices').update({ price: editVal }).eq('id', id);
       if (error) throw error;
       setRows(prev => prev.map(r => (r.id === id ? { ...r, price: editVal, delta: r.prevPrice === null ? null : editVal - r.prevPrice } : r)));
+      logActivity({ module: 'unit_price', action: 'update', targetId: id, targetLabel: `${before?.transport_companies?.name ?? ''} / ${before?.customers?.name ?? ''} / ${month}`.trim(), details: { before: before?.price, after: editVal, month } });
       setEditId(null);
       toast.success('단가가 수정되었습니다.');
     } catch (err) {
@@ -202,6 +205,7 @@ export default function UnitPricePage() {
       if (toInsert.length === 0) { toast.info('복사할 새 단가가 없습니다.'); return; }
       const { error: e2 } = await supabase.from('unit_prices').insert(toInsert);
       if (e2) throw e2;
+      logActivity({ module: 'unit_price', action: 'copy', targetLabel: `${prevMonth(month)} → ${month}`, details: { count: toInsert.length, from: prevMonth(month), to: month } });
       toast.success(`${toInsert.length}건의 단가를 복사했습니다.`);
       fetchData(month);
     } catch (err) {

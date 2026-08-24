@@ -16,6 +16,7 @@ import { getSession } from '@/lib/auth/session';
 import AccessDenied from '@/components/ui/AccessDenied';
 import MultiSelectFilter from '@/components/ui/MultiSelectFilter';
 import { smartCompare } from '@/lib/utils/sortCompare';
+import { logActivity } from '@/lib/audit/logActivity';
 
 // ── Types ──────────────────────────────────────────────
 interface Shipment {
@@ -775,6 +776,7 @@ export default function ShippingPage() {
         if (records.length === 0) { toast.error(`등록 가능한 행이 없습니다. (거래처·제품명이 마스터와 일치해야 함, 건너뜀 ${skipped})`); return; }
         const { error } = await supabase.from('shipments').insert(records);
         if (error) { toast.error(`가져오기 실패: ${error.message}`); return; }
+        logActivity({ module: 'shipping', action: 'import', details: { added: records.length, skipped } });
         toast.success(`${records.length}건 가져오기 완료${skipped ? ` (건너뜀 ${skipped}건)` : ''}`);
         fetchData();
       } catch (err) {
