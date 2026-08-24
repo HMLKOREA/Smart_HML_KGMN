@@ -88,11 +88,10 @@ function CertificateCopy({ shipment, shipDate, issuedTime }: { shipment: Shipmen
       {/* 하단: 하멜 로고 + 회사정보 (중앙) */}
       <div style={{ textAlign: 'center', marginTop: 8 }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/hamel-logo.png" alt="HAMEL KOREA" style={{ height: 30, objectFit: 'contain', display: 'inline-block', marginBottom: 3 }} />
-        <div style={{ fontSize: 10, fontWeight: 700, color: '#222', lineHeight: 1.6 }}>HAMEL KOREA CO., LTD</div>
-        <div style={{ fontSize: 9, color: '#444', lineHeight: 1.6 }}>W.SHANGHAI HAMEL SUPPLYCHAIN TECHNOLOGY</div>
-        <div style={{ fontSize: 9, color: '#444', lineHeight: 1.6 }}>서울특별시 강남구 삼성동 34-1 예림빌딩 2F</div>
-        <div style={{ fontSize: 9, color: '#444', lineHeight: 1.6 }}>T. 02-6956-6710 / F. 02-6956-6712</div>
+        <img src="/hamel-logo.png" alt="HAMEL KOREA" style={{ height: 60, objectFit: 'contain', display: 'inline-block', marginBottom: 5 }} />
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#222', letterSpacing: '0.02em', lineHeight: 1.5 }}>HAMEL KOREA CO., LTD</div>
+        <div style={{ fontSize: 10, color: '#444', lineHeight: 1.7 }}>서울특별시 강남구 선릉로 638 에버홈빌딩 2F</div>
+        <div style={{ fontSize: 10, color: '#444', lineHeight: 1.7 }}>T. 02-6956-6710 / F. 02-6956-6712</div>
       </div>
     </div>
   );
