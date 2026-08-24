@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { format, addDays, subDays, endOfMonth } from 'date-fns';
 import { exportToExcel } from '@/lib/utils/exportExcel';
 import { smartCompare } from '@/lib/utils/sortCompare';
+import { ColumnFilterButton, applyColumnFilters } from '@/components/ui/ColumnFilter';
 import { useToast } from '@/components/ui/Toast';
 import { getSession } from '@/lib/auth/session';
 
@@ -100,12 +101,21 @@ export default function DispatchPage() {
   // ── Data State ──
   const [data, setData] = useState<Shipment[]>([]);
   const [sort, setSort] = useState<{ key: string | null; dir: 'asc' | 'desc' }>({ key: null, dir: 'asc' });
+  // ── 엑셀식 컬럼 필터(못표시) ──
+  const [colFilter, setColFilter] = useState<Record<string, string[]>>({});
+  const cellStr = (row: Shipment, key: string) => String((row as unknown as Record<string, unknown>)[key] ?? '');
+  const distinctVals = useCallback((key: string) => {
+    const set = new Set<string>();
+    data.forEach(r => set.add(cellStr(r, key)));
+    return Array.from(set).sort((a, b) => smartCompare(a, b));
+  }, [data]);
   const sortedData = useMemo(() => {
-    if (!sort.key) return data;
+    const filtered = applyColumnFilters(data, colFilter, cellStr);
+    if (!sort.key) return filtered;
     const k = sort.key as keyof Shipment;
-    const arr = [...data].sort((a, b) => smartCompare(a[k] as unknown, b[k] as unknown));
+    const arr = [...filtered].sort((a, b) => smartCompare(a[k] as unknown, b[k] as unknown));
     return sort.dir === 'asc' ? arr : arr.reverse();
-  }, [data, sort]);
+  }, [data, sort, colFilter]);
   const toggleSort = (key: string) =>
     setSort(prev => (prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
   const [loading, setLoading] = useState(true);
@@ -591,29 +601,32 @@ export default function DispatchPage() {
                 <tr>
                   {([
                     { label: '#', k: null, st: { width: 32, textAlign: 'center' as const } },
-                    { label: '운송사', k: 'company_name', st: { minWidth: 70 } },
+                    { label: '운송사', k: 'company_name', f: true, st: { minWidth: 70 } },
                     { label: '상차요청일', k: 'shipment_date', st: { minWidth: 90 } },
-                    { label: '거래처', k: 'customer_name', st: { minWidth: 130 } },
-                    { label: '제품명', k: 'product_name', st: { minWidth: 120 } },
-                    { label: '사일로', k: 'silo', st: { minWidth: 60 } },
+                    { label: '거래처', k: 'customer_name', f: true, st: { minWidth: 130 } },
+                    { label: '제품명', k: 'product_name', f: true, st: { minWidth: 120 } },
+                    { label: '사일로', k: 'silo', f: true, st: { minWidth: 60 } },
                     { label: '비고', k: 'notes', st: { minWidth: 120 } },
-                    { label: '차량종류', k: 'transport_type', st: { minWidth: 60 } },
+                    { label: '차량종류', k: 'transport_type', f: true, st: { minWidth: 60 } },
                     { label: '차량번호', k: 'vehicle_number', st: { minWidth: 100 } },
-                    { label: '기사성명', k: 'driver_name', st: { minWidth: 80 } },
+                    { label: '기사성명', k: 'driver_name', f: true, st: { minWidth: 80 } },
                     { label: '기사연락처', k: 'driver_phone', st: { minWidth: 110 } },
                     { label: '계근수량(D+1)', k: 'weight_net', st: { minWidth: 80, textAlign: 'right' as const } },
                     { label: '출하증발급시간', k: 'certificate_time', st: { minWidth: 140 } },
                     { label: '작업', k: null, st: { width: 50, textAlign: 'center' as const } },
-                  ] as { label: string; k: string | null; st: React.CSSProperties }[]).map(({ label, k, st }) => (
+                  ] as { label: string; k: string | null; f?: boolean; st: React.CSSProperties }[]).map(({ label, k, f, st }) => (
                     <th
                       key={label}
                       onClick={k ? () => toggleSort(k) : undefined}
                       title={k ? '클릭하여 정렬' : undefined}
-                      style={{ padding: '7px 6px', whiteSpace: 'nowrap', userSelect: 'none', cursor: k ? 'pointer' : 'default', ...st }}
+                      style={{ padding: '7px 6px', paddingRight: f ? 18 : 6, whiteSpace: 'nowrap', userSelect: 'none', cursor: k ? 'pointer' : 'default', position: 'relative', ...st }}
                     >
                       {label}
                       {k && sort.key === k && (
                         <span style={{ color: '#2563eb', marginLeft: 3 }}>{sort.dir === 'asc' ? '▲' : '▼'}</span>
+                      )}
+                      {f && k && (
+                        <ColumnFilterButton colKey={k} values={distinctVals(k)} filters={colFilter} setFilters={setColFilter} />
                       )}
                     </th>
                   ))}

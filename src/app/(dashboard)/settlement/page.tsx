@@ -8,6 +8,8 @@ import { downloadWehago, type WehagoRow } from '@/lib/utils/exportWehago';
 import TransactionStatementPrint from '@/components/modules/settlement/TransactionStatementPrint';
 import SettlementAnalysis from '@/components/modules/settlement/SettlementAnalysis';
 import MultiSelectFilter from '@/components/ui/MultiSelectFilter';
+import { ColumnFilterButton, applyColumnFilters } from '@/components/ui/ColumnFilter';
+import { smartCompare } from '@/lib/utils/sortCompare';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { computeAnalysis, toSettlementLines, type AnalysisPayload, type PeriodMode } from '@/lib/analysis/settlementAnalysis';
@@ -454,20 +456,20 @@ export default function SettlementPage() {
     return r;
   }, [settlements, stlFilterCompany, stlFilterCustomer, stlFilterTransport, stlFilterProduct]);
 
-  // ── 세부 테이블: 컬럼 정렬 + 컬럼별 검색 ──
+  // ── 세부 테이블: 컬럼 정렬 + 엑셀식 컬럼 필터(못표시) ──
   const [stlSort, setStlSort] = useState<{ key: keyof SettlementRow | null; dir: 'asc' | 'desc' }>({ key: null, dir: 'asc' });
-  const [stlColFilter, setStlColFilter] = useState<Record<string, string>>({});
-  const [stlOpenFilter, setStlOpenFilter] = useState<string | null>(null);
+  const [stlColFilter, setStlColFilter] = useState<Record<string, string[]>>({});
   const toggleStlSort = (key: keyof SettlementRow) =>
     setStlSort(prev => (prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
+  const stlCellStr = (row: SettlementRow, key: string) => String((row as unknown as Record<string, unknown>)[key] ?? '');
+  const stlDistinct = useCallback((key: string) => {
+    const s = new Set<string>();
+    for (const row of filteredSettlements) s.add(stlCellStr(row, key));
+    return [...s].sort((a, b) => smartCompare(a, b));
+  }, [filteredSettlements]);
 
   const displaySettlements = useMemo(() => {
-    let r = filteredSettlements;
-    const active = Object.entries(stlColFilter).filter(([, v]) => v.trim());
-    if (active.length) {
-      r = r.filter(row => active.every(([k, v]) =>
-        String((row as unknown as Record<string, unknown>)[k] ?? '').toLowerCase().includes(v.trim().toLowerCase())));
-    }
+    let r = applyColumnFilters(filteredSettlements, stlColFilter, stlCellStr);
     if (stlSort.key) {
       const k = stlSort.key;
       r = [...r].sort((a, b) => {
@@ -663,6 +665,9 @@ export default function SettlementPage() {
   };
   const tdStyle: React.CSSProperties = { padding: '7px 10px', fontSize: 13, color: '#1e293b', borderBottom: '1px solid #f1f5f9' };
   const tdR: React.CSSProperties = { ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
+  // 세부 데이터: 출하관리처럼 글자 굵게(가독성) — 상세표 전용
+  const dCell: React.CSSProperties = { ...tdStyle, fontWeight: 700, color: '#0f172a' };
+  const dCellR: React.CSSProperties = { ...tdR, fontWeight: 700, color: '#0f172a' };
 
   const spinner = (
     <div className="flex items-center justify-center h-48 gap-2.5">
@@ -1314,22 +1319,13 @@ export default function SettlementPage() {
                                     { label: '합계(원)', key: 'totalFee' as keyof SettlementRow, align: 'right' as const, minW: 120 },
                                   ] as { label: string; key?: keyof SettlementRow; filter?: boolean; align?: 'left' | 'right' | 'center'; minW?: number; w?: number }[]).map(col => {
                                     const active = col.key && stlSort.key === col.key;
-                                    const filtering = !!(col.key && stlColFilter[col.key]?.trim());
                                     return (
-                                      <th key={col.label} style={{ ...thStyle, ...(col.w ? { width: col.w } : {}), ...(col.minW ? { minWidth: col.minW } : {}), textAlign: col.align || 'left', whiteSpace: 'nowrap' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: col.align === 'right' ? 'flex-end' : 'flex-start' }}>
-                                          <span onClick={col.key ? () => toggleStlSort(col.key!) : undefined} style={{ cursor: col.key ? 'pointer' : 'default', userSelect: 'none' }}>
-                                            {col.label}{active && <span style={{ color: '#2563eb', marginLeft: 2 }}>{stlSort.dir === 'asc' ? '▲' : '▼'}</span>}
-                                          </span>
-                                          {col.filter && (
-                                            <span onClick={() => setStlOpenFilter(stlOpenFilter === col.key ? null : (col.key as string))} title="검색" style={{ cursor: 'pointer', color: filtering ? '#2563eb' : '#cbd5e1', fontSize: 12 }}>🔍</span>
-                                          )}
-                                        </div>
-                                        {col.filter && stlOpenFilter === col.key && (
-                                          <input autoFocus value={(col.key && stlColFilter[col.key]) || ''} placeholder="검색…"
-                                            onClick={e => e.stopPropagation()}
-                                            onChange={e => setStlColFilter(p => ({ ...p, [col.key as string]: e.target.value }))}
-                                            style={{ marginTop: 4, width: '100%', fontSize: 11, fontWeight: 400, padding: '3px 6px', border: '1px solid #93c5fd', borderRadius: 4, boxSizing: 'border-box' }} />
+                                      <th key={col.label} style={{ ...thStyle, ...(col.w ? { width: col.w } : {}), ...(col.minW ? { minWidth: col.minW } : {}), textAlign: col.align || 'left', whiteSpace: 'nowrap', paddingRight: col.filter ? 20 : 10 }}>
+                                        <span onClick={col.key ? () => toggleStlSort(col.key!) : undefined} style={{ cursor: col.key ? 'pointer' : 'default', userSelect: 'none' }}>
+                                          {col.label}{active && <span style={{ color: '#2563eb', marginLeft: 2 }}>{stlSort.dir === 'asc' ? '▲' : '▼'}</span>}
+                                        </span>
+                                        {col.filter && col.key && (
+                                          <ColumnFilterButton colKey={col.key as string} values={stlDistinct(col.key as string)} filters={stlColFilter} setFilters={setStlColFilter} />
                                         )}
                                       </th>
                                     );
@@ -1344,29 +1340,29 @@ export default function SettlementPage() {
                                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#f0f7ff'; }}
                                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = idx % 2 === 0 ? '#fff' : '#fafbfc'; }}
                                   >
-                                    <td style={{ ...tdStyle, textAlign: 'center', color: '#9ca3af', fontSize: 12 }}>{idx + 1}</td>
-                                    <td style={{ ...tdStyle, fontSize: 12, color: '#475569' }}>{row.date}</td>
-                                    <td style={tdStyle}>
-                                      <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-[12px] font-semibold text-slate-700">
+                                    <td style={{ ...dCell, textAlign: 'center', color: '#64748b', fontSize: 12 }}>{idx + 1}</td>
+                                    <td style={{ ...dCell, fontSize: 12.5, color: '#334155' }}>{row.date}</td>
+                                    <td style={dCell}>
+                                      <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-[12px] font-bold text-slate-700">
                                         {row.company}
                                       </span>
                                     </td>
-                                    <td style={tdStyle}>{row.customer}</td>
-                                    <td style={tdStyle}>
+                                    <td style={dCell}>{row.customer}</td>
+                                    <td style={dCell}>
                                       <span style={{
-                                        display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 12, fontWeight: 600,
+                                        display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 12, fontWeight: 700,
                                         background: row.transportType === '탱크' ? '#dbeafe' : row.transportType === '카고' ? '#fef3c7' : '#fce7f3',
                                         color: row.transportType === '탱크' ? '#1e40af' : row.transportType === '카고' ? '#92400e' : '#9d174d',
                                       }}>
                                         {row.transportType}
                                       </span>
                                     </td>
-                                    <td style={tdStyle}>{row.product}</td>
-                                    <td style={tdR}>{row.weightNet.toFixed(2)}</td>
-                                    <td style={tdR}>{fmt(row.unitPrice)}</td>
-                                    <td style={{ ...tdR, fontWeight: 600 }}>{fmt(row.transportFee)}</td>
-                                    <td style={tdR}>{fmt(row.tax)}</td>
-                                    <td style={{ ...tdR, fontWeight: 700, color: '#1d4ed8' }}>{fmt(row.totalFee)}</td>
+                                    <td style={dCell}>{row.product}</td>
+                                    <td style={dCellR}>{row.weightNet.toFixed(2)}</td>
+                                    <td style={dCellR}>{fmt(row.unitPrice)}</td>
+                                    <td style={dCellR}>{fmt(row.transportFee)}</td>
+                                    <td style={dCellR}>{fmt(row.tax)}</td>
+                                    <td style={{ ...dCellR, color: '#1d4ed8' }}>{fmt(row.totalFee)}</td>
                                   </tr>
                                 ))}
                                 <tr style={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #cbd5e1' }}>

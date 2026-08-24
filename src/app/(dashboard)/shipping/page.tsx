@@ -1190,7 +1190,7 @@ export default function ShippingPage() {
               조회된 데이터가 없습니다.
             </div>
           ) : (
-            <table className="data-table ship-table" style={{ fontSize: 14, tableLayout: 'fixed', width: SHIP_COLS.reduce((s, c) => s + (colWidths[c.key] || c.w), 0) }}>
+            <table className="data-table ship-table" style={{ fontSize: 14, tableLayout: 'fixed', width: '100%', minWidth: SHIP_COLS.reduce((s, c) => s + (colWidths[c.key] || c.w), 0) }}>
               <colgroup>
                 {SHIP_COLS.map(c => (
                   <col key={c.key} style={{ width: colWidths[c.key] || c.w }} />
@@ -1791,7 +1791,7 @@ export default function ShippingPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                     <button onClick={handlePrevDay} style={{ padding: '11px 18px', fontSize: 18, fontWeight: 800, background: '#334155', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', whiteSpace: 'nowrap' }}>◀ 전날</button>
                     <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
-                      style={{ fontSize: 17, fontWeight: 700, padding: '9px 12px', borderRadius: 10, border: 'none', color: '#1e293b' }} />
+                      style={{ fontSize: 18, fontWeight: 800, padding: '10px 14px', borderRadius: 10, border: '2px solid #38bdf8', color: '#0f172a', background: '#fff', colorScheme: 'light', boxShadow: '0 0 0 3px rgba(56,189,248,0.25)' }} />
                     <button onClick={handleNextDay} style={{ padding: '11px 18px', fontSize: 18, fontWeight: 800, background: '#334155', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', whiteSpace: 'nowrap' }}>다음날 ▶</button>
                   </div>
                 </div>
@@ -1831,11 +1831,12 @@ export default function ShippingPage() {
                           <tr
                             key={row.id}
                             style={{
-                              borderBottom: '2px solid #eef2f6',
-                              backgroundColor: isDone(row) ? '#dcfce7' : (idx % 2 === 0 ? '#fff' : '#f8fafc'),
+                              borderBottom: isDone(row) ? '2px solid #4ade80' : '2px solid #eef2f6',
+                              backgroundColor: isDone(row) ? '#86efac' : (idx % 2 === 0 ? '#fff' : '#f8fafc'),
+                              boxShadow: isDone(row) ? 'inset 4px 0 0 #16a34a' : undefined,
                             }}
                           >
-                            <td style={{ padding: '8px 12px', fontSize: 17, textAlign: 'center', color: isDone(row) ? '#15803d' : '#94a3b8', fontWeight: 700 }}>{idx + 1}</td>
+                            <td style={{ padding: '8px 12px', fontSize: 17, textAlign: 'center', color: isDone(row) ? '#166534' : '#94a3b8', fontWeight: 800 }}>{idx + 1}</td>
                             {waitingCompanyId === '__ALL__' && (
                               <td style={{ padding: '8px 12px', fontSize: 17, color: '#1e293b', fontWeight: 700 }}>{row.company_name || '-'}</td>
                             )}

@@ -102,6 +102,7 @@ const navGroups: NavGroup[] = [
       { label: '대시보드', path: '/home', iconKey: 'dashboard', roles: ['admin', 'monitor', 'field', 'transporter'] },
       { label: '일일보고', path: '/daily-report', iconKey: 'dailyReport', roles: ['admin', 'monitor'] },
       { label: '정산관리', path: '/settlement', iconKey: 'settlement', roles: ['admin', 'monitor'] },
+      { label: '단가관리', path: '/unit-price', iconKey: 'settlement', roles: ['admin', 'monitor'] },
     ],
   },
   {
@@ -113,7 +114,6 @@ const navGroups: NavGroup[] = [
   {
     key: 'product', label: '제품 관리', en: 'Products', iconKey: 'product', items: [
       { label: '제품코드관리', path: '/product-code', iconKey: 'product', roles: ['admin', 'monitor'] },
-      { label: '단가관리', path: '/unit-price', iconKey: 'settlement', roles: ['admin', 'monitor'] },
       { label: '성적서관리', path: '/report', iconKey: 'report', roles: ['admin', 'monitor', 'field'] },
     ],
   },

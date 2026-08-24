@@ -7,6 +7,7 @@ import { useToast } from '@/components/ui/Toast';
 import { getSession } from '@/lib/auth/session';
 import AccessDenied from '@/components/ui/AccessDenied';
 import { smartCompare } from '@/lib/utils/sortCompare';
+import { ColumnFilterButton, applyColumnFilters } from '@/components/ui/ColumnFilter';
 import * as XLSX from 'xlsx';
 
 // ── Types ──
@@ -51,6 +52,15 @@ export default function UnitPricePage() {
   const [fCompany, setFCompany] = useState('');
   const [fCustomer, setFCustomer] = useState('');
   const [exporting, setExporting] = useState(false);
+  // ── 엑셀식 컬럼 필터(못표시) ──
+  const [colFilter, setColFilter] = useState<Record<string, string[]>>({});
+  const upCellStr = (r: EnrichedRow, key: string) =>
+    key === 'company' ? (r.transport_companies?.name || '') : key === 'customer' ? (r.customers?.name || '') : '';
+  const upDistinct = useCallback((key: string) => {
+    const s = new Set<string>();
+    for (const r of rows) s.add(upCellStr(r, key));
+    return [...s].sort((a, b) => smartCompare(a, b));
+  }, [rows]);
 
   const fetchData = useCallback(async (ym: string) => {
     setLoading(true);
@@ -116,10 +126,10 @@ export default function UnitPricePage() {
 
   // 조회조건(운송사·거래처) 적용된 표시 행
   const companyOptions = useMemo(() => [...new Set(rows.map(r => r.transport_companies?.name).filter(Boolean) as string[])].sort((a, b) => smartCompare(a, b)), [rows]);
-  const viewRows = useMemo(() => sortedRows.filter(r =>
+  const viewRows = useMemo(() => applyColumnFilters(sortedRows.filter(r =>
     (!fCompany || r.transport_companies?.name === fCompany) &&
     (!fCustomer || (r.customers?.name || '').toLowerCase().includes(fCustomer.toLowerCase()))
-  ), [sortedRows, fCompany, fCustomer]);
+  ), colFilter, upCellStr), [sortedRows, fCompany, fCustomer, colFilter]);
   const changedCount = useMemo(() => viewRows.filter(r => (r.delta !== null && r.delta !== 0) || r.prevPrice === null).length, [viewRows]);
 
   // 전체(모든 월) 단가 엑셀 다운로드 — 조회조건 있으면 반영
@@ -204,8 +214,11 @@ export default function UnitPricePage() {
   if (role === 'transporter' || role === 'field') return <AccessDenied />;
 
   const arrow = (key: SortKey) => sort.key === key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '';
-  const th = (key: SortKey, label: string, extra = '') =>
-    <th onClick={() => toggleSort(key)} className={`cursor-pointer select-none whitespace-nowrap ${extra}`} title="클릭하여 정렬">{label}<span className="text-blue-600">{arrow(key)}</span></th>;
+  const th = (key: SortKey, label: string, extra = '', filterCol?: string) =>
+    <th onClick={() => toggleSort(key)} className={`cursor-pointer select-none whitespace-nowrap ${filterCol ? 'relative pr-5' : ''} ${extra}`} title="클릭하여 정렬">
+      {label}<span className="text-blue-600">{arrow(key)}</span>
+      {filterCol && <ColumnFilterButton colKey={filterCol} values={upDistinct(filterCol)} filters={colFilter} setFilters={setColFilter} />}
+    </th>;
 
   const won = (n: number) => Number(n).toLocaleString();
 
@@ -260,8 +273,8 @@ export default function UnitPricePage() {
             <table className="data-table">
               <thead>
                 <tr>
-                  {th('company', '운송사')}
-                  {th('customer', '거래처')}
+                  {th('company', '운송사', '', 'company')}
+                  {th('customer', '거래처', '', 'customer')}
                   <th className="text-right whitespace-nowrap">전월단가</th>
                   {th('price', '단가(원/톤)', 'text-right')}
                   {th('change', '전월대비', 'text-right')}
