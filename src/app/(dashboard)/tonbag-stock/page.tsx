@@ -9,9 +9,9 @@ import AccessDenied from '@/components/ui/AccessDenied';
 import { format, addDays, subDays } from 'date-fns';
 
 // 톤백 생산 품목
-const PRODUCTS = ['K200', 'K35', 'K50', 'K100', 'K325'];
-// 톤백당 중량(톤) — 톤 표시·출하 차감·사일로 연동 공용. 우선 1.5톤(K325는 사일로 기준 1.6).
-const BAG_TON: Record<string, number> = { K200: 1.5, K35: 1.5, K50: 1.5, K100: 1.5, K325: 1.6 };
+const PRODUCTS = ['K200', 'K10', 'K18', 'K50', 'K325'];
+// 톤백당 중량(톤) — 톤 표시·출하 차감·사일로 연동 공용.
+const BAG_TON: Record<string, number> = { K200: 1.2, K10: 1.4, K18: 1.4, K50: 1.4, K325: 1.6 };
 
 interface ProdLog { id: number; log_date: string; product: string; worker: string | null; good_count: number; defect_count: number; created_at: string; }
 interface StockCheck { id: number; check_date: string; product: string; qty: number; }
