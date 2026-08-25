@@ -602,7 +602,7 @@ export default function DispatchPage() {
               조회된 데이터가 없습니다.
             </div>
           ) : (
-            <table className="data-table" style={{ fontSize: 13 }}>
+            <table className="data-table dispatch-table" style={{ fontSize: 13 }}>
               <thead>
                 <tr>
                   {([

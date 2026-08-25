@@ -91,6 +91,29 @@ body {
 /* 태블릿/모바일: 페이지 자체는 가로 스크롤 안 되게(리스트는 내부 컨테이너에서 스크롤) */
 @media (max-width: 1023px) {
   .app-content { overflow-x: hidden; max-width: 100%; }
+
+  /* 출하관리(ship-table): 태블릿에서 우선순위 낮은 컬럼 숨김 + 남은 컬럼으로 폭 채움
+     컬럼순서 1#,2✔,3출하일자,4운송구분,5거래처,6제품명,7운송사,8차량정보,
+             9사일로,10출하,11계근결과,12기타,13발급시간,14배차통보,15작업
+     → 숨김: 4,9,12,13,14 (운송구분·사일로·기타·발급시간·배차통보) */
+  .ship-table { table-layout: auto !important; width: 100% !important; min-width: 0 !important; }
+  .ship-table th:nth-child(4),  .ship-table td:nth-child(4),
+  .ship-table th:nth-child(9),  .ship-table td:nth-child(9),
+  .ship-table th:nth-child(12), .ship-table td:nth-child(12),
+  .ship-table th:nth-child(13), .ship-table td:nth-child(13),
+  .ship-table th:nth-child(14), .ship-table td:nth-child(14) { display: none !important; }
+  .ship-table colgroup col:nth-child(4),  .ship-table colgroup col:nth-child(9),
+  .ship-table colgroup col:nth-child(12), .ship-table colgroup col:nth-child(13),
+  .ship-table colgroup col:nth-child(14) { display: none !important; }
+
+  /* 배차관리(dispatch-table): 컬럼순서 1#,2운송사,3상차요청일,4거래처,5제품명,6사일로,
+     7비고,8차량종류,9차량번호,10기사성명,11기사연락처,12계근수량,13발급시간,14작업
+     → 숨김: 6,7,8,11,13 (사일로·비고·차량종류·기사연락처·발급시간) */
+  .dispatch-table th:nth-child(6),  .dispatch-table td:nth-child(6),
+  .dispatch-table th:nth-child(7),  .dispatch-table td:nth-child(7),
+  .dispatch-table th:nth-child(8),  .dispatch-table td:nth-child(8),
+  .dispatch-table th:nth-child(11), .dispatch-table td:nth-child(11),
+  .dispatch-table th:nth-child(13), .dispatch-table td:nth-child(13) { display: none !important; }
 }
 
 .data-table tbody tr {
