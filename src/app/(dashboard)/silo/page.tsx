@@ -271,7 +271,7 @@ function TonBagModal({ silo, bags, canEdit, onClose, onChanged, supabase, toast 
   // #1 사일로(K325)는 지대/팔레트 — 개당 1.6톤 고정
   const pallet = silo.no === 1;
   const PALLET_TON = 1.6;
-  const unit = pallet ? '지대' : '톤백';
+  const unit = pallet ? '지대 (팔레트)' : '톤백';
   const countNoun = pallet ? '지대' : '개';
   const [count, setCount] = useState('');
   const [tonPer, setTonPer] = useState(pallet ? String(PALLET_TON) : '1');
@@ -282,7 +282,7 @@ function TonBagModal({ silo, bags, canEdit, onClose, onChanged, supabase, toast 
   const add = async () => {
     const c = parseInt(count, 10);
     const tp = pallet ? PALLET_TON : parseFloat(tonPer);
-    if (!c || c <= 0) { toast.warning(`${pallet ? '지대 수' : '톤백 개수'}를 입력하세요.`); return; }
+    if (!c || c <= 0) { toast.warning(`${pallet ? '지대 (팔레트) 수' : '톤백 개수'}를 입력하세요.`); return; }
     setSaving(true);
     const { error } = await supabase.from('silo_tonbags').insert({
       silo_no: silo.no, product: silo.product, bag_count: c, ton_per_bag: isNaN(tp) ? 1 : tp, memo: memo || null,
@@ -313,7 +313,7 @@ function TonBagModal({ silo, bags, canEdit, onClose, onChanged, supabase, toast 
           <div className="px-5 py-4 bg-slate-50 border-b border-gray-200">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[14px] font-bold text-gray-600 mb-1">{pallet ? '지대 수' : '톤백 개수'}</label>
+                <label className="block text-[14px] font-bold text-gray-600 mb-1">{pallet ? '지대 (팔레트) 수' : '톤백 개수'}</label>
                 <input type="number" value={count} onChange={e => setCount(e.target.value)} placeholder="예: 25"
                   className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-[16px]" />
               </div>
