@@ -56,7 +56,10 @@ const emptyForm: CustomerFormData = {
 };
 
 // 운송구분 3종 (담당자 요청)
-const TRANSPORT_TYPES = ['카고', '탱크', '원석'];
+const TRANSPORT_TYPES = ['카고', '탱크', '덤프'];
+// 레거시 코드(CGO/BCT/DUMP) → 한글 표기
+const TT_LABEL: Record<string, string> = { CGO: '카고', BCT: '탱크', DUMP: '덤프' };
+const ttLabel = (t: string | null | undefined) => t ? (TT_LABEL[String(t).toUpperCase()] || t) : '-';
 
 interface LookupProduct { id: string; name: string; code: string; }
 
@@ -341,6 +344,7 @@ export default function CustomerPage() {
           <table className="data-table">
             <thead>
               <tr>
+                <th style={{ width: 48, textAlign: 'center' }}>번호</th>
                 {[
                   { key: 'transport_type', label: '운송구분' },
                   { key: 'name', label: '거래처' },
@@ -358,7 +362,7 @@ export default function CustomerPage() {
               </tr>
             </thead>
             <tbody>
-              {sortedData.map((row) => (
+              {sortedData.map((row, idx) => (
                 <tr
                   key={row.id}
                   className={`cursor-pointer ${selectedId === row.id ? 'selected' : ''}`}
@@ -368,7 +372,8 @@ export default function CustomerPage() {
                     handleEdit(row.id);
                   }}
                 >
-                  <td>{row.transport_type || '-'}</td>
+                  <td style={{ textAlign: 'center', color: '#94a3b8' }}>{idx + 1}</td>
+                  <td>{ttLabel(row.transport_type)}</td>
                   <td className="font-medium">{row.name}</td>
                   <td>{row.customer_code || '-'}</td>
                   <td>{row.warehouse_code || '-'}</td>

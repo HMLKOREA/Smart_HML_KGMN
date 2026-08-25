@@ -259,11 +259,13 @@ async function syncShipments(conn) {
 
   // 거래처(cus_uid) → 제품(product_id) 매핑: 거래처별 기본 제품(prod_code) 기준
   const custProduct = new Map();
+  const custTransport = new Map(); // custom_mst.uid → 거래처 운송구분(carr_gubun_cd), 상차도 등 car_type 빈값 폴백용
   {
-    const [custRows] = await conn.query('SELECT uid, prod_code FROM custom_mst');
+    const [custRows] = await conn.query('SELECT uid, prod_code, carr_gubun_cd FROM custom_mst');
     for (const c of custRows) {
       const pid = cache.products.get(c.prod_code);
       if (pid) custProduct.set(String(c.uid), pid);
+      if (c.carr_gubun_cd) custTransport.set(String(c.uid), c.carr_gubun_cd);
     }
   }
 
@@ -314,7 +316,7 @@ async function syncShipments(conn) {
         vehicle_number: r.car_no || null,
         // 차량번호로 기사 자동 연결 (기사성명/연락처가 딸려오도록)
         driver_id: cache.driversByVehicle.get(String(r.car_no || '').trim()) || null,
-        transport_type: typeMap[r.car_type] || r.car_type || null,
+        transport_type: typeMap[r.car_type] || r.car_type || typeMap[custTransport.get(String(r.cus_uid))] || null,
         silo: r.silo_no || null,
         weight_net: r.weight ? parseFloat(r.weight) : null,
         status: r.comp_yn === 'Y' ? 'completed' : (r.out_yn === 'Y' ? 'delivered' : 'pending'),

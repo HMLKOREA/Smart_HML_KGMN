@@ -119,7 +119,16 @@ export async function POST(request: NextRequest) {
   // 설정 확인
   if (!API_KEY || !API_SECRET) {
     return NextResponse.json(
-      { error: 'Solapi 설정이 필요합니다. .env.local에 SOLAPI_API_KEY, SOLAPI_API_SECRET를 설정하세요.' },
+      { error: 'Solapi 설정이 필요합니다. SOLAPI_API_KEY, SOLAPI_API_SECRET를 등록하세요.' },
+      { status: 400 },
+    );
+  }
+  // 발송 채널(알림톡 or 문자) 미설정 → 명확히 안내 (수신자 유무와 무관한 설정 문제)
+  const canAlimtalk = !!(PFID && TEMPLATE_ID);
+  const canSms = !!SENDER_PHONE;
+  if (!canAlimtalk && !canSms) {
+    return NextResponse.json(
+      { error: '배차통보 발송 채널이 설정되지 않았습니다. 알림톡(pfId·템플릿ID) 승인·등록 또는 문자 발신번호(SOLAPI_SENDER_PHONE)를 운영에 등록해야 발송됩니다.' },
       { status: 400 },
     );
   }
