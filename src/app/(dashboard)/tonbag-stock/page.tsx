@@ -305,7 +305,12 @@ export default function TonbagStockPage() {
           <div style={{ background: '#fff', borderRadius: 22, width: '94vw', maxWidth: 560, maxHeight: '92vh', overflow: 'auto', boxShadow: '0 24px 70px rgba(0,0,0,0.4)' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ background: '#4f46e5', color: '#fff', padding: '18px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 26, fontWeight: 900 }}>{openWorker} <span style={{ fontSize: 16, fontWeight: 600, opacity: 0.8 }}>생산 입력</span></span>
+              <span style={{ fontSize: 26, fontWeight: 900 }}>
+                {openWorker} <span style={{ fontSize: 16, fontWeight: 600, opacity: 0.85 }}>생산 입력</span>
+                <span style={{ fontSize: 15, fontWeight: 700, background: 'rgba(255,255,255,0.18)', padding: '2px 10px', borderRadius: 999, marginLeft: 10, whiteSpace: 'nowrap' }}>
+                  📅 {date} ({['일', '월', '화', '수', '목', '금', '토'][new Date(date + 'T00:00:00').getDay()]})
+                </span>
+              </span>
               <button onClick={() => setOpenWorker(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', width: 40, height: 40, borderRadius: 10, fontSize: 22, cursor: 'pointer' }}>✕</button>
             </div>
             <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
