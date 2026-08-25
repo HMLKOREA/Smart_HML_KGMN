@@ -60,6 +60,7 @@ export default function SiloPage() {
     return m;
   }, [bags]);
   const bagTotal = (no: number) => (bagsBySilo.get(no) || []).reduce((s, b) => s + Number(b.total_ton || 0), 0);
+  const bagCount = (no: number) => (bagsBySilo.get(no) || []).reduce((s, b) => s + Number(b.bag_count || 0), 0);
 
   // 전체 총재고 (담당자 확인용): 벌크 + 톤백(1~8번)
   const totals = useMemo(() => {
@@ -182,6 +183,8 @@ export default function SiloPage() {
                 const color = fillColor(s.pct);
                 const h = s.pct == null ? 0 : s.pct;
                 const hasTonbag = s.no <= 8;               // 9·10번 사일로는 톤백 미사용
+                const isPallet = s.no === 1;               // #1 사일로(K325)는 지대/팔레트(개당 1.6톤)
+                const unitLabel = isPallet ? '지대/팔레트' : '톤백';
                 const bt = hasTonbag ? bagTotal(s.no) : 0;
                 const combined = (s.weight ?? 0) + bt;
                 return (
@@ -215,10 +218,13 @@ export default function SiloPage() {
                     {/* 톤백 (1~8번만) */}
                     {hasTonbag && (
                       <div className="w-full mt-4 flex items-center justify-between">
-                        <span className="text-[16px] font-bold text-indigo-700">🅱 톤백 {fmt(bt)}<span className="text-[12px] text-gray-400">톤</span></span>
+                        <span className="text-[16px] font-bold text-indigo-700">
+                          🅱 {unitLabel} {isPallet ? `${fmt(bagCount(s.no))}지대` : fmt(bt)}
+                          <span className="text-[12px] text-gray-400">{isPallet ? ` (${fmt(bt)}톤)` : '톤'}</span>
+                        </span>
                         <button onClick={() => setModalSilo(s)}
                           className="text-[14px] font-bold px-3.5 py-2 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors">
-                          {canEdit ? '톤백 관리' : '톤백 보기'}
+                          {canEdit ? `${unitLabel} 관리` : `${unitLabel} 보기`}
                         </button>
                       </div>
                     )}
@@ -226,7 +232,7 @@ export default function SiloPage() {
                     {/* 총 재고 (강조) */}
                     <div className="w-full mt-4 pt-4 border-t-2 border-gray-100">
                       <div className="rounded-2xl px-4 py-3.5 text-center" style={{ background: 'linear-gradient(135deg,#0f172a,#1e293b)' }}>
-                        <div className="text-[13px] font-bold text-slate-300 tracking-wide">총 재고 {hasTonbag ? '(벌크+톤백)' : '(벌크)'}</div>
+                        <div className="text-[13px] font-bold text-slate-300 tracking-wide">총 재고 {hasTonbag ? (isPallet ? '(벌크+지대)' : '(벌크+톤백)') : '(벌크)'}</div>
                         <div className="text-[38px] font-black text-white tabular-nums leading-none mt-1.5">
                           {fmt(combined)}<span className="text-lg text-slate-400 font-bold ml-1">톤</span>
                         </div>
@@ -262,23 +268,28 @@ function TonBagModal({ silo, bags, canEdit, onClose, onChanged, supabase, toast 
   silo: Silo; bags: TonBag[]; canEdit: boolean; onClose: () => void; onChanged: () => void;
   supabase: ReturnType<typeof createClient>; toast: ReturnType<typeof useToast>;
 }) {
+  // #1 사일로(K325)는 지대/팔레트 — 개당 1.6톤 고정
+  const pallet = silo.no === 1;
+  const PALLET_TON = 1.6;
+  const unit = pallet ? '지대/팔레트' : '톤백';
+  const countNoun = pallet ? '지대' : '개';
   const [count, setCount] = useState('');
-  const [tonPer, setTonPer] = useState('1');
+  const [tonPer, setTonPer] = useState(pallet ? String(PALLET_TON) : '1');
   const [memo, setMemo] = useState('');
   const [saving, setSaving] = useState(false);
   const total = bags.reduce((s, b) => s + Number(b.total_ton || 0), 0);
 
   const add = async () => {
     const c = parseInt(count, 10);
-    const tp = parseFloat(tonPer);
-    if (!c || c <= 0) { toast.warning('톤백 개수를 입력하세요.'); return; }
+    const tp = pallet ? PALLET_TON : parseFloat(tonPer);
+    if (!c || c <= 0) { toast.warning(`${pallet ? '지대/팔레트 수' : '톤백 개수'}를 입력하세요.`); return; }
     setSaving(true);
     const { error } = await supabase.from('silo_tonbags').insert({
       silo_no: silo.no, product: silo.product, bag_count: c, ton_per_bag: isNaN(tp) ? 1 : tp, memo: memo || null,
     });
     setSaving(false);
     if (error) { toast.error(error.message); return; }
-    setCount(''); setMemo(''); onChanged(); toast.success('톤백이 기록되었습니다.');
+    setCount(''); setMemo(''); onChanged(); toast.success(`${unit} 기록이 저장되었습니다.`);
   };
   const del = async (id: string) => {
     if (!confirm('이 톤백 기록을 삭제할까요?')) return;
@@ -292,8 +303,8 @@ function TonBagModal({ silo, bags, canEdit, onClose, onChanged, supabase, toast 
       <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
           <div>
-            <h2 className="text-xl font-extrabold text-gray-900">#{silo.no} {silo.product} · 톤백 관리</h2>
-            <p className="text-[14px] text-gray-500 mt-0.5">현재 톤백 합계 <b className="text-indigo-600">{fmt(total)}톤</b> · {bags.length}건</p>
+            <h2 className="text-xl font-extrabold text-gray-900">#{silo.no} {silo.product} · {unit} 관리</h2>
+            <p className="text-[14px] text-gray-500 mt-0.5">현재 {unit} 합계 <b className="text-indigo-600">{fmt(total)}톤</b>{pallet ? ` (${fmt(bags.reduce((s, b) => s + Number(b.bag_count || 0), 0))}지대)` : ''} · {bags.length}건</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
         </div>
@@ -302,21 +313,25 @@ function TonBagModal({ silo, bags, canEdit, onClose, onChanged, supabase, toast 
           <div className="px-5 py-4 bg-slate-50 border-b border-gray-200">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[14px] font-bold text-gray-600 mb-1">톤백 개수</label>
+                <label className="block text-[14px] font-bold text-gray-600 mb-1">{pallet ? '지대/팔레트 수' : '톤백 개수'}</label>
                 <input type="number" value={count} onChange={e => setCount(e.target.value)} placeholder="예: 25"
                   className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-[16px]" />
               </div>
               <div>
                 <label className="block text-[14px] font-bold text-gray-600 mb-1">개당 중량(톤)</label>
-                <input type="number" step="0.1" value={tonPer} onChange={e => setTonPer(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-[16px]" />
+                {pallet ? (
+                  <div className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-[16px] bg-gray-100 text-gray-600 font-bold">1.6 <span className="text-[13px] font-normal text-gray-400">(고정)</span></div>
+                ) : (
+                  <input type="number" step="0.1" value={tonPer} onChange={e => setTonPer(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-[16px]" />
+                )}
               </div>
             </div>
             <input value={memo} onChange={e => setMemo(e.target.value)} placeholder="비고 (선택)"
               className="w-full mt-3 px-3 py-2.5 border border-gray-300 rounded-lg text-[15px]" />
             <button onClick={add} disabled={saving}
               className="w-full mt-3 py-3 rounded-xl bg-indigo-600 text-white font-bold text-[16px] hover:bg-indigo-700 disabled:opacity-50">
-              {saving ? '기록 중...' : '＋ 톤백 기록 추가'}
+              {saving ? '기록 중...' : `＋ ${unit} 기록 추가`}
             </button>
           </div>
         )}
@@ -330,7 +345,7 @@ function TonBagModal({ silo, bags, canEdit, onClose, onChanged, supabase, toast 
                 <div key={b.id} className="flex items-center justify-between px-4 py-3 rounded-xl border border-gray-200 bg-white">
                   <div>
                     <div className="text-[17px] font-extrabold text-gray-900 tabular-nums">
-                      {b.bag_count}개 × {fmt(b.ton_per_bag)}톤 = <span className="text-indigo-600">{fmt(b.total_ton)}톤</span>
+                      {b.bag_count}{countNoun} × {fmt(b.ton_per_bag)}톤 = <span className="text-indigo-600">{fmt(b.total_ton)}톤</span>
                     </div>
                     <div className="text-[13px] text-gray-400 mt-0.5">
                       {new Date(b.created_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
