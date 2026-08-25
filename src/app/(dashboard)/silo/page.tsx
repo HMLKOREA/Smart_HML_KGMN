@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/components/ui/Toast';
 import { getSession } from '@/lib/auth/session';
+import { BAG_TON, SILO_PRODUCT, computeTonbagInventory } from '@/lib/tonbag';
 
 interface Silo {
   no: number; product: string; max: number; table: string; field: number;
@@ -26,13 +27,12 @@ function fillColor(pct: number | null): string {
 export default function SiloPage() {
   const supabase = useMemo(() => createClient(), []);
   const toast = useToast();
-  const canEdit = useMemo(() => {
-    const r = getSession()?.profile?.role;
-    return r === 'admin' || r === 'field' || r === 'monitor';
-  }, []);
+  // 톤백 수동 입력은 ADMIN만 (나머지 역할 제한). 매핑 사일로는 톤백재고관리에서 자동 연동.
+  const canEdit = useMemo(() => getSession()?.profile?.role === 'admin', []);
 
   const [data, setData] = useState<SiloResp | null>(null);
   const [bags, setBags] = useState<TonBag[]>([]);
+  const [derived, setDerived] = useState<Record<string, number>>({}); // 톤백재고관리 연동(제품별 개수)
   const [loading, setLoading] = useState(true);
   const [modalSilo, setModalSilo] = useState<Silo | null>(null);
 
@@ -46,13 +46,23 @@ export default function SiloPage() {
     const { data } = await supabase.from('silo_tonbags').select('*').order('created_at', { ascending: false });
     setBags((data || []) as TonBag[]);
   }, [supabase]);
+  // 톤백재고관리(생산일지) → 제품별 현재재고 개수 → 매핑 사일로 연동
+  const loadTonbag = useCallback(async () => {
+    const d = new Date(); d.setDate(d.getDate() - 60);
+    const from = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const [{ data: st }, { data: pl }] = await Promise.all([
+      supabase.from('tonbag_stock_checks').select('check_date, product, qty').gte('check_date', from),
+      supabase.from('production_logs').select('log_date, product, good_count').gte('log_date', from),
+    ]);
+    setDerived(computeTonbagInventory((st || []) as never, (pl || []) as never));
+  }, [supabase]);
 
   useEffect(() => {
-    Promise.all([loadBulk(), loadBags()]).finally(() => setLoading(false));
+    Promise.all([loadBulk(), loadBags(), loadTonbag()]).finally(() => setLoading(false));
     // 벤더 데이터는 1분 갱신이지만 상시 확인이 아니므로 5분 간격 + 수동 새로고침 (서버 부담 최소화)
     const t = setInterval(loadBulk, 5 * 60_000);
     return () => clearInterval(t);
-  }, [loadBulk, loadBags]);
+  }, [loadBulk, loadBags, loadTonbag]);
 
   const bagsBySilo = useMemo(() => {
     const m = new Map<number, TonBag[]>();
@@ -61,14 +71,18 @@ export default function SiloPage() {
   }, [bags]);
   const bagTotal = (no: number) => (bagsBySilo.get(no) || []).reduce((s, b) => s + Number(b.total_ton || 0), 0);
   const bagCount = (no: number) => (bagsBySilo.get(no) || []).reduce((s, b) => s + Number(b.bag_count || 0), 0);
+  // 매핑 사일로는 톤백재고관리 연동값, 그 외는 수동 silo_tonbags
+  const isLinked = (no: number) => !!SILO_PRODUCT[no];
+  const siloBagCount = (no: number) => { const p = SILO_PRODUCT[no]; return p ? (derived[p] || 0) : (no <= 8 ? bagCount(no) : 0); };
+  const siloBagTon = (no: number) => { const p = SILO_PRODUCT[no]; return p ? (derived[p] || 0) * (BAG_TON[p] || 0) : (no <= 8 ? bagTotal(no) : 0); };
 
   // 전체 총재고 (담당자 확인용): 벌크 + 톤백(1~8번)
   const totals = useMemo(() => {
     const silos = data?.silos || [];
     let bulk = 0, bag = 0;
-    for (const s of silos) { bulk += s.weight ?? 0; if (s.no <= 8) bag += bagTotal(s.no); }
+    for (const s of silos) { bulk += s.weight ?? 0; if (s.no <= 8) bag += siloBagTon(s.no); }
     return { bulk, bag, total: bulk + bag };
-  }, [data, bagsBySilo]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [data, bagsBySilo, derived]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 분석 대시보드용 통계
   const stats = useMemo(() => {
@@ -183,9 +197,11 @@ export default function SiloPage() {
                 const color = fillColor(s.pct);
                 const h = s.pct == null ? 0 : s.pct;
                 const hasTonbag = s.no <= 8;               // 9·10번 사일로는 톤백 미사용
-                const isPallet = s.no === 1;               // #1 사일로(K325)는 지대/팔레트(개당 1.6톤)
+                const isPallet = s.no === 1;               // #1 사일로(K325)는 지대/팔레트
+                const linked = isLinked(s.no);             // 톤백재고관리 연동 사일로
                 const unitLabel = isPallet ? '지대' : '톤백';
-                const bt = hasTonbag ? bagTotal(s.no) : 0;
+                const bt = siloBagTon(s.no);
+                const bcnt = siloBagCount(s.no);
                 const combined = (s.weight ?? 0) + bt;
                 return (
                   <div key={s.no} className="bg-white rounded-3xl border border-gray-200 shadow-[0_2px_16px_rgba(15,23,42,0.06)] p-6 flex flex-col items-center">
@@ -217,15 +233,19 @@ export default function SiloPage() {
 
                     {/* 톤백 (1~8번만) */}
                     {hasTonbag && (
-                      <div className="w-full mt-4 flex items-center justify-between">
+                      <div className="w-full mt-4 flex items-center justify-between gap-2">
                         <span className="text-[16px] font-bold text-indigo-700">
-                          🅱 {unitLabel} {isPallet ? fmt(bagCount(s.no)) : fmt(bt)}
+                          🅱 {unitLabel} {isPallet ? fmt(bcnt) : fmt(bt)}
                           <span className="text-[12px] text-gray-400">{isPallet ? ` (${fmt(bt)}톤)` : '톤'}</span>
                         </span>
-                        <button onClick={() => setModalSilo(s)}
-                          className="text-[14px] font-bold px-3.5 py-2 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors">
-                          {canEdit ? `${unitLabel} 관리` : `${unitLabel} 보기`}
-                        </button>
+                        {linked ? (
+                          <span className="text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200 whitespace-nowrap" title={`톤백 재고관리(${SILO_PRODUCT[s.no]})에서 자동 연동`}>🔗 재고관리 연동</span>
+                        ) : (
+                          <button onClick={() => setModalSilo(s)}
+                            className="text-[14px] font-bold px-3.5 py-2 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors">
+                            {canEdit ? `${unitLabel} 관리` : `${unitLabel} 보기`}
+                          </button>
+                        )}
                       </div>
                     )}
 

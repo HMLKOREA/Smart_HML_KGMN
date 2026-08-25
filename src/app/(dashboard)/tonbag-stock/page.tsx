@@ -7,11 +7,7 @@ import { useToast } from '@/components/ui/Toast';
 import { getSession } from '@/lib/auth/session';
 import AccessDenied from '@/components/ui/AccessDenied';
 import { format, addDays, subDays } from 'date-fns';
-
-// 톤백 생산 품목
-const PRODUCTS = ['K200', 'K10', 'K18', 'K50', 'K325'];
-// 톤백당 중량(톤) — 톤 표시·출하 차감·사일로 연동 공용.
-const BAG_TON: Record<string, number> = { K200: 1.2, K10: 1.4, K18: 1.4, K50: 1.4, K325: 1.6 };
+import { TONBAG_PRODUCTS as PRODUCTS, BAG_TON } from '@/lib/tonbag';
 
 interface ProdLog { id: number; log_date: string; product: string; worker: string | null; good_count: number; defect_count: number; created_at: string; }
 interface StockCheck { id: number; check_date: string; product: string; qty: number; }
@@ -234,8 +230,14 @@ export default function TonbagStockPage() {
                   return (
                     <div key={p} className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-4">
                       <div className="text-2xl font-black text-gray-900">{p}</div>
-                      <div className="text-5xl font-black text-indigo-600 tabular-nums mt-2 leading-none">{cur.toLocaleString()}<span className="text-lg text-gray-400 ml-1">개</span></div>
-                      {bpt != null && <div className="text-base font-bold text-slate-500 tabular-nums mt-1">≈ {(cur * bpt).toLocaleString(undefined, { maximumFractionDigits: 1 })} 톤 <span className="text-[11px] text-gray-400 font-normal">(개당 {bpt}t)</span></div>}
+                      {bpt != null ? (
+                        <>
+                          <div className="text-5xl font-black text-indigo-600 tabular-nums mt-2 leading-none">{(cur * bpt).toLocaleString(undefined, { maximumFractionDigits: 1 })}<span className="text-lg text-gray-400 ml-1">톤</span></div>
+                          <div className="text-lg font-bold text-slate-500 tabular-nums mt-1">{cur.toLocaleString()}개 <span className="text-[11px] text-gray-400 font-normal">(개당 {bpt}t)</span></div>
+                        </>
+                      ) : (
+                        <div className="text-5xl font-black text-indigo-600 tabular-nums mt-2 leading-none">{cur.toLocaleString()}<span className="text-lg text-gray-400 ml-1">개</span></div>
+                      )}
                       <div className="text-[13px] text-gray-500 mt-3 tabular-nums leading-relaxed">
                         아침 {morning.toLocaleString()} + 생산 <span className="text-emerald-600 font-bold">{prod.toLocaleString()}</span>
                         {shipT > 0 && <><br /><span className="text-gray-400">출하 {shipT.toFixed(1)}t (참고·미차감)</span></>}
