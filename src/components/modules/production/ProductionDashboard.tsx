@@ -26,7 +26,7 @@ export default function ProductionDashboard() {
   const userRole = (session?.profile?.role || 'monitor') as UserRole;
   const userId = session?.profile?.id;
 
-  const canEdit = userRole === 'admin' || userRole === 'field';
+  const canEdit = userRole === 'admin' || userRole === 'field' || userRole === 'monitor';
   const canDelete = userRole === 'admin';
 
   const [schedules, setSchedules] = useState<ProductionSchedule[]>([]);
@@ -134,11 +134,6 @@ export default function ProductionDashboard() {
       {/* 헤더 바 */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 sm:gap-3">
-          {userRole === 'monitor' && (
-            <span className="px-2 sm:px-3 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-full ring-1 ring-blue-200">
-              모니터링 모드
-            </span>
-          )}
           {loading && (
             <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
           )}
