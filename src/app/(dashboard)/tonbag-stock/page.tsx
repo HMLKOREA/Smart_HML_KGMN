@@ -212,7 +212,7 @@ export default function TonbagStockPage() {
                   const shipT = shipTon[p] || 0;
                   const bpt = BAG_TON[p];
                   const shipBag = bpt ? Math.round(shipT / bpt) : null;
-                  const cur = morning + prod - (shipBag ?? 0);
+                  const cur = Math.max(0, morning + prod - (shipBag ?? 0)); // 재고는 음수 불가 → 최소 0
                   return (
                     <div key={p} className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-4">
                       <div className="text-2xl font-black text-gray-900">{p}</div>
