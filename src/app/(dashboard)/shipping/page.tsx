@@ -1979,7 +1979,7 @@ export default function ShippingPage() {
               <div style={card}>
                 <div style={{ background: '#1d4ed8', color: '#fff', padding: '20px 28px', fontSize: 26, fontWeight: 900, textAlign: 'center' }}>🚨 지정 사일로 상차 요청 🚨</div>
                 <div style={{ padding: '36px 36px', fontSize: 22, lineHeight: 1.7, color: '#111827', textAlign: 'center' }}>
-                  <p style={{ fontWeight: 700 }}>{r.customer_name || '해당 배차'}{r.vehicle_number ? ` (${r.vehicle_number})` : ''} 의 지정 사일로는</p>
+                  <p style={{ fontWeight: 700 }}>{r.company_name || '해당 운송사'}{r.driver_name ? ` / ${r.driver_name} 기사` : ''} 의 지정 사일로는</p>
                   <p style={{ fontSize: 56, fontWeight: 900, color: '#1d4ed8', margin: '14px 0' }}>{r.silo ? `${r.silo}번` : '(미지정)'} <span style={{ fontSize: 28 }}>사일로</span></p>
                   <p style={{ marginTop: 8, fontSize: 20, color: '#374151' }}>당사의 재고 관리 계획에 따른 요청으로,<br /><b>지정 사일로를 반드시 준수</b>하여 상차하시기 바랍니다.</p>
                 </div>
