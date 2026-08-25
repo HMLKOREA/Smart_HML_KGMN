@@ -28,12 +28,16 @@ function NumberPad({ title, initial, onConfirm, onClose }: { title: string; init
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(15,23,42,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={onClose}>
       <div style={{ background: '#fff', borderRadius: 22, width: '92vw', maxWidth: 380, boxShadow: '0 24px 70px rgba(0,0,0,0.45)', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
-        <div style={{ background: '#1e293b', color: '#fff', padding: '14px 20px', fontSize: 18, fontWeight: 800, textAlign: 'center' }}>{title}</div>
+        <div style={{ background: '#1e293b', color: '#fff', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ width: 40 }} />
+          <span style={{ fontSize: 18, fontWeight: 800 }}>{title}</span>
+          <button onClick={onClose} style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none', fontSize: 20, fontWeight: 800, cursor: 'pointer' }}>✕</button>
+        </div>
         {/* 상단 숫자 표시 + ▲▼ */}
         <div style={{ display: 'flex', alignItems: 'stretch', gap: 12, padding: '18px 20px 12px' }}>
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', border: '2px solid #cbd5e1', borderRadius: 14, padding: '10px 18px', minHeight: 72 }}>
             <span style={{ fontSize: 46, fontWeight: 900, color: '#4f46e5', lineHeight: 1 }}>{buf || '0'}</span>
-            <span style={{ fontSize: 16, color: '#94a3b8', marginLeft: 8, alignSelf: 'flex-end', marginBottom: 6 }}>톤백</span>
+            <span style={{ fontSize: 16, color: '#94a3b8', marginLeft: 8, alignSelf: 'flex-end', marginBottom: 6 }}>개</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <button onClick={() => setBuf(String(num + 1))} style={{ width: 56, flex: 1, borderRadius: 12, border: 'none', background: '#4f46e5', color: '#fff', fontSize: 26, fontWeight: 900, cursor: 'pointer' }}>▲</button>
@@ -212,7 +216,8 @@ export default function TonbagStockPage() {
                   return (
                     <div key={p} className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-4">
                       <div className="text-2xl font-black text-gray-900">{p}</div>
-                      <div className="text-5xl font-black text-indigo-600 tabular-nums mt-2 leading-none">{cur.toLocaleString()}<span className="text-lg text-gray-400 ml-1">톤백</span></div>
+                      <div className="text-5xl font-black text-indigo-600 tabular-nums mt-2 leading-none">{cur.toLocaleString()}<span className="text-lg text-gray-400 ml-1">개</span></div>
+                      {bpt != null && <div className="text-base font-bold text-slate-500 tabular-nums mt-1">≈ {(cur * bpt).toLocaleString(undefined, { maximumFractionDigits: 1 })} 톤 <span className="text-[11px] text-gray-400 font-normal">(개당 {bpt}t)</span></div>}
                       <div className="text-[13px] text-gray-500 mt-3 tabular-nums leading-relaxed">
                         아침 {morning.toLocaleString()} + 생산 <span className="text-emerald-600 font-bold">{prod.toLocaleString()}</span>
                         <br />
@@ -230,13 +235,24 @@ export default function TonbagStockPage() {
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
               <h2 className="text-lg font-bold text-gray-700 mb-4">🕗 아침 재고 체크 <span className="text-[13px] font-normal text-gray-400">(칸을 누르면 숫자판이 뜹니다)</span></h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {PRODUCTS.map(p => (
-                  <button key={p} onClick={() => openPad(`${p} 아침 재고`, currentStock(p), v => saveStockValue(p, v))} disabled={!canEdit}
-                    className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl p-4 border border-slate-200 text-left active:bg-slate-100">
-                    <span className="text-3xl font-black text-gray-900">{p}</span>
-                    <span className="text-3xl font-black text-indigo-600 tabular-nums">{currentStock(p).toLocaleString()}<span className="text-base text-gray-400 font-bold ml-1">톤백</span></span>
-                  </button>
-                ))}
+                {PRODUCTS.map(p => {
+                  const q = currentStock(p);
+                  const bpt = BAG_TON[p];
+                  return (
+                    <button key={p} onClick={() => openPad(`${p} 아침 재고`, q, v => saveStockValue(p, v))} disabled={!canEdit}
+                      className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl p-4 border border-slate-200 text-left active:bg-slate-100">
+                      <span className="text-3xl font-black text-gray-900">{p}</span>
+                      <span className="text-right whitespace-nowrap">
+                        <span className="text-indigo-600 tabular-nums font-black">
+                          <span className="text-base text-gray-500 font-bold mr-1.5">톤백</span>
+                          <span className="text-3xl">{q.toLocaleString()}</span>
+                          <span className="text-base text-gray-400 font-bold ml-1">개</span>
+                        </span>
+                        {bpt != null && <span className="block text-sm font-bold text-slate-500 tabular-nums mt-0.5">≈ {(q * bpt).toLocaleString(undefined, { maximumFractionDigits: 1 })} 톤</span>}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -251,7 +267,7 @@ export default function TonbagStockPage() {
                     <button key={w.id} onClick={() => canEdit && setOpenWorker(w.name)} disabled={!canEdit}
                       className={`px-8 py-6 rounded-3xl border-2 text-center transition-colors min-w-[140px] ${t > 0 ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-800 border-gray-300'}`}>
                       <div className="text-2xl font-black">{w.name}</div>
-                      <div className={`text-base font-bold mt-1 ${t > 0 ? 'text-indigo-100' : 'text-gray-400'}`}>{t > 0 ? `${t.toLocaleString()} 톤백` : '입력'}</div>
+                      <div className={`text-base font-bold mt-1 ${t > 0 ? 'text-indigo-100' : 'text-gray-400'}`}>{t > 0 ? `${t.toLocaleString()}개` : '입력'}</div>
                     </button>
                   );
                 })}
@@ -266,11 +282,15 @@ export default function TonbagStockPage() {
               </div>
 
               <div className="mt-5 pt-4 border-t border-gray-100 flex flex-wrap gap-x-6 gap-y-2">
-                {PRODUCTS.map(p => (
-                  <span key={p} className="text-lg">
-                    <b className="text-gray-800">{p}</b> <span className="text-emerald-600 font-black tabular-nums">{prodTotal(p).toLocaleString()}</span> <span className="text-gray-400 text-sm">톤백</span>
-                  </span>
-                ))}
+                {PRODUCTS.map(p => {
+                  const bpt = BAG_TON[p];
+                  const t = prodTotal(p);
+                  return (
+                    <span key={p} className="text-lg">
+                      <b className="text-gray-800">{p}</b> <span className="text-emerald-600 font-black tabular-nums">{t.toLocaleString()}</span> <span className="text-gray-400 text-sm">개{bpt != null && t > 0 ? ` (${(t * bpt).toLocaleString(undefined, { maximumFractionDigits: 1 })}t)` : ''}</span>
+                    </span>
+                  );
+                })}
               </div>
             </div>
 
@@ -295,7 +315,7 @@ export default function TonbagStockPage() {
                   <button key={p} onClick={() => openPad(`${openWorker} · ${p}`, v, nv => setCell(p, openWorker, nv))}
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 18px', background: v > 0 ? '#eef2ff' : '#f8fafc', border: `2px solid ${v > 0 ? '#c7d2fe' : '#e2e8f0'}`, borderRadius: 16, cursor: 'pointer', textAlign: 'left' }}>
                     <span style={{ fontSize: 30, fontWeight: 900, color: '#0f172a' }}>{p}</span>
-                    <span style={{ fontSize: 34, fontWeight: 900, color: '#4f46e5' }}>{v.toLocaleString()}<span style={{ fontSize: 16, color: '#94a3b8', fontWeight: 700, marginLeft: 6 }}>톤백</span></span>
+                    <span style={{ fontSize: 34, fontWeight: 900, color: '#4f46e5' }}>{v.toLocaleString()}<span style={{ fontSize: 16, color: '#94a3b8', fontWeight: 700, marginLeft: 6 }}>개</span></span>
                   </button>
                 );
               })}
