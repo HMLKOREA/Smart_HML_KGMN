@@ -19,6 +19,7 @@ const pageTitles: Record<string, string> = {
   '/report': '성적서관리',
   '/production': '생산현황',
   '/silo': '사일로현황',
+  '/tonbag-stock': '톤백 재고관리',
   '/settlement': '정산관리',
   '/daily-report': '일일보고',
   '/admin/users': '사용자관리',

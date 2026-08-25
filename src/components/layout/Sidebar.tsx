@@ -106,9 +106,10 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    key: 'plant', label: '공장 현황', en: 'Plant', iconKey: 'production', items: [
+    key: 'plant', label: '현장관리', en: 'Field', iconKey: 'production', items: [
       { label: '생산현황', path: '/production', iconKey: 'production', roles: ['admin', 'monitor', 'field'] },
       { label: '사일로현황', path: '/silo', iconKey: 'production', roles: ['admin', 'monitor', 'field', 'transporter'] },
+      { label: '톤백 재고관리', path: '/tonbag-stock', iconKey: 'production', roles: ['admin', 'monitor', 'field'] },
     ],
   },
   {
