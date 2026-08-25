@@ -1961,10 +1961,10 @@ export default function ShippingPage() {
               <div style={card}>
                 <div style={{ background: '#b91c1c', color: '#fff', padding: '20px 28px', fontSize: 26, fontWeight: 900, textAlign: 'center' }}>⚠️ 안전 수칙 서약</div>
                 <div style={{ padding: '32px 36px', fontSize: 22, lineHeight: 1.7, color: '#111827', fontWeight: 600, textAlign: 'center' }}>
-                  <p>나는 공장 출입과 함께 <b>안전화(신발)</b>, <b>안전모(안전모자)</b>를 착용하겠습니다.</p>
-                  <p style={{ marginTop: 16 }}>탱크로리 <b>상부 작업</b> 시 <b>안전 조끼</b> 착용과 <b>안전고리</b>는 추락 방지용 <b>안전대</b>에 걸어 작업하겠습니다.</p>
-                  <p style={{ marginTop: 20, fontSize: 22, fontWeight: 800, color: '#b45309' }}>⚠ 과적 대비 상차중량 확인 후 출발하시기 바랍니다.</p>
-                  <p style={{ marginTop: 18, fontSize: 24, fontWeight: 800, color: '#b91c1c' }}>위 안전 수칙을 준수할 것을 서약합니다.</p>
+                  <p>나는 공장 출입과 함께 <b>안전화</b> / <b>안전모</b> 를 착용하겠습니다.</p>
+                  <p style={{ marginTop: 18 }}>탱크로리 <b>상부 작업</b> 시 <b>안전 조끼</b> 착용과 <b>안전고리</b>는 추락 방지용 <b>안전대</b>에 걸어 작업하겠습니다.</p>
+                  <p style={{ marginTop: 8, fontWeight: 800, color: '#b45309' }}>과적대비 상차 중량 확인 후 출발하시기 바랍니다.</p>
+                  <p style={{ marginTop: 22, fontSize: 24, fontWeight: 800, color: '#b91c1c' }}>위 안전 수칙을 준수할 것을 서약합니다.</p>
                 </div>
                 <div style={{ display: 'flex', gap: 14, padding: '0 36px 32px' }}>
                   <button onClick={() => { setIssueFlow(null); toast.info('출하증 발급이 취소되었습니다.'); }} style={{ ...btnBig, background: '#e5e7eb', color: '#374151' }}>아니오</button>
