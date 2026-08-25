@@ -81,6 +81,8 @@ export default function TonbagStockPage() {
   const [good, setGood] = useState<Record<string, Record<string, number>>>({});
   const [openWorker, setOpenWorker] = useState<string | null>(null);
   const [savingWorker, setSavingWorker] = useState(false);
+  // 일자별 재고 아카이브(최근 30일)
+  const [archive, setArchive] = useState<{ date: string; rec: Record<string, { stock: number; prod: number }> }[]>([]);
 
   // 숫자 키패드 상태
   const [pad, setPad] = useState<{ title: string; value: number; onConfirm: (v: number) => void } | null>(null);
@@ -94,10 +96,13 @@ export default function TonbagStockPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [{ data: lg }, { data: st }, { data: sh }] = await Promise.all([
+      const archFrom = format(subDays(new Date(date + 'T00:00:00'), 29), 'yyyy-MM-dd');
+      const [{ data: lg }, { data: st }, { data: sh }, { data: stR }, { data: pdR }] = await Promise.all([
         supabase.from('production_logs').select('*').eq('log_date', date).order('created_at'),
         supabase.from('tonbag_stock_checks').select('*').eq('check_date', date),
         supabase.from('v_shipments').select('product_name, weight_net').eq('shipment_date', date),
+        supabase.from('tonbag_stock_checks').select('check_date, product, qty').gte('check_date', archFrom).lte('check_date', date),
+        supabase.from('production_logs').select('log_date, product, good_count').gte('log_date', archFrom).lte('log_date', date),
       ]);
       const lrows = (lg || []) as ProdLog[];
       setStocks((st || []) as StockCheck[]);
@@ -116,6 +121,20 @@ export default function TonbagStockPage() {
         if (w) g[l.product][w] = (g[l.product][w] || 0) + l.good_count;
       });
       setGood(g);
+
+      // 일자별 아카이브(아침재고 + 생산)
+      const archMap = new Map<string, Record<string, { stock: number; prod: number }>>();
+      const ensure = (d: string) => {
+        if (!archMap.has(d)) archMap.set(d, Object.fromEntries(PRODUCTS.map(p => [p, { stock: 0, prod: 0 }])));
+        return archMap.get(d)!;
+      };
+      ((stR || []) as { check_date: string; product: string; qty: number }[]).forEach(s => {
+        const r = ensure(s.check_date); if (r[s.product]) r[s.product].stock = s.qty;
+      });
+      ((pdR || []) as { log_date: string; product: string; good_count: number }[]).forEach(l => {
+        const r = ensure(l.log_date); if (r[l.product]) r[l.product].prod += l.good_count;
+      });
+      setArchive([...archMap.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([d, rec]) => ({ date: d, rec })));
     } catch {
       toast.error('데이터 조회 실패');
     } finally {
@@ -211,8 +230,7 @@ export default function TonbagStockPage() {
                   const prod = prodTotal(p);
                   const shipT = shipTon[p] || 0;
                   const bpt = BAG_TON[p];
-                  const shipBag = bpt ? Math.round(shipT / bpt) : null;
-                  const cur = Math.max(0, morning + prod - (shipBag ?? 0)); // 재고는 음수 불가 → 최소 0
+                  const cur = Math.max(0, morning + prod); // 출하 자동차감 중지 · 최소 0
                   return (
                     <div key={p} className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-4">
                       <div className="text-2xl font-black text-gray-900">{p}</div>
@@ -220,10 +238,7 @@ export default function TonbagStockPage() {
                       {bpt != null && <div className="text-base font-bold text-slate-500 tabular-nums mt-1">≈ {(cur * bpt).toLocaleString(undefined, { maximumFractionDigits: 1 })} 톤 <span className="text-[11px] text-gray-400 font-normal">(개당 {bpt}t)</span></div>}
                       <div className="text-[13px] text-gray-500 mt-3 tabular-nums leading-relaxed">
                         아침 {morning.toLocaleString()} + 생산 <span className="text-emerald-600 font-bold">{prod.toLocaleString()}</span>
-                        <br />
-                        {shipBag != null
-                          ? <>출하 <span className="text-rose-500 font-bold">−{shipBag.toLocaleString()}</span> <span className="text-gray-400">({shipT.toFixed(1)}t÷{bpt})</span></>
-                          : <span className="text-gray-400">출하 {shipT > 0 ? `${shipT.toFixed(1)}t (미설정)` : '0'}</span>}
+                        {shipT > 0 && <><br /><span className="text-gray-400">출하 {shipT.toFixed(1)}t (참고·미차감)</span></>}
                       </div>
                     </div>
                   );
@@ -293,6 +308,47 @@ export default function TonbagStockPage() {
                 })}
               </div>
             </div>
+
+            {/* ═══ 일자별 재고 현황 (아카이브) ═══ */}
+            {archive.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+                <h2 className="text-lg font-bold text-gray-700 mb-4">📅 일자별 재고 현황 <span className="text-[13px] font-normal text-gray-400">(최근 30일 · 아침재고 + 생산)</span></h2>
+                <div className="overflow-x-auto">
+                  <table className="data-table" style={{ fontSize: 14, minWidth: 560 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ minWidth: 110, textAlign: 'left' }}>날짜</th>
+                        {PRODUCTS.map(p => <th key={p} style={{ minWidth: 78, textAlign: 'right' }}>{p}</th>)}
+                        <th style={{ minWidth: 90, textAlign: 'right' }}>합계(톤)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {archive.map(row => {
+                        const dow = ['일', '월', '화', '수', '목', '금', '토'][new Date(row.date + 'T00:00:00').getDay()];
+                        let totTon = 0;
+                        const cells = PRODUCTS.map(p => {
+                          const bags = row.rec[p].stock + row.rec[p].prod;
+                          const bpt = BAG_TON[p];
+                          if (bpt) totTon += bags * bpt;
+                          return (
+                            <td key={p} style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                              {bags > 0 ? <><b>{bags.toLocaleString()}</b><span className="text-gray-400 text-xs">개</span></> : <span className="text-gray-300">-</span>}
+                            </td>
+                          );
+                        });
+                        return (
+                          <tr key={row.date} style={row.date === date ? { background: '#eef2ff' } : undefined}>
+                            <td style={{ whiteSpace: 'nowrap', fontWeight: 700, textAlign: 'left' }}>{row.date.slice(5)} ({dow})</td>
+                            {cells}
+                            <td style={{ textAlign: 'right', fontWeight: 800, color: '#4f46e5', fontVariantNumeric: 'tabular-nums' }}>{totTon.toLocaleString(undefined, { maximumFractionDigits: 1 })}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
           </div>
         )}
