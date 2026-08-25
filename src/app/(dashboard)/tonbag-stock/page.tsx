@@ -66,6 +66,8 @@ export default function TonbagStockPage() {
   const canEdit = canView;
 
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  // 생산일지 기록일 = 재고일의 전날(D-1). 전날 밤 생산을 아침에 기록.
+  const prodDate = format(subDays(new Date(date + 'T00:00:00'), 1), 'yyyy-MM-dd');
   const [loading, setLoading] = useState(true);
 
   const [stocks, setStocks] = useState<StockCheck[]>([]);
@@ -96,7 +98,7 @@ export default function TonbagStockPage() {
     try {
       const archFrom = format(subDays(new Date(date + 'T00:00:00'), 90), 'yyyy-MM-dd');
       const [{ data: lg }, { data: st }, { data: sh }, { data: stR }, { data: pdR }] = await Promise.all([
-        supabase.from('production_logs').select('*').eq('log_date', date).order('created_at'),
+        supabase.from('production_logs').select('*').eq('log_date', prodDate).order('created_at'),
         supabase.from('tonbag_stock_checks').select('*').eq('check_date', date),
         supabase.from('v_shipments').select('product_name, weight_net').eq('shipment_date', date),
         supabase.from('tonbag_stock_checks').select('check_date, product, qty').gte('check_date', archFrom).lte('check_date', date),
@@ -171,8 +173,8 @@ export default function TonbagStockPage() {
   const saveWorker = async (w: string) => {
     setSavingWorker(true);
     try {
-      const rows = PRODUCTS.filter(p => cell(p, w) > 0).map(p => ({ log_date: date, product: p, worker: w, good_count: cell(p, w), defect_count: 0 }));
-      const { error: delErr } = await supabase.from('production_logs').delete().eq('log_date', date).eq('worker', w);
+      const rows = PRODUCTS.filter(p => cell(p, w) > 0).map(p => ({ log_date: prodDate, product: p, worker: w, good_count: cell(p, w), defect_count: 0 }));
+      const { error: delErr } = await supabase.from('production_logs').delete().eq('log_date', prodDate).eq('worker', w);
       if (delErr) throw delErr;
       if (rows.length > 0) {
         const { error: insErr } = await supabase.from('production_logs').insert(rows);
@@ -231,7 +233,7 @@ export default function TonbagStockPage() {
                   const prod = prodTotal(p);
                   const shipT = shipTon[p] || 0;
                   const bpt = BAG_TON[p];
-                  const cur = carry[p] ?? Math.max(0, morning + prod); // 당일 재고(그날 아침 + 그날 생산)
+                  const cur = carry[p] ?? Math.max(0, morning); // 그날 아침 8시 실측 재고
                   return (
                     <div key={p} className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-4">
                       <div className="text-2xl font-black text-gray-900">{p}</div>
@@ -244,8 +246,8 @@ export default function TonbagStockPage() {
                         <div className="text-5xl font-black text-indigo-600 tabular-nums mt-2 leading-none">{cur.toLocaleString()}<span className="text-lg text-gray-400 ml-1">개</span></div>
                       )}
                       <div className="text-[13px] text-gray-500 mt-3 tabular-nums leading-relaxed">
-                        {(morning > 0 || prod > 0)
-                          ? <>아침 {morning.toLocaleString()} · 생산 <span className="text-emerald-600 font-bold">{prod.toLocaleString()}</span></>
+                        {morning > 0
+                          ? <>아침 8시 실측 {morning.toLocaleString()}개{prod > 0 && <span className="text-gray-400"> · 전날생산 {prod.toLocaleString()}</span>}</>
                           : <span className="text-gray-400">아침 8시 재고 입력 대기</span>}
                         {shipT > 0 && <><br /><span className="text-gray-400">출하 {shipT.toFixed(1)}t (참고·미차감)</span></>}
                       </div>
@@ -282,7 +284,7 @@ export default function TonbagStockPage() {
 
             {/* ═══ 생산일지 ═══ */}
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-              <h2 className="text-lg font-bold text-gray-700 mb-4">📝 생산일지 <span className="text-[13px] font-normal text-gray-400">(작업자를 누르면 입력창이 뜹니다)</span></h2>
+              <h2 className="text-lg font-bold text-gray-700 mb-4">📝 생산일지 <span className="text-[13px] font-normal text-gray-400">(전날 밤 생산분 · <b className="text-indigo-600">{prodDate}</b> 기록 · 작업자를 누르면 입력창)</span></h2>
 
               <div className="flex flex-wrap gap-3 items-stretch">
                 {roster.map(w => {
@@ -321,7 +323,7 @@ export default function TonbagStockPage() {
             {/* ═══ 일자별 재고 현황 (아카이브) ═══ */}
             {archive.length > 0 && (
               <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-                <h2 className="text-lg font-bold text-gray-700 mb-4">📅 일자별 재고 현황 <span className="text-[13px] font-normal text-gray-400">(최근 30일 · 아침재고 + 생산)</span></h2>
+                <h2 className="text-lg font-bold text-gray-700 mb-4">📅 일자별 재고 현황 <span className="text-[13px] font-normal text-gray-400">(최근 30일 · 아침 8시 실측 재고)</span></h2>
                 <div className="overflow-x-auto">
                   <table className="data-table" style={{ fontSize: 14, minWidth: 560 }}>
                     <thead>
@@ -336,7 +338,7 @@ export default function TonbagStockPage() {
                         const dow = ['일', '월', '화', '수', '목', '금', '토'][new Date(row.date + 'T00:00:00').getDay()];
                         let totTon = 0;
                         const cells = PRODUCTS.map(p => {
-                          const bags = row.rec[p].stock + row.rec[p].prod;
+                          const bags = row.rec[p].stock;
                           const bpt = BAG_TON[p];
                           if (bpt) totTon += bags * bpt;
                           return (
@@ -373,7 +375,7 @@ export default function TonbagStockPage() {
               <span style={{ fontSize: 26, fontWeight: 900 }}>
                 {openWorker} <span style={{ fontSize: 16, fontWeight: 600, opacity: 0.85 }}>생산 입력</span>
                 <span style={{ fontSize: 15, fontWeight: 700, background: 'rgba(255,255,255,0.18)', padding: '2px 10px', borderRadius: 999, marginLeft: 10, whiteSpace: 'nowrap' }}>
-                  📅 {date} ({['일', '월', '화', '수', '목', '금', '토'][new Date(date + 'T00:00:00').getDay()]})
+                  📅 {prodDate} ({['일', '월', '화', '수', '목', '금', '토'][new Date(prodDate + 'T00:00:00').getDay()]}) 생산분
                 </span>
               </span>
               <button onClick={() => setOpenWorker(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', width: 40, height: 40, borderRadius: 10, fontSize: 22, cursor: 'pointer' }}>✕</button>
