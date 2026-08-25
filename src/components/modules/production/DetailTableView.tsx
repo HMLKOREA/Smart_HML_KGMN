@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import type { ProductionSchedule, TransportCategory } from '@/types';
-import { TRANSPORT_CATEGORIES, SUB_CATEGORIES, SCHEDULE_STATUS_MAP, CATEGORY_COLORS } from './constants';
+import { TRANSPORT_CATEGORIES, SCHEDULE_STATUS_MAP, CATEGORY_COLORS } from './constants';
 import { exportToExcel } from '@/lib/utils/exportExcel';
 
 interface Props {
@@ -15,25 +15,17 @@ type TabValue = 'all' | TransportCategory;
 
 export default function DetailTableView({ schedules, onCardClick, canEdit }: Props) {
   const [tab, setTab] = useState<TabValue>('all');
-  const [subFilter, setSubFilter] = useState<string>('');
 
   const filtered = useMemo(() => {
     let data = schedules;
     if (tab !== 'all') data = data.filter(s => s.transport_category === tab);
-    if (subFilter) data = data.filter(s => s.sub_category === subFilter);
     return data.sort((a, b) => a.schedule_date.localeCompare(b.schedule_date) || a.priority - b.priority);
-  }, [schedules, tab, subFilter]);
-
-  const subOptions = useMemo(() => {
-    if (tab === 'all') return [...SUB_CATEGORIES.cargo_truck, ...SUB_CATEGORIES.tank_lorry];
-    return SUB_CATEGORIES[tab];
-  }, [tab]);
+  }, [schedules, tab]);
 
   const handleExport = () => {
     const rows = filtered.map(s => ({
       '날짜': s.schedule_date,
       '운송구분': s.transport_category === 'cargo_truck' ? 'Cargo Truck' : 'Tank Lorry',
-      '세부구분': s.sub_category,
       '거래처': s.customer_name || '',
       '제품': s.product_code || s.product_name || '',
       '계획수량(ton)': s.planned_quantity,
@@ -56,7 +48,7 @@ export default function DetailTableView({ schedules, onCardClick, canEdit }: Pro
               { value: 'all' as TabValue, label: '전체' },
               ...TRANSPORT_CATEGORIES.map(c => ({ value: c.value as TabValue, label: c.label })),
             ].map(t => (
-              <button key={t.value} onClick={() => { setTab(t.value); setSubFilter(''); }}
+              <button key={t.value} onClick={() => setTab(t.value)}
                 className={`px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-bold rounded-lg transition ${tab === t.value ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
                 {t.label}
               </button>
@@ -70,20 +62,6 @@ export default function DetailTableView({ schedules, onCardClick, canEdit }: Pro
             엑셀
           </button>
         </div>
-
-        {/* 서브 필터 칩 */}
-        <div className="flex gap-1.5 flex-wrap">
-          <button onClick={() => setSubFilter('')}
-            className={`px-3 py-1 text-xs font-medium rounded-full transition ${!subFilter ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-            전체
-          </button>
-          {subOptions.map(s => (
-            <button key={s} onClick={() => setSubFilter(subFilter === s ? '' : s)}
-              className={`px-3 py-1 text-xs font-medium rounded-full transition ${subFilter === s ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-              {s}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* 테이블 */}
@@ -93,7 +71,6 @@ export default function DetailTableView({ schedules, onCardClick, canEdit }: Pro
             <tr>
               <th>날짜</th>
               <th>구분</th>
-              <th>세부</th>
               <th>거래처</th>
               <th>제품</th>
               <th className="text-right">계획(t)</th>
@@ -115,7 +92,6 @@ export default function DetailTableView({ schedules, onCardClick, canEdit }: Pro
                   <td><span className={`px-2 py-0.5 rounded text-[10px] font-bold ${colors.badge}`}>
                     {s.transport_category === 'cargo_truck' ? 'Cargo' : 'BCT'}
                   </span></td>
-                  <td className="font-medium text-gray-700">{s.sub_category}</td>
                   <td className="font-medium text-gray-800">{s.customer_name || '-'}</td>
                   <td className="text-gray-600 text-xs">{s.product_code || s.product_name || '-'}</td>
                   <td className="text-right tabular-nums">{Number(s.planned_quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}</td>
@@ -137,7 +113,7 @@ export default function DetailTableView({ schedules, onCardClick, canEdit }: Pro
               );
             }) : (
               <tr>
-                <td colSpan={canEdit ? 12 : 11} className="text-center py-12 text-gray-400">
+                <td colSpan={canEdit ? 11 : 10} className="text-center py-12 text-gray-400">
                   <p className="text-sm">등록된 생산 일정이 없습니다</p>
                 </td>
               </tr>

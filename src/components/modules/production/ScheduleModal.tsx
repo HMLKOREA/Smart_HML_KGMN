@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { ProductionSchedule, TransportCategory, ProductionScheduleStatus } from '@/types';
-import { SUB_CATEGORIES, TRANSPORT_CATEGORIES, SCHEDULE_STATUS_MAP, todayStr } from './constants';
+import { TRANSPORT_CATEGORIES, SCHEDULE_STATUS_MAP, todayStr } from './constants';
 
 interface Props {
   open: boolean;
@@ -29,8 +29,7 @@ export default function ScheduleModal({
 
   // Form state
   const [date, setDate] = useState('');
-  const [category, setCategory] = useState<TransportCategory>('cargo_truck');
-  const [subCat, setSubCat] = useState('');
+  const [category, setCategory] = useState<TransportCategory>('tank_lorry');
   const [customerId, setCustomerId] = useState('');
   const [productId, setProductId] = useState('');
   const [plannedQty, setPlannedQty] = useState('');
@@ -84,7 +83,6 @@ export default function ScheduleModal({
     if (schedule) {
       setDate(schedule.schedule_date);
       setCategory(schedule.transport_category);
-      setSubCat(schedule.sub_category);
       setCustomerId(schedule.customer_id || '');
       setProductId(schedule.product_id || '');
       setPlannedQty(String(schedule.planned_quantity || ''));
@@ -95,8 +93,7 @@ export default function ScheduleModal({
       setNotes(schedule.notes || '');
     } else {
       setDate(defaultDate || todayStr());
-      setCategory('cargo_truck');
-      setSubCat(SUB_CATEGORIES.cargo_truck[0]);
+      setCategory('tank_lorry');
       setCustomerId('');
       setProductId('');
       setPlannedQty('');
@@ -110,13 +107,13 @@ export default function ScheduleModal({
   }, [open, schedule, defaultDate]);
 
   const handleSave = useCallback(async () => {
-    if (!date || !subCat) { setError('날짜와 세부구분은 필수입니다.'); return; }
+    if (!date) { setError('날짜는 필수입니다.'); return; }
     setSaving(true);
     setError('');
     const result = await onSave({
       schedule_date: date,
       transport_category: category,
-      sub_category: subCat,
+      sub_category: '',
       customer_id: customerId,
       product_id: productId,
       planned_quantity: Number(plannedQty) || 0,
@@ -129,7 +126,7 @@ export default function ScheduleModal({
     setSaving(false);
     if (result.success) { onSaved(); onClose(); }
     else setError(result.error || '저장 실패');
-  }, [date, category, subCat, customerId, productId, plannedQty, plannedTrucks, actualQty, actualTrucks, status, notes, schedule, onSave, onSaved, onClose, userId]);
+  }, [date, category, customerId, productId, plannedQty, plannedTrucks, actualQty, actualTrucks, status, notes, schedule, onSave, onSaved, onClose, userId]);
 
   const handleDelete = useCallback(async () => {
     if (!schedule) return;
@@ -176,7 +173,7 @@ export default function ScheduleModal({
             <div className="flex gap-2">
               {TRANSPORT_CATEGORIES.map(c => (
                 <button key={c.value} type="button" disabled={!canEdit}
-                  onClick={() => { setCategory(c.value); setSubCat(SUB_CATEGORIES[c.value][0]); }}
+                  onClick={() => setCategory(c.value)}
                   className={`flex-1 py-2 text-sm font-bold rounded-lg transition ${category === c.value
                     ? c.value === 'cargo_truck' ? 'bg-blue-600 text-white' : 'bg-emerald-600 text-white'
                     : 'bg-gray-100 text-gray-500 hover:bg-gray-200'} disabled:opacity-60`}>
@@ -184,15 +181,6 @@ export default function ScheduleModal({
                 </button>
               ))}
             </div>
-          </div>
-
-          {/* 세부 구분 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">세부 구분 *</label>
-            <select value={subCat} onChange={e => setSubCat(e.target.value)} disabled={!canEdit}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm disabled:bg-gray-50">
-              {SUB_CATEGORIES[category].map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
           </div>
 
           {/* 거래처 */}

@@ -28,7 +28,7 @@ export default function ScheduleCard({ schedule: s, onClick, compact }: Props) {
       <div className="flex items-center gap-1 mb-0.5">
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${st.dot}`} />
         <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold leading-none ${colors.badge}`}>
-          {s.sub_category}
+          {s.transport_category === 'cargo_truck' ? 'Cargo' : 'BCT'}
         </span>
         {qtyLabel && <span className="text-[9px] text-gray-400 font-medium ml-auto tabular-nums">{qtyLabel}</span>}
       </div>

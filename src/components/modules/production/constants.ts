@@ -13,15 +13,11 @@ export function todayStr(): string {
   return localDateStr(new Date());
 }
 
+// Tank Lorry(주력·대량)를 좌측(먼저)으로 배치
 export const TRANSPORT_CATEGORIES: { value: TransportCategory; label: string; color: string }[] = [
-  { value: 'cargo_truck', label: 'Cargo Truck', color: 'blue' },
   { value: 'tank_lorry', label: 'Tank Lorry (BCT)', color: 'emerald' },
+  { value: 'cargo_truck', label: 'Cargo Truck', color: 'blue' },
 ];
-
-export const SUB_CATEGORIES: Record<TransportCategory, string[]> = {
-  cargo_truck: ['K10', '광성화학', '기타'],
-  tank_lorry: ['탈황용', '공업용'],
-};
 
 export const SCHEDULE_STATUS_MAP: Record<string, { label: string; style: string; dot: string }> = {
   planned:     { label: '계획', style: 'bg-gray-50 text-gray-700 ring-1 ring-gray-200', dot: 'bg-gray-400' },
