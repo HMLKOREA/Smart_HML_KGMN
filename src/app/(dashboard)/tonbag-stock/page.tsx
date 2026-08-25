@@ -7,7 +7,7 @@ import { useToast } from '@/components/ui/Toast';
 import { getSession } from '@/lib/auth/session';
 import AccessDenied from '@/components/ui/AccessDenied';
 import { format, addDays, subDays } from 'date-fns';
-import { TONBAG_PRODUCTS as PRODUCTS, BAG_TON } from '@/lib/tonbag';
+import { TONBAG_PRODUCTS as PRODUCTS, BAG_TON, computeTonbagInventory } from '@/lib/tonbag';
 
 interface ProdLog { id: number; log_date: string; product: string; worker: string | null; good_count: number; defect_count: number; created_at: string; }
 interface StockCheck { id: number; check_date: string; product: string; qty: number; }
@@ -79,6 +79,8 @@ export default function TonbagStockPage() {
   const [savingWorker, setSavingWorker] = useState(false);
   // 일자별 재고 아카이브(최근 30일)
   const [archive, setArchive] = useState<{ date: string; rec: Record<string, { stock: number; prod: number }> }[]>([]);
+  // 현재재고(이월): 선택일 기준 최근 아침재고 + 이후 생산
+  const [carry, setCarry] = useState<Record<string, number>>({});
 
   // 숫자 키패드 상태
   const [pad, setPad] = useState<{ title: string; value: number; onConfirm: (v: number) => void } | null>(null);
@@ -92,7 +94,7 @@ export default function TonbagStockPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const archFrom = format(subDays(new Date(date + 'T00:00:00'), 29), 'yyyy-MM-dd');
+      const archFrom = format(subDays(new Date(date + 'T00:00:00'), 90), 'yyyy-MM-dd');
       const [{ data: lg }, { data: st }, { data: sh }, { data: stR }, { data: pdR }] = await Promise.all([
         supabase.from('production_logs').select('*').eq('log_date', date).order('created_at'),
         supabase.from('tonbag_stock_checks').select('*').eq('check_date', date),
@@ -130,7 +132,10 @@ export default function TonbagStockPage() {
       ((pdR || []) as { log_date: string; product: string; good_count: number }[]).forEach(l => {
         const r = ensure(l.log_date); if (r[l.product]) r[l.product].prod += l.good_count;
       });
-      setArchive([...archMap.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([d, rec]) => ({ date: d, rec })));
+      const arch30 = format(subDays(new Date(date + 'T00:00:00'), 29), 'yyyy-MM-dd');
+      setArchive([...archMap.entries()].filter(([d]) => d >= arch30).sort((a, b) => b[0].localeCompare(a[0])).map(([d, rec]) => ({ date: d, rec })));
+      // 현재재고(이월): 선택일 기준
+      setCarry(computeTonbagInventory((stR || []) as never, (pdR || []) as never, date));
     } catch {
       toast.error('데이터 조회 실패');
     } finally {
@@ -226,7 +231,7 @@ export default function TonbagStockPage() {
                   const prod = prodTotal(p);
                   const shipT = shipTon[p] || 0;
                   const bpt = BAG_TON[p];
-                  const cur = Math.max(0, morning + prod); // 출하 자동차감 중지 · 최소 0
+                  const cur = carry[p] ?? Math.max(0, morning + prod); // 이월 재고(최근 아침 + 이후 생산)
                   return (
                     <div key={p} className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-4">
                       <div className="text-2xl font-black text-gray-900">{p}</div>
@@ -239,7 +244,9 @@ export default function TonbagStockPage() {
                         <div className="text-5xl font-black text-indigo-600 tabular-nums mt-2 leading-none">{cur.toLocaleString()}<span className="text-lg text-gray-400 ml-1">개</span></div>
                       )}
                       <div className="text-[13px] text-gray-500 mt-3 tabular-nums leading-relaxed">
-                        아침 {morning.toLocaleString()} + 생산 <span className="text-emerald-600 font-bold">{prod.toLocaleString()}</span>
+                        {(morning > 0 || prod > 0)
+                          ? <>오늘 아침 {morning.toLocaleString()} · 생산 <span className="text-emerald-600 font-bold">{prod.toLocaleString()}</span></>
+                          : <span className="text-gray-400">이월 재고 (최근 아침 + 이후 생산)</span>}
                         {shipT > 0 && <><br /><span className="text-gray-400">출하 {shipT.toFixed(1)}t (참고·미차감)</span></>}
                       </div>
                     </div>

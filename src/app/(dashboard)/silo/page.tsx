@@ -48,13 +48,15 @@ export default function SiloPage() {
   }, [supabase]);
   // 톤백재고관리(생산일지) → 제품별 현재재고 개수 → 매핑 사일로 연동
   const loadTonbag = useCallback(async () => {
-    const d = new Date(); d.setDate(d.getDate() - 60);
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const d = new Date(); d.setDate(d.getDate() - 90);
     const from = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const [{ data: st }, { data: pl }] = await Promise.all([
       supabase.from('tonbag_stock_checks').select('check_date, product, qty').gte('check_date', from),
       supabase.from('production_logs').select('log_date, product, good_count').gte('log_date', from),
     ]);
-    setDerived(computeTonbagInventory((st || []) as never, (pl || []) as never));
+    setDerived(computeTonbagInventory((st || []) as never, (pl || []) as never, today));
   }, [supabase]);
 
   useEffect(() => {

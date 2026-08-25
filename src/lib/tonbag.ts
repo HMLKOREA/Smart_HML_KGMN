@@ -11,21 +11,30 @@ export const PRODUCT_SILO: Record<string, number> = { K200: 3, K10: 6, K18: 8, K
 export const SILO_PRODUCT: Record<number, string> = { 3: 'K200', 6: 'K10', 8: 'K18', 7: 'K50', 1: 'K325' };
 
 /**
- * 제품별 현재 톤백 재고(개수) 산출.
- * 최신 아침재고 체크일을 기준으로 = 그날 아침재고 + 그날 생산(양호). (매일 아침 재체크 전제)
+ * 제품별 톤백 재고(개수) 산출 — 이월(carry-over) 방식.
+ * asOf 시점 기준: 가장 최근 아침재고 체크(≤asOf)를 기준값으로, 그 체크일 이후(포함)의 생산을 더함.
+ * → 오늘 아침 재체크를 안 해도 최근 재고가 그대로 이월되어 표시됨.
  */
 export function computeTonbagInventory(
   stockRows: { check_date: string; product: string; qty: number }[],
   prodRows: { log_date: string; product: string; good_count: number }[],
+  asOf: string,
 ): Record<string, number> {
   const out: Record<string, number> = {};
   for (const p of TONBAG_PRODUCTS) {
-    let anchor = '';
-    let morning = 0;
-    for (const c of stockRows) if (c.product === p && c.check_date > anchor) { anchor = c.check_date; morning = c.qty; }
-    if (!anchor) for (const l of prodRows) if (l.product === p && l.log_date > anchor) anchor = l.log_date;
-    const prod = anchor ? prodRows.filter(l => l.product === p && l.log_date === anchor).reduce((s, l) => s + l.good_count, 0) : 0;
-    out[p] = Math.max(0, morning + prod);
+    let baseDate = '';
+    let baseQty = 0;
+    let hasBase = false;
+    for (const c of stockRows) {
+      if (c.product === p && c.check_date <= asOf && c.check_date >= baseDate) {
+        baseDate = c.check_date; baseQty = c.qty; hasBase = true;
+      }
+    }
+    let prod = 0;
+    for (const l of prodRows) {
+      if (l.product === p && l.log_date <= asOf && (!hasBase || l.log_date >= baseDate)) prod += l.good_count;
+    }
+    out[p] = Math.max(0, baseQty + prod);
   }
   return out;
 }
