@@ -224,14 +224,14 @@ export default function TonbagStockPage() {
 
             {/* ═══ 현재 재고 요약 ═══ */}
             <div>
-              <h2 className="text-lg font-bold text-gray-700 mb-3">📦 현재 재고 <span className="text-[13px] font-normal text-gray-400">(아침 + 생산 − 출하)</span></h2>
+              <h2 className="text-lg font-bold text-gray-700 mb-3">📦 오늘 재고 <span className="text-[13px] font-normal text-gray-400">(매일 아침 8시 입력 · 그날 아침재고 + 생산)</span></h2>
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                 {PRODUCTS.map(p => {
                   const morning = currentStock(p);
                   const prod = prodTotal(p);
                   const shipT = shipTon[p] || 0;
                   const bpt = BAG_TON[p];
-                  const cur = carry[p] ?? Math.max(0, morning + prod); // 이월 재고(최근 아침 + 이후 생산)
+                  const cur = carry[p] ?? Math.max(0, morning + prod); // 당일 재고(그날 아침 + 그날 생산)
                   return (
                     <div key={p} className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-4">
                       <div className="text-2xl font-black text-gray-900">{p}</div>
@@ -245,8 +245,8 @@ export default function TonbagStockPage() {
                       )}
                       <div className="text-[13px] text-gray-500 mt-3 tabular-nums leading-relaxed">
                         {(morning > 0 || prod > 0)
-                          ? <>오늘 아침 {morning.toLocaleString()} · 생산 <span className="text-emerald-600 font-bold">{prod.toLocaleString()}</span></>
-                          : <span className="text-gray-400">이월 재고 (최근 아침 + 이후 생산)</span>}
+                          ? <>아침 {morning.toLocaleString()} · 생산 <span className="text-emerald-600 font-bold">{prod.toLocaleString()}</span></>
+                          : <span className="text-gray-400">아침 8시 재고 입력 대기</span>}
                         {shipT > 0 && <><br /><span className="text-gray-400">출하 {shipT.toFixed(1)}t (참고·미차감)</span></>}
                       </div>
                     </div>
