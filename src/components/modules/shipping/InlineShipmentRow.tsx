@@ -23,6 +23,7 @@ interface Shipment {
   company_name: string | null;
   transport_type: string | null;
   silo: string | null;
+  driver_message: string | null;
   is_shipped: boolean;
   weight_empty: number | null;
   weight_loaded: number | null;
@@ -51,6 +52,7 @@ export interface EditableRowData {
   driver_id: string;
   vehicle_number: string;
   silo: string;
+  driver_message: string;
   quantity: number;
   unit: string;
   delivery_address: string;
@@ -212,6 +214,9 @@ export default function InlineShipmentRow({
         <td style={{ padding: cellPad, fontSize: 13 }}>{row.company_name || '-'}</td>
         <td style={{ fontFamily: 'monospace', fontSize: 12, padding: cellPad }}>{row.vehicle_number || '-'}</td>
         <td style={{ padding: cellPad, fontSize: 13 }}>{row.silo || '-'}</td>
+        <td style={{ maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: cellPad, fontSize: 13, color: row.driver_message ? '#b45309' : '#cbd5e1', fontWeight: row.driver_message ? 700 : 400 }} title={row.driver_message || ''}>
+          {row.driver_message || ''}
+        </td>
         <td style={{ textAlign: 'center', padding: cellPad }} onClick={e => e.stopPropagation()}>
           <input
             type="checkbox"
@@ -332,6 +337,17 @@ export default function InlineShipmentRow({
           onChange={e => update({ silo: e.target.value })}
           style={{ ...inputStyle, width: 50 }}
           placeholder="사일로"
+        />
+      </td>
+
+      {/* 전달사항 (기사 전달) */}
+      <td style={{ padding: '2px 3px' }}>
+        <input
+          type="text"
+          value={editData.driver_message}
+          onChange={e => update({ driver_message: e.target.value })}
+          style={{ ...inputStyle, width: '100%' }}
+          placeholder="기사 전달사항"
         />
       </td>
 

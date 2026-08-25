@@ -14,6 +14,7 @@ interface SavePayload {
   driver_id: string;
   vehicle_number: string;
   silo: string;
+  driver_message: string;
   quantity: number;
   unit: string;
   delivery_address: string;
@@ -54,6 +55,7 @@ export function useShipmentCrud() {
         driver_id: data.driver_id || null,
         vehicle_number: data.vehicle_number || null,
         silo: data.silo || null,
+        driver_message: data.driver_message || null,
         quantity: data.quantity,
         unit: data.unit,
         delivery_address: data.delivery_address || null,

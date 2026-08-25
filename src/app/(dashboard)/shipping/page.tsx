@@ -38,6 +38,7 @@ interface Shipment {
   company_name: string | null;
   transport_type: string | null;
   silo: string | null;
+  driver_message: string | null;
   is_shipped: boolean;
   weight_empty: number | null;
   weight_loaded: number | null;
@@ -90,6 +91,7 @@ const SHIP_COLS: { key: string; w: number }[] = [
   { key: 'company_name', w: 84 },
   { key: 'vehicle_number', w: 110 },
   { key: 'silo', w: 66 },
+  { key: 'driver_message', w: 130 },
   { key: 'shipped', w: 40 },
   { key: 'weight_net', w: 82 },
   { key: 'notes', w: 130 },
@@ -142,6 +144,8 @@ export default function ShippingPage() {
   // ── Modal State (kept: print, waiting, dispatch notify) ──
   const [showPrint, setShowPrint] = useState(false);
   const [printRow, setPrintRow] = useState<Shipment | null>(null);
+  // 출하증 발급 전 확인 팝업 플로우 (A 안전서약 → B 지정사일로 → C 전달사항 → 인쇄)
+  const [issueFlow, setIssueFlow] = useState<{ row: Shipment; step: 'safety' | 'silo' | 'message' } | null>(null);
   const [showListPrint, setShowListPrint] = useState(false);
   const [showWaitingScreen, setShowWaitingScreen] = useState(false);
   const [showDispatchNotify, setShowDispatchNotify] = useState(false);
@@ -387,6 +391,7 @@ export default function ShippingPage() {
         driver_id: row.driver_id || '',
         vehicle_number: row.vehicle_number || '',
         silo: row.silo || '',
+        driver_message: row.driver_message || '',
         quantity: row.quantity || 0,
         unit: row.unit || 'ton',
         delivery_address: row.delivery_address || '',
@@ -496,6 +501,7 @@ export default function ShippingPage() {
       company_name: null,
       transport_type: '탱크',
       silo: null,
+      driver_message: null,
       is_shipped: false,
       weight_empty: null,
       weight_loaded: null,
@@ -524,6 +530,7 @@ export default function ShippingPage() {
         driver_id: '',
         vehicle_number: '',
         silo: '',
+        driver_message: '',
         quantity: 0,
         unit: 'ton',
         delivery_address: '',
@@ -670,6 +677,20 @@ export default function ShippingPage() {
 
   const handlePrint = () => {
     setShowListPrint(true);
+  };
+
+  // ── 출하증 발급 플로우 ──
+  const startIssueFlow = (row: Shipment) => setIssueFlow({ row, step: 'safety' });
+  const advanceIssueAfterSilo = (row: Shipment) => {
+    if (row.driver_message && row.driver_message.trim()) setIssueFlow({ row, step: 'message' });
+    else finalizeIssue(row);
+  };
+  const finalizeIssue = async (row: Shipment) => {
+    setIssueFlow(null);
+    await crud.issueCertificate(row.id);
+    setPrintRow({ ...row, certificate_time: new Date().toISOString() });
+    setShowPrint(true);
+    fetchData();
   };
 
   // ── 출하증 대기화면 헬퍼 ──
@@ -1239,6 +1260,7 @@ export default function ShippingPage() {
                         <th onClick={() => toggleSort('company_name')} title="클릭 시 정렬" style={sortable}>운송사{arrow('company_name')}{fIcon('company_name')}<Handle ck="company_name" /></th>
                         <th onClick={() => toggleSort('vehicle_number')} title="클릭 시 정렬" style={sortable}>차량정보{arrow('vehicle_number')}<Handle ck="vehicle_number" /></th>
                         <th onClick={() => toggleSort('silo')} title="클릭 시 정렬" style={sortable}>사일로{arrow('silo')}{fIcon('silo')}<Handle ck="silo" /></th>
+                        <th style={base}>전달사항<Handle ck="driver_message" /></th>
                         <th style={{ ...base, textAlign: 'center' }}>출하<Handle ck="shipped" /></th>
                         <th onClick={() => toggleSort('weight_net')} title="클릭 시 정렬" style={sortable}>계근결과{arrow('weight_net')}<Handle ck="weight_net" /></th>
                         <th style={base}>기타<Handle ck="notes" /></th>
@@ -1858,14 +1880,10 @@ export default function ShippingPage() {
                                 {row.certificate_time ? (
                                   <>
                                     <button
-                                      onClick={async () => {
+                                      onClick={() => {
                                         const issued = new Date(row.certificate_time!).toLocaleString('ko-KR');
                                         if (!confirm(`이미 출하증이 발급되었습니다.\n(발급시간: ${issued})\n\n재발급하시겠습니까?`)) return;
-                                        await crud.issueCertificate(row.id);
-                                        const updatedRow = { ...row, certificate_time: new Date().toISOString() };
-                                        setPrintRow(updatedRow);
-                                        setShowPrint(true);
-                                        fetchData();
+                                        startIssueFlow(row);
                                       }}
                                       style={{
                                         padding: '9px 24px', fontSize: 19, fontWeight: 800,
@@ -1881,13 +1899,7 @@ export default function ShippingPage() {
                                   </>
                                 ) : (
                                   <button
-                                    onClick={async () => {
-                                      await crud.issueCertificate(row.id);
-                                      const updatedRow = { ...row, certificate_time: new Date().toISOString() };
-                                      setPrintRow(updatedRow);
-                                      setShowPrint(true);
-                                      fetchData();
-                                    }}
+                                    onClick={() => startIssueFlow(row)}
                                     style={{
                                       padding: '9px 24px', fontSize: 19, fontWeight: 800,
                                       backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: 10,
@@ -1932,6 +1944,64 @@ export default function ShippingPage() {
               </div>
             )}
 
+          </div>
+        );
+      })()}
+
+      {/* ═══ 출하증 발급 전 확인 팝업 (A 안전서약 → B 지정사일로 → C 전달사항) ═══ */}
+      {issueFlow && (() => {
+        const r = issueFlow.row;
+        const overlay: React.CSSProperties = { position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(15,23,42,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 };
+        const card: React.CSSProperties = { background: '#fff', borderRadius: 20, width: '92vw', maxWidth: 720, boxShadow: '0 24px 70px rgba(0,0,0,0.4)', overflow: 'hidden' };
+        const btnBig: React.CSSProperties = { padding: '18px 0', fontSize: 24, fontWeight: 800, border: 'none', borderRadius: 14, cursor: 'pointer', flex: 1 };
+
+        if (issueFlow.step === 'safety') {
+          return (
+            <div style={overlay}>
+              <div style={card}>
+                <div style={{ background: '#b91c1c', color: '#fff', padding: '20px 28px', fontSize: 26, fontWeight: 900, textAlign: 'center' }}>⚠️ 안전 수칙 서약</div>
+                <div style={{ padding: '32px 36px', fontSize: 22, lineHeight: 1.7, color: '#111827', fontWeight: 600 }}>
+                  <p>나는 공장 출입과 함께 <b>안전화(신발)</b>, <b>안전모(안전모자)</b>를 착용하겠습니다.</p>
+                  <p style={{ marginTop: 16 }}>탱크로리 <b>상부 작업</b> 시 <b>안전 조끼</b> 착용과 <b>안전고리</b>는 추락 방지용 <b>안전대</b>에 걸어 작업하겠습니다.</p>
+                  <p style={{ marginTop: 22, fontSize: 24, fontWeight: 800, color: '#b91c1c', textAlign: 'center' }}>위 안전 수칙을 준수할 것을 서약합니다.</p>
+                </div>
+                <div style={{ display: 'flex', gap: 14, padding: '0 36px 32px' }}>
+                  <button onClick={() => { setIssueFlow(null); toast.info('출하증 발급이 취소되었습니다.'); }} style={{ ...btnBig, background: '#e5e7eb', color: '#374151' }}>아니오</button>
+                  <button onClick={() => setIssueFlow({ row: r, step: 'silo' })} style={{ ...btnBig, background: '#16a34a', color: '#fff' }}>네, 서약합니다</button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+        if (issueFlow.step === 'silo') {
+          return (
+            <div style={overlay}>
+              <div style={card}>
+                <div style={{ background: '#1d4ed8', color: '#fff', padding: '20px 28px', fontSize: 26, fontWeight: 900, textAlign: 'center' }}>🚨 지정 사일로 상차 요청 🚨</div>
+                <div style={{ padding: '36px 36px', fontSize: 22, lineHeight: 1.7, color: '#111827', textAlign: 'center' }}>
+                  <p style={{ fontWeight: 700 }}>{r.customer_name || '해당 배차'}{r.vehicle_number ? ` (${r.vehicle_number})` : ''} 의 지정 사일로는</p>
+                  <p style={{ fontSize: 56, fontWeight: 900, color: '#1d4ed8', margin: '14px 0' }}>{r.silo ? `${r.silo}번` : '(미지정)'} <span style={{ fontSize: 28 }}>사일로</span></p>
+                  <p style={{ marginTop: 8, fontSize: 20, color: '#374151' }}>당사의 재고 관리 계획에 따른 요청으로,<br /><b>지정 사일로를 반드시 준수</b>하여 상차하시기 바랍니다.</p>
+                </div>
+                <div style={{ padding: '0 36px 32px' }}>
+                  <button onClick={() => advanceIssueAfterSilo(r)} style={{ ...btnBig, width: '100%', background: '#1d4ed8', color: '#fff' }}>확인</button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+        // C: 전달사항
+        return (
+          <div style={overlay}>
+            <div style={card}>
+              <div style={{ background: '#b45309', color: '#fff', padding: '20px 28px', fontSize: 26, fontWeight: 900, textAlign: 'center' }}>📋 전달사항</div>
+              <div style={{ padding: '40px 36px', fontSize: 26, lineHeight: 1.7, color: '#111827', fontWeight: 700, textAlign: 'center', whiteSpace: 'pre-wrap', minHeight: 120 }}>
+                {r.driver_message}
+              </div>
+              <div style={{ padding: '0 36px 32px' }}>
+                <button onClick={() => finalizeIssue(r)} style={{ ...btnBig, width: '100%', background: '#b45309', color: '#fff' }}>확인 후 출력</button>
+              </div>
+            </div>
           </div>
         );
       })()}
