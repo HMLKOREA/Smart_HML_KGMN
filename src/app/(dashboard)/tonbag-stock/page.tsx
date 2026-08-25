@@ -10,14 +10,53 @@ import { format, addDays, subDays } from 'date-fns';
 
 // 톤백 생산 품목
 const PRODUCTS = ['K200', 'K35', 'K50', 'K100', 'K325'];
-// 지대당 중량(톤) — 출하(계근 톤) → 지대 환산용. 오후에 나머지 확정 예정.
-const PALLET_TON: Record<string, number> = { K325: 1.6 };
+// 톤백당 중량(톤) — 출하(계근 톤) → 톤백 수 환산용. 오후에 나머지 확정 예정.
+const BAG_TON: Record<string, number> = { K325: 1.6 };
 
 interface ProdLog { id: number; log_date: string; product: string; worker: string | null; good_count: number; defect_count: number; created_at: string; }
 interface StockCheck { id: number; check_date: string; product: string; qty: number; }
 interface Worker { id: number; name: string; }
 
 const firstToken = (name: string) => (name || '').trim().split(/[\s(]/)[0];
+
+/* ── 큰 숫자 키패드 (폰·패드 입력용) ── */
+function NumberPad({ title, initial, onConfirm, onClose }: { title: string; initial: number; onConfirm: (v: number) => void; onClose: () => void }) {
+  const [buf, setBuf] = useState(initial > 0 ? String(initial) : '');
+  const num = parseInt(buf || '0', 10) || 0;
+  const press = (d: string) => setBuf(b => { const n = (b + d).replace(/^0+(?=\d)/, ''); return n.slice(0, 6); });
+  const keyBtn: React.CSSProperties = { height: 64, borderRadius: 14, border: '1px solid #d1d5db', background: '#fff', fontSize: 28, fontWeight: 800, color: '#0f172a', cursor: 'pointer' };
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(15,23,42,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 22, width: '92vw', maxWidth: 380, boxShadow: '0 24px 70px rgba(0,0,0,0.45)', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+        <div style={{ background: '#1e293b', color: '#fff', padding: '14px 20px', fontSize: 18, fontWeight: 800, textAlign: 'center' }}>{title}</div>
+        {/* 상단 숫자 표시 + ▲▼ */}
+        <div style={{ display: 'flex', alignItems: 'stretch', gap: 12, padding: '18px 20px 12px' }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', border: '2px solid #cbd5e1', borderRadius: 14, padding: '10px 18px', minHeight: 72 }}>
+            <span style={{ fontSize: 46, fontWeight: 900, color: '#4f46e5', lineHeight: 1 }}>{buf || '0'}</span>
+            <span style={{ fontSize: 16, color: '#94a3b8', marginLeft: 8, alignSelf: 'flex-end', marginBottom: 6 }}>톤백</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button onClick={() => setBuf(String(num + 1))} style={{ width: 56, flex: 1, borderRadius: 12, border: 'none', background: '#4f46e5', color: '#fff', fontSize: 26, fontWeight: 900, cursor: 'pointer' }}>▲</button>
+            <button onClick={() => setBuf(String(Math.max(0, num - 1)))} style={{ width: 56, flex: 1, borderRadius: 12, border: 'none', background: '#e2e8f0', color: '#334155', fontSize: 26, fontWeight: 900, cursor: 'pointer' }}>▼</button>
+          </div>
+        </div>
+        {/* 키패드 */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, padding: '4px 20px 8px' }}>
+          {['7', '8', '9', '4', '5', '6', '1', '2', '3'].map(d => (
+            <button key={d} onClick={() => press(d)} style={keyBtn}>{d}</button>
+          ))}
+          <button onClick={() => press('00')} style={keyBtn}>00</button>
+          <button onClick={() => press('0')} style={keyBtn}>0</button>
+          <button onClick={() => setBuf(b => b.slice(0, -1))} style={{ ...keyBtn, background: '#f1f5f9', fontSize: 24 }}>⌫</button>
+        </div>
+        <div style={{ display: 'flex', gap: 10, padding: '8px 20px 20px' }}>
+          <button onClick={() => setBuf('')} style={{ flex: 1, height: 60, borderRadius: 14, border: 'none', background: '#e5e7eb', color: '#475569', fontSize: 18, fontWeight: 800, cursor: 'pointer' }}>지움</button>
+          <button onClick={() => { onConfirm(num); onClose(); }} style={{ flex: 2, height: 60, borderRadius: 14, border: 'none', background: '#4f46e5', color: '#fff', fontSize: 22, fontWeight: 900, cursor: 'pointer' }}>확인</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function TonbagStockPage() {
   const supabase = useMemo(() => createClient(), []);
@@ -30,16 +69,18 @@ export default function TonbagStockPage() {
   const [loading, setLoading] = useState(true);
 
   const [stocks, setStocks] = useState<StockCheck[]>([]);
-  const [stockInput, setStockInput] = useState<Record<string, string>>({});
   const [shipTon, setShipTon] = useState<Record<string, number>>({});
 
   const [roster, setRoster] = useState<Worker[]>([]);
   const [newWorker, setNewWorker] = useState('');
 
-  // 생산: good[product][worker] = 지대 수
   const [good, setGood] = useState<Record<string, Record<string, number>>>({});
-  const [openWorker, setOpenWorker] = useState<string | null>(null); // 입력 팝업 대상
+  const [openWorker, setOpenWorker] = useState<string | null>(null);
   const [savingWorker, setSavingWorker] = useState(false);
+
+  // 숫자 키패드 상태
+  const [pad, setPad] = useState<{ title: string; value: number; onConfirm: (v: number) => void } | null>(null);
+  const openPad = (title: string, value: number, onConfirm: (v: number) => void) => { if (canEdit) setPad({ title, value, onConfirm }); };
 
   const loadRoster = useCallback(async () => {
     const { data } = await supabase.from('production_workers').select('id,name').eq('is_active', true).order('sort').order('name');
@@ -55,11 +96,7 @@ export default function TonbagStockPage() {
         supabase.from('v_shipments').select('product_name, weight_net').eq('shipment_date', date),
       ]);
       const lrows = (lg || []) as ProdLog[];
-      const srows = (st || []) as StockCheck[];
-      setStocks(srows);
-      const si: Record<string, string> = {};
-      PRODUCTS.forEach(p => { const s = srows.find(x => x.product === p); si[p] = s ? String(s.qty) : ''; });
-      setStockInput(si);
+      setStocks((st || []) as StockCheck[]);
 
       const shp: Record<string, number> = {};
       ((sh || []) as { product_name: string; weight_net: number | null }[]).forEach(r => {
@@ -105,8 +142,8 @@ export default function TonbagStockPage() {
   const cell = (p: string, w: string) => good[p]?.[w] || 0;
   const prodTotal = (p: string) => Object.values(good[p] || {}).reduce((s, v) => s + (v || 0), 0);
   const workerTotal = (w: string) => PRODUCTS.reduce((s, p) => s + cell(p, w), 0);
+  const currentStock = (p: string) => stocks.find(s => s.product === p)?.qty || 0;
 
-  // 작업자 단위 저장(팝업 확인 시)
   const saveWorker = async (w: string) => {
     setSavingWorker(true);
     try {
@@ -127,9 +164,7 @@ export default function TonbagStockPage() {
     }
   };
 
-  const saveStock = async (product: string) => {
-    const qty = parseInt(stockInput[product] || '', 10);
-    if (isNaN(qty) || qty < 0) { toast.warning('재고 수량을 입력하세요.'); return; }
+  const saveStockValue = async (product: string, qty: number) => {
     const { error } = await supabase.from('tonbag_stock_checks')
       .upsert({ check_date: date, product, qty, updated_at: new Date().toISOString() }, { onConflict: 'check_date,product' });
     if (error) { toast.error(error.message); return; }
@@ -168,21 +203,21 @@ export default function TonbagStockPage() {
               <h2 className="text-lg font-bold text-gray-700 mb-3">📦 현재 재고 <span className="text-[13px] font-normal text-gray-400">(아침 + 생산 − 출하)</span></h2>
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                 {PRODUCTS.map(p => {
-                  const morning = stocks.find(s => s.product === p)?.qty || 0;
+                  const morning = currentStock(p);
                   const prod = prodTotal(p);
                   const shipT = shipTon[p] || 0;
-                  const ppt = PALLET_TON[p];
-                  const shipPallet = ppt ? Math.round(shipT / ppt) : null;
-                  const cur = morning + prod - (shipPallet ?? 0);
+                  const bpt = BAG_TON[p];
+                  const shipBag = bpt ? Math.round(shipT / bpt) : null;
+                  const cur = morning + prod - (shipBag ?? 0);
                   return (
                     <div key={p} className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-4">
                       <div className="text-2xl font-black text-gray-900">{p}</div>
-                      <div className="text-5xl font-black text-indigo-600 tabular-nums mt-2 leading-none">{cur.toLocaleString()}<span className="text-lg text-gray-400 ml-1">지대</span></div>
+                      <div className="text-5xl font-black text-indigo-600 tabular-nums mt-2 leading-none">{cur.toLocaleString()}<span className="text-lg text-gray-400 ml-1">톤백</span></div>
                       <div className="text-[13px] text-gray-500 mt-3 tabular-nums leading-relaxed">
                         아침 {morning.toLocaleString()} + 생산 <span className="text-emerald-600 font-bold">{prod.toLocaleString()}</span>
                         <br />
-                        {shipPallet != null
-                          ? <>출하 <span className="text-rose-500 font-bold">−{shipPallet.toLocaleString()}</span> <span className="text-gray-400">({shipT.toFixed(1)}t÷{ppt})</span></>
+                        {shipBag != null
+                          ? <>출하 <span className="text-rose-500 font-bold">−{shipBag.toLocaleString()}</span> <span className="text-gray-400">({shipT.toFixed(1)}t÷{bpt})</span></>
                           : <span className="text-gray-400">출하 {shipT > 0 ? `${shipT.toFixed(1)}t (미설정)` : '0'}</span>}
                       </div>
                     </div>
@@ -193,27 +228,21 @@ export default function TonbagStockPage() {
 
             {/* ═══ 아침(8시) 재고 체크 ═══ */}
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-              <h2 className="text-lg font-bold text-gray-700 mb-4">🕗 아침 재고 체크 <span className="text-[13px] font-normal text-gray-400">(매일 08:00)</span></h2>
+              <h2 className="text-lg font-bold text-gray-700 mb-4">🕗 아침 재고 체크 <span className="text-[13px] font-normal text-gray-400">(칸을 누르면 숫자판이 뜹니다)</span></h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {PRODUCTS.map(p => (
-                  <div key={p} className="flex items-center gap-3 bg-slate-50 rounded-2xl p-3 border border-slate-200">
-                    <span className="text-3xl font-black text-gray-900 w-24 shrink-0">{p}</span>
-                    <input type="number" inputMode="numeric" value={stockInput[p] ?? ''} disabled={!canEdit}
-                      onChange={e => setStockInput(s => ({ ...s, [p]: e.target.value }))}
-                      placeholder="지대 수"
-                      className="flex-1 min-w-0 h-14 px-4 border-2 border-gray-300 rounded-xl text-2xl font-bold text-right" />
-                    {canEdit && (
-                      <button onClick={() => saveStock(p)}
-                        className="h-14 px-5 rounded-xl bg-slate-800 text-white text-lg font-bold shrink-0">저장</button>
-                    )}
-                  </div>
+                  <button key={p} onClick={() => openPad(`${p} 아침 재고`, currentStock(p), v => saveStockValue(p, v))} disabled={!canEdit}
+                    className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl p-4 border border-slate-200 text-left active:bg-slate-100">
+                    <span className="text-3xl font-black text-gray-900">{p}</span>
+                    <span className="text-3xl font-black text-indigo-600 tabular-nums">{currentStock(p).toLocaleString()}<span className="text-base text-gray-400 font-bold ml-1">톤백</span></span>
+                  </button>
                 ))}
               </div>
             </div>
 
-            {/* ═══ 생산일지 (작업자 버튼 → 팝업 입력) ═══ */}
+            {/* ═══ 생산일지 ═══ */}
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-              <h2 className="text-lg font-bold text-gray-700 mb-4">📝 생산일지 <span className="text-[13px] font-normal text-gray-400">(작업자를 누르면 큰 입력창이 뜹니다)</span></h2>
+              <h2 className="text-lg font-bold text-gray-700 mb-4">📝 생산일지 <span className="text-[13px] font-normal text-gray-400">(작업자를 누르면 입력창이 뜹니다)</span></h2>
 
               <div className="flex flex-wrap gap-3 items-stretch">
                 {roster.map(w => {
@@ -222,7 +251,7 @@ export default function TonbagStockPage() {
                     <button key={w.id} onClick={() => canEdit && setOpenWorker(w.name)} disabled={!canEdit}
                       className={`px-8 py-6 rounded-3xl border-2 text-center transition-colors min-w-[140px] ${t > 0 ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-800 border-gray-300'}`}>
                       <div className="text-2xl font-black">{w.name}</div>
-                      <div className={`text-base font-bold mt-1 ${t > 0 ? 'text-indigo-100' : 'text-gray-400'}`}>{t > 0 ? `${t.toLocaleString()} 지대` : '입력'}</div>
+                      <div className={`text-base font-bold mt-1 ${t > 0 ? 'text-indigo-100' : 'text-gray-400'}`}>{t > 0 ? `${t.toLocaleString()} 톤백` : '입력'}</div>
                     </button>
                   );
                 })}
@@ -236,11 +265,10 @@ export default function TonbagStockPage() {
                 )}
               </div>
 
-              {/* 제품별 당일 생산 합계 */}
               <div className="mt-5 pt-4 border-t border-gray-100 flex flex-wrap gap-x-6 gap-y-2">
                 {PRODUCTS.map(p => (
                   <span key={p} className="text-lg">
-                    <b className="text-gray-800">{p}</b> <span className="text-emerald-600 font-black tabular-nums">{prodTotal(p).toLocaleString()}</span> <span className="text-gray-400 text-sm">지대</span>
+                    <b className="text-gray-800">{p}</b> <span className="text-emerald-600 font-black tabular-nums">{prodTotal(p).toLocaleString()}</span> <span className="text-gray-400 text-sm">톤백</span>
                   </span>
                 ))}
               </div>
@@ -250,7 +278,7 @@ export default function TonbagStockPage() {
         )}
       </div>
 
-      {/* ═══ 작업자별 생산 입력 팝업 (크게) ═══ */}
+      {/* ═══ 작업자별 생산 입력 팝업 ═══ */}
       {openWorker && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
           onClick={() => setOpenWorker(null)}>
@@ -260,22 +288,15 @@ export default function TonbagStockPage() {
               <span style={{ fontSize: 26, fontWeight: 900 }}>{openWorker} <span style={{ fontSize: 16, fontWeight: 600, opacity: 0.8 }}>생산 입력</span></span>
               <button onClick={() => setOpenWorker(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', width: 40, height: 40, borderRadius: 10, fontSize: 22, cursor: 'pointer' }}>✕</button>
             </div>
-            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
               {PRODUCTS.map(p => {
                 const v = cell(p, openWorker);
                 return (
-                  <div key={p} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 16 }}>
-                    <span style={{ fontSize: 30, fontWeight: 900, color: '#0f172a', width: 96 }}>{p}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <button onClick={() => setCell(p, openWorker, v - 1)}
-                        style={{ width: 56, height: 56, borderRadius: 14, background: '#e2e8f0', color: '#334155', fontSize: 34, fontWeight: 900, border: 'none', cursor: 'pointer', lineHeight: 1 }}>−</button>
-                      <input type="number" inputMode="numeric" value={v === 0 ? '' : v} placeholder="0"
-                        onChange={e => setCell(p, openWorker, parseInt(e.target.value || '0', 10) || 0)}
-                        style={{ width: 84, height: 56, textAlign: 'center', fontSize: 30, fontWeight: 800, border: '2px solid #cbd5e1', borderRadius: 14 }} />
-                      <button onClick={() => setCell(p, openWorker, v + 1)}
-                        style={{ width: 56, height: 56, borderRadius: 14, background: '#4f46e5', color: '#fff', fontSize: 34, fontWeight: 900, border: 'none', cursor: 'pointer', lineHeight: 1 }}>＋</button>
-                    </div>
-                  </div>
+                  <button key={p} onClick={() => openPad(`${openWorker} · ${p}`, v, nv => setCell(p, openWorker, nv))}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 18px', background: v > 0 ? '#eef2ff' : '#f8fafc', border: `2px solid ${v > 0 ? '#c7d2fe' : '#e2e8f0'}`, borderRadius: 16, cursor: 'pointer', textAlign: 'left' }}>
+                    <span style={{ fontSize: 30, fontWeight: 900, color: '#0f172a' }}>{p}</span>
+                    <span style={{ fontSize: 34, fontWeight: 900, color: '#4f46e5' }}>{v.toLocaleString()}<span style={{ fontSize: 16, color: '#94a3b8', fontWeight: 700, marginLeft: 6 }}>톤백</span></span>
+                  </button>
                 );
               })}
             </div>
@@ -289,6 +310,11 @@ export default function TonbagStockPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ═══ 숫자 키패드 ═══ */}
+      {pad && (
+        <NumberPad title={pad.title} initial={pad.value} onConfirm={pad.onConfirm} onClose={() => setPad(null)} />
       )}
     </div>
   );
