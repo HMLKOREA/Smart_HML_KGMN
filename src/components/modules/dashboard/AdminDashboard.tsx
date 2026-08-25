@@ -26,6 +26,7 @@ interface MonthlyAnalysis {
   totalQuantity: number;
   companyVolumes: { name: string; value: number }[];
   customerVolumes: CustomerVolumeItem[];
+  customerVolumesSameDay: CustomerVolumeItem[];
   settlementAmount: number;
 }
 
@@ -129,7 +130,7 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
   const [loading, setLoading] = useState(true);
   const [todayStats, setTodayStats] = useState<TodayStats>({ total: 0, pending: 0, completed: 0 });
   const [monthly, setMonthly] = useState<MonthlyAnalysis>({
-    totalQuantity: 0, companyVolumes: [], customerVolumes: [], settlementAmount: 0,
+    totalQuantity: 0, companyVolumes: [], customerVolumes: [], customerVolumesSameDay: [], settlementAmount: 0,
   });
   const [todaySettlement, setTodaySettlement] = useState(0);
   const [chartMode, setChartMode] = useState<ChartMode>('ton');
@@ -137,15 +138,19 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
   const monthStart = useMemo(() => `${today.substring(0, 7)}-01`, [today]);
 
-  const { prevMonthStart, prevMonthEnd } = useMemo(() => {
-    const d = new Date(today);
-    d.setMonth(d.getMonth() - 1);
+  const { prevMonthStart, prevMonthEnd, prevMonthSameDay } = useMemo(() => {
+    const d = new Date(today + 'T00:00:00');
+    const dayOfMonth = d.getDate();
+    d.setDate(1);                 // 말일 오버플로 방지
+    d.setMonth(d.getMonth() - 1); // 전월
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const lastDay = new Date(y, d.getMonth() + 1, 0).getDate();
+    const clampedDay = Math.min(dayOfMonth, lastDay);
     return {
       prevMonthStart: `${y}-${m}-01`,
       prevMonthEnd: `${y}-${m}-${lastDay}`,
+      prevMonthSameDay: `${y}-${m}-${String(clampedDay).padStart(2, '0')}`,
     };
   }, [today]);
 
@@ -178,7 +183,7 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
     try {
       const [
         todayTotalRes, todayPendingRes, todayCompletedRes,
-        monthData, prevData,
+        monthData, prevData, prevSameData,
         monthUnitPricesRes,
       ] = await Promise.all([
         supabase.from('shipments').select('*', { count: 'exact', head: true }).eq('shipment_date', today),
@@ -191,6 +196,10 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
         fetchAllRows('v_shipments', 'customer_name, quantity, weight_net', [
           { field: 'shipment_date', op: 'gte', value: prevMonthStart },
           { field: 'shipment_date', op: 'lte', value: prevMonthEnd },
+        ]),
+        fetchAllRows('v_shipments', 'customer_name, quantity, weight_net', [
+          { field: 'shipment_date', op: 'gte', value: prevMonthStart },
+          { field: 'shipment_date', op: 'lte', value: prevMonthSameDay },
         ]),
         (async () => {
           const PAGE_SIZE = 1000;
@@ -257,6 +266,26 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
         .sort((a, b) => b.currentTon - a.currentTon)
         .slice(0, 10);
 
+      // 거래처별 (당월 vs 전월 동일 일자까지 누적) - 전월 같은 날짜까지만 집계
+      const custPrevSameCount = new Map<string, number>();
+      const custPrevSameTon = new Map<string, number>();
+      prevSameData.forEach(r => {
+        const name = String(r.customer_name || '미지정');
+        custPrevSameCount.set(name, (custPrevSameCount.get(name) || 0) + 1);
+        custPrevSameTon.set(name, (custPrevSameTon.get(name) || 0) + (Number(r.weight_net) || 0));
+      });
+      const allCustomersSame = new Set([...custCurrentCount.keys(), ...custPrevSameCount.keys()]);
+      const customerVolumesSameDay: CustomerVolumeItem[] = Array.from(allCustomersSame)
+        .map(name => ({
+          name,
+          currentCount: custCurrentCount.get(name) || 0,
+          previousCount: custPrevSameCount.get(name) || 0,
+          currentTon: Math.round((custCurrentTon.get(name) || 0) * 10) / 10,
+          previousTon: Math.round((custPrevSameTon.get(name) || 0) * 10) / 10,
+        }))
+        .sort((a, b) => b.currentTon - a.currentTon)
+        .slice(0, 10);
+
       // 정산 누적: shipments weight_net × unit_prices 기반 추정 계산
       // unit_prices를 company_id 기반으로 평균 단가 맵 생성
       const priceData = (monthUnitPricesRes || []) as Array<Record<string, unknown>>;
@@ -288,13 +317,13 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
       todaySettle = Math.round(settlementAmount / Math.max(monthData.length, 1) * todayStats.total);
       setTodaySettlement(todaySettle);
 
-      setMonthly({ totalQuantity, companyVolumes, customerVolumes, settlementAmount });
+      setMonthly({ totalQuantity, companyVolumes, customerVolumes, customerVolumesSameDay, settlementAmount });
     } catch (err) {
       console.error('Admin dashboard load failed:', err);
     } finally {
       setLoading(false);
     }
-  }, [supabase, today, monthStart, prevMonthStart, prevMonthEnd]);
+  }, [supabase, today, monthStart, prevMonthStart, prevMonthEnd, prevMonthSameDay]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -505,6 +534,31 @@ export default function AdminDashboard({ userName, userRole = 'admin' }: { userN
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Bar dataKey={barPrevKey} name="전월" fill="#E2E8F0" radius={[4, 4, 0, 0]} />
                   <Bar dataKey={barCurrentKey} name="당월" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[240px] text-gray-300 text-sm">
+                데이터가 없습니다
+              </div>
+            )}
+          </div>
+
+          {/* 거래처별 - 전월 '동일 일자'까지 누적 비교 (제일 오른쪽 아래) */}
+          <div className="bg-white rounded-xl border border-gray-100 px-4 sm:px-6 py-4 sm:py-5 lg:col-start-2">
+            <div style={{ paddingLeft: 3 }} className="mb-3 sm:mb-4">
+              <p className="text-sm sm:text-base font-bold text-gray-700">거래처별 출하 수량</p>
+              <p className="text-xs sm:text-sm text-gray-400 mt-1 sm:mt-1.5">당월 vs 전월 <b className="text-emerald-600">동일 일자</b>(누적) 비교 · ~{today.slice(5)} / 전월 ~{prevMonthSameDay.slice(5)}</p>
+            </div>
+            {monthly.customerVolumesSameDay.length > 0 ? (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={monthly.customerVolumesSameDay} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#9CA3AF' }} interval={0} angle={-30} textAnchor="end" height={55} />
+                  <YAxis tick={{ fontSize: 10, fill: '#9CA3AF' }} width={40} />
+                  <Tooltip content={<BarTooltip unit={barUnit} />} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey={barPrevKey} name="전월(동일기간)" fill="#E2E8F0" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey={barCurrentKey} name="당월" fill="#10B981" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
