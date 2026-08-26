@@ -44,6 +44,14 @@ export default function ProductionPlanPage() {
   const [confirmed, setConfirmed] = useState(false);
   const [custSearch, setCustSearch] = useState('');
   const [viewMode, setViewMode] = useState<'edit' | 'confirmed'>('edit'); // 입력 / 확정본
+  const [showAllList, setShowAllList] = useState(false); // 하단 전체목록 펼침
+  const [allSearch, setAllSearch] = useState('');        // 전체목록 검색
+  // 지정일자 오더 추가 폼
+  const [ordCust, setOrdCust] = useState('');
+  const [ordCustName, setOrdCustName] = useState('');
+  const [ordProd, setOrdProd] = useState('');
+  const [ordDate, setOrdDate] = useState<string>(() => format(new Date(), 'yyyy-MM-dd'));
+  const [ordQty, setOrdQty] = useState('');
 
   const days = useMemo(() => Array.from({ length: 5 }, (_, i) => format(addDays(new Date(weekStart + 'T00:00:00'), i), 'yyyy-MM-dd')), [weekStart]);
   const prevDays = useMemo(() => Array.from({ length: 5 }, (_, i) => format(addDays(new Date(weekStart + 'T00:00:00'), -7 + i), 'yyyy-MM-dd')), [weekStart]);
@@ -184,10 +192,15 @@ export default function ProductionPlanPage() {
         if (s.status === 'confirmed') anyConfirmed = true;
       });
       setPlan(pl); setRowDbId(dbid); setConfirmed(anyConfirmed);
-      // 행 = 고정물량 순 + 계획에만 있는 행
+      // 행 구성: 카고(품목 多)=이미 입력/추가된 것만, 탱크(정기)=고정물량 상위 자동표시
       const fixedKeys = fx[cat].map(f => f.key);
-      const extra = Object.keys(pl).filter(k => !fixedKeys.includes(k));
-      setRowIds([...fixedKeys, ...extra]);
+      const planKeys = Object.keys(pl);
+      if (cat === 'cargo_truck') {
+        setRowIds([...new Set(planKeys)]);
+      } else {
+        const extra = planKeys.filter(k => !fixedKeys.includes(k));
+        setRowIds([...fixedKeys, ...extra]);
+      }
     } catch {
       toast.error('데이터 조회 실패');
     } finally {
@@ -252,6 +265,36 @@ export default function ProductionPlanPage() {
   };
   // 바 스케일 기준(전주/금주 중 최대 주간합)
   const maxBar = Math.max(1, ...rowIds.map(k => Math.max(prevRowTotal(k), rowTotal(k))));
+
+  // 지정일자 오더 입력 — 거래처 선택 시 id·제품 초기화
+  const onOrdCustChange = (name: string) => {
+    setOrdCustName(name);
+    const id = Object.keys(custMap).find(k => custMap[k] === name) || '';
+    setOrdCust(id);
+    setOrdProd(custProducts[id]?.[0]?.id || '');
+  };
+  const addDatedOrder = async () => {
+    const qty = parseInt(ordQty || '0', 10) || 0;
+    if (!ordCust) { toast.warning('거래처를 목록에서 선택하세요.'); return; }
+    if (!ordProd) { toast.warning('제품을 선택하세요.'); return; }
+    if (!ordDate) { toast.warning('날짜를 지정하세요.'); return; }
+    if (qty <= 0) { toast.warning('대수를 입력하세요.'); return; }
+    setSaving(true);
+    try {
+      const { data: ex } = await supabase.from('production_schedules').select('id')
+        .eq('schedule_date', ordDate).eq('transport_category', cat).eq('customer_id', ordCust).eq('product_id', ordProd).maybeSingle();
+      if (ex?.id) await supabase.from('production_schedules').update({ planned_trucks: qty, status: 'planned', updated_by: userName }).eq('id', ex.id);
+      else await supabase.from('production_schedules').insert({ schedule_date: ordDate, transport_category: cat, sub_category: '', customer_id: ordCust, product_id: ordProd, planned_trucks: qty, status: 'planned', created_by: userName });
+      const pn = custProducts[ordCust]?.find(p => p.id === ordProd)?.name || '';
+      const wk = format(mondayOf(new Date(ordDate + 'T00:00:00')), 'yyyy-MM-dd');
+      toast.success(`${ordDate} · ${custMap[ordCust]} ${pn ? `[${pn}] ` : ''}${qty}대 추가${wk === weekStart ? '' : ' → 해당 주로 이동'}`);
+      setConfirmed(false);
+      setOrdQty('');
+      if (wk === weekStart) await load(); else setWeekStart(wk); // 다른 주면 effect가 재조회
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '오더 추가 실패');
+    } finally { setSaving(false); }
+  };
 
   const doSave = async (status: 'planned' | 'confirmed'): Promise<boolean> => {
     setSaving(true);
@@ -382,26 +425,47 @@ export default function ProductionPlanPage() {
           <div className="flex items-center justify-center h-40 text-gray-400 text-lg">불러오는 중...</div>
         ) : (
           <div className="max-w-[1240px] mx-auto">
-            {/* 빠른추가: 상위10 품목 버튼 + 거래처 검색 */}
+            {/* 상단: 검색추가 + 지정일자 오더 (전체목록은 하단으로) */}
             {canEdit && viewMode === 'edit' && (
-              <div className="mb-3 p-3 rounded-xl bg-white border border-gray-200">
+              <div className="mb-3 p-3 rounded-xl bg-white border border-gray-200 flex flex-col gap-2">
+                {/* 거래처 검색 추가 */}
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[13px] font-bold text-gray-500">최근3개월 상위품목:</span>
-                  {top10.length === 0 ? <span className="text-[13px] text-gray-300">모두 추가됨</span> : top10.map(f => (
-                    <button key={f.key} onClick={() => addKey(f.key)} className="px-3 py-1.5 rounded-full bg-slate-100 border border-slate-300 text-sm font-bold text-slate-700 hover:bg-slate-200">
-                      + {custName(f.key)} <span className="text-indigo-600">{prodNameOf(f.key) || '?'}</span> <span className="text-gray-400">{f.avg}</span>
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <input value={custSearch} onChange={e => setCustSearch(e.target.value)} placeholder="거래처 검색 (예: K, 금호…) → 제품 자동 분리"
-                    className="px-3 py-2 border-2 border-gray-300 rounded-lg text-base w-64" />
+                  <span className="text-[13px] font-black text-gray-600 w-20 shrink-0">➕ 추가</span>
+                  <input value={custSearch} onChange={e => setCustSearch(e.target.value)} placeholder="거래처 검색 (예: 금산, K…) → 제품 자동 분리"
+                    className="px-3 py-2 border-2 border-gray-300 rounded-lg text-base w-72" />
                   {searchHits.map(id => (
                     <button key={id} onClick={() => { addCustomer(id); setCustSearch(''); }} className="px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-sm font-bold text-indigo-700 hover:bg-indigo-100">
                       + {custMap[id]} <span className="text-[11px] text-indigo-400">{(custProducts[id]?.length || 0) > 1 ? `제품 ${custProducts[id].length}개` : ''}</span>
                     </button>
                   ))}
                   {q && searchHits.length === 0 && <span className="text-[13px] text-gray-400">일치하는 거래처 없음</span>}
+                  {!q && top10.length > 0 && (
+                    <span className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[12px] text-gray-400 ml-1">자주:</span>
+                      {top10.slice(0, 6).map(f => (
+                        <button key={f.key} onClick={() => addKey(f.key)} className="px-2.5 py-1 rounded-full bg-slate-100 border border-slate-300 text-[13px] font-bold text-slate-600 hover:bg-slate-200">
+                          + {custName(f.key)}·<span className="text-indigo-600">{prodNameOf(f.key) || '?'}</span>
+                        </button>
+                      ))}
+                    </span>
+                  )}
+                </div>
+                {/* 지정일자 오더 추가 (캘린더) */}
+                <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-gray-100">
+                  <span className="text-[13px] font-black text-indigo-600 w-20 shrink-0">📅 지정일자</span>
+                  <input list="ord-custs" value={ordCustName} onChange={e => onOrdCustChange(e.target.value)} placeholder="거래처"
+                    className="px-3 py-2 border-2 border-gray-300 rounded-lg text-base w-44" />
+                  <datalist id="ord-custs">{Object.keys(custMap).map(id => <option key={id} value={custMap[id]} />)}</datalist>
+                  <select value={ordProd} onChange={e => setOrdProd(e.target.value)} disabled={!ordCust}
+                    className="px-2 py-2 border-2 border-gray-300 rounded-lg text-base font-bold text-indigo-700 bg-white max-w-[180px] disabled:bg-gray-50">
+                    {(custProducts[ordCust] || []).length === 0 ? <option value="">제품 없음</option> : custProducts[ordCust].map(p => <option key={p.id} value={p.id}>{p.name}{p.silo ? ` · ${p.silo}` : ''}</option>)}
+                  </select>
+                  <input type="date" value={ordDate} onChange={e => setOrdDate(e.target.value)} style={{ colorScheme: 'light' }}
+                    className="px-2 py-2 border-2 border-indigo-300 rounded-lg text-base font-bold text-slate-800" />
+                  <input type="number" inputMode="numeric" min={1} value={ordQty} onChange={e => setOrdQty(e.target.value)} placeholder="대수"
+                    className="w-20 px-2 py-2 border-2 border-gray-300 rounded-lg text-base font-black text-center" />
+                  <button onClick={addDatedOrder} disabled={saving} className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-bold disabled:opacity-50">추가</button>
+                  <span className="text-[12px] text-gray-400">예) 금산공영 9/20 3대 → 미리 배정</span>
                 </div>
               </div>
             )}
@@ -495,6 +559,37 @@ export default function ProductionPlanPage() {
               </table>
             </div>
             <p className="text-[12px] text-gray-400 mt-2">한 거래처가 여러 제품을 내면 <b>제품별로 행이 분리</b>됩니다(같은 거래처끼리 묶여 정렬). <b className="text-amber-600">⧉</b> 전주복사로 초기물량을 세팅하고, 셀 수정 → <b>확정</b>하면 확정본 뷰로 전환됩니다. 대수 0은 저장 시 빠집니다.</p>
+
+            {/* 하단: 전체 품목 목록(검색·추가) */}
+            {canEdit && (
+              <div className="mt-4">
+                <button onClick={() => setShowAllList(v => !v)} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 border border-slate-300 text-sm font-bold text-slate-600">
+                  📋 전체 품목 목록 <span className="text-slate-400">({fixed[cat].length})</span> {showAllList ? '▲' : '▼'}
+                </button>
+                {showAllList && (
+                  <div className="mt-2 p-3 rounded-xl bg-white border border-gray-200">
+                    <input value={allSearch} onChange={e => setAllSearch(e.target.value)} placeholder="거래처·제품 검색"
+                      className="px-3 py-2 border-2 border-gray-300 rounded-lg text-base w-72 mb-2" />
+                    <div className="flex flex-wrap gap-1.5 max-h-72 overflow-auto">
+                      {(() => {
+                        const aq = allSearch.trim().toLowerCase();
+                        const list = fixed[cat].filter(f => {
+                          if (rowIds.includes(f.key)) return false;
+                          if (!aq) return true;
+                          return (custName(f.key) + ' ' + prodNameOf(f.key)).toLowerCase().includes(aq);
+                        });
+                        if (list.length === 0) return <span className="text-[13px] text-gray-300">추가할 품목이 없습니다.</span>;
+                        return list.map(f => (
+                          <button key={f.key} onClick={() => addKey(f.key)} className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-[13px] font-bold text-slate-700 hover:bg-indigo-50 hover:border-indigo-200">
+                            + {custName(f.key)}·<span className="text-indigo-600">{prodNameOf(f.key) || '?'}</span> <span className="text-gray-400">{f.avg}</span>
+                          </button>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             </>) : (
               /* ===== 확정본: 확정된 물량만 바 형식으로 ===== */
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
