@@ -72,6 +72,7 @@ export default function CustomerPage() {
 
   const [data, setData] = useState<Customer[]>([]);
   const [products, setProducts] = useState<LookupProduct[]>([]);
+  const [custProds, setCustProds] = useState<Record<string, string[]>>({}); // 거래처 id → 제품명들
   const productName = useCallback(
     (id: string | null) => products.find(p => p.id === id)?.name || '-',
     [products],
@@ -147,6 +148,27 @@ export default function CustomerPage() {
         pg++;
       }
       setProducts(all);
+    })();
+  }, [supabase]);
+
+  // 거래처별 제품(다품목) — customer_products에서 집계
+  useEffect(() => {
+    (async () => {
+      const PAGE = 1000;
+      const map: Record<string, string[]> = {};
+      let pg = 0, more = true;
+      while (more) {
+        const { data } = await supabase.from('customer_products').select('customer_id, product_name').eq('is_active', true).range(pg * PAGE, (pg + 1) * PAGE - 1);
+        const rows = (data || []) as { customer_id: string | null; product_name: string | null }[];
+        for (const r of rows) {
+          if (!r.customer_id || !r.product_name) continue;
+          const a = map[r.customer_id] || (map[r.customer_id] = []);
+          if (!a.includes(r.product_name)) a.push(r.product_name);
+        }
+        more = rows.length === PAGE;
+        pg++;
+      }
+      setCustProds(map);
     })();
   }, [supabase]);
 
@@ -377,7 +399,7 @@ export default function CustomerPage() {
                   <td className="font-medium">{row.name}</td>
                   <td>{row.customer_code || '-'}</td>
                   <td>{row.warehouse_code || '-'}</td>
-                  <td>{productName(row.default_product_id)}</td>
+                  <td>{custProds[row.id]?.length ? custProds[row.id].join(', ') : productName(row.default_product_id)}</td>
                   <td>{row.contact_email || '-'}</td>
                   <td className="max-w-[200px] truncate">{row.address || '-'}</td>
                   <td className="max-w-[150px] truncate">{row.memo || '-'}</td>
