@@ -1,8 +1,8 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import ProductionDashboard from '@/components/modules/production/ProductionDashboard';
+import ProductionDailyTargets from '@/components/modules/production/ProductionDailyTargets';
 
 export default function ProductionPage() {
-  return <ProductionDashboard />;
+  return <ProductionDailyTargets />;
 }
