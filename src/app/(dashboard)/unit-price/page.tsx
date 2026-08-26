@@ -49,7 +49,7 @@ export default function UnitPricePage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [editVal, setEditVal] = useState<number>(0);
   const [copying, setCopying] = useState(false);
-  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'change', dir: 'desc' });
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'company', dir: 'asc' });
   const [fCompany, setFCompany] = useState('');
   const [fCustomer, setFCustomer] = useState('');
   const [exporting, setExporting] = useState(false);
@@ -131,7 +131,6 @@ export default function UnitPricePage() {
     (!fCompany || r.transport_companies?.name === fCompany) &&
     (!fCustomer || (r.customers?.name || '').toLowerCase().includes(fCustomer.toLowerCase()))
   ), colFilter, upCellStr), [sortedRows, fCompany, fCustomer, colFilter]);
-  const changedCount = useMemo(() => viewRows.filter(r => (r.delta !== null && r.delta !== 0) || r.prevPrice === null).length, [viewRows]);
 
   // 전체(모든 월) 단가 엑셀 다운로드 — 조회조건 있으면 반영
   const handleExcel = async () => {
@@ -260,7 +259,7 @@ export default function UnitPricePage() {
           {exporting ? '생성 중…' : '엑셀 다운로드'}
         </button>
         <span className="ml-auto text-sm text-[var(--color-text-secondary)]">
-          {month} {viewRows.length}건 · <span className="text-rose-600 font-semibold">변동 {changedCount}건</span>
+          {month} {viewRows.length}건
         </span>
       </div>
 
@@ -281,14 +280,12 @@ export default function UnitPricePage() {
                   {th('customer', '거래처', '', 'customer')}
                   <th className="text-right whitespace-nowrap">전월단가</th>
                   {th('price', '단가(원/톤)', 'text-right')}
-                  {th('change', '전월대비', 'text-right')}
                   {canEdit && <th>작업</th>}
                 </tr>
               </thead>
               <tbody>
                 {viewRows.map(r => {
                   const isNew = r.prevPrice === null;
-                  const up = (r.delta ?? 0) > 0, down = (r.delta ?? 0) < 0;
                   return (
                     <tr key={r.id} style={{ background: (isNew || (r.delta ?? 0) !== 0) ? '#fff7f5' : undefined }}>
                       <td className="font-medium">{r.transport_companies?.name || '-'}</td>
@@ -296,15 +293,11 @@ export default function UnitPricePage() {
                       <td className="text-right text-gray-500 tabular-nums">{isNew ? '-' : won(r.prevPrice!)}</td>
                       <td className="text-right tabular-nums font-semibold">
                         {editId === r.id ? (
-                          <input type="number" value={editVal} onChange={e => setEditVal(Number(e.target.value))}
+                          <input type="text" inputMode="numeric" value={editVal === 0 ? '' : editVal}
+                            onChange={e => setEditVal(parseInt(e.target.value.replace(/[^0-9]/g, ''), 10) || 0)}
                             onKeyDown={e => { if (e.key === 'Enter') saveEdit(r.id); if (e.key === 'Escape') setEditId(null); }}
                             autoFocus className="w-28 px-2 py-1 border border-blue-400 rounded text-sm text-right" />
                         ) : won(r.price)}
-                      </td>
-                      <td className="text-right tabular-nums whitespace-nowrap">
-                        {isNew ? <span className="text-blue-600 font-semibold">신규</span>
-                          : (r.delta === 0 ? <span className="text-gray-300">-</span>
-                            : <span className={up ? 'text-rose-600 font-semibold' : 'text-blue-600 font-semibold'}>{up ? '▲' : '▼'} {won(Math.abs(r.delta!))}</span>)}
                       </td>
                       {canEdit && (
                         <td>

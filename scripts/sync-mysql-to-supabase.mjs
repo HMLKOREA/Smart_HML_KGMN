@@ -88,6 +88,7 @@ const cache = {
   companies: new Map(),   // mysql uid → supabase uuid
   customers: new Map(),   // mysql uid → supabase uuid
   products: new Map(),    // mysql code → supabase uuid
+  productNames: new Map(),// mysql code → 제품명(제품명 누락 폴백용)
   drivers: new Map(),     // mysql uid → supabase uuid
   driversByVehicle: new Map(), // 차량번호(car_no) → supabase driver uuid
 };
@@ -110,6 +111,7 @@ async function buildMappingCache(mysqlConn) {
   for (const mp of mysqlProds) {
     const match = (sbProducts || []).find(p => p.code === mp.code);
     if (match) cache.products.set(mp.code, match.id);
+    if (mp.name || match?.name) cache.productNames.set(mp.code, mp.name || match?.name);
   }
   log(`  제품 매핑: ${cache.products.size}/${mysqlProds.length}`);
 
@@ -447,7 +449,7 @@ async function syncCustomerProducts(conn) {
     customer_name: r.cp_name || null,
     customer_code: r.cus_code || null,
     product_id: cache.products.get(r.prod_code) || null,
-    product_name: r.product || null,
+    product_name: r.product || cache.productNames.get(r.prod_code) || null, // 제품명 누락 시 prod_code로 폴백
     product_code: r.prod_code || null,
     warehouse_code: r.storage_code || null,
     is_active: true,
