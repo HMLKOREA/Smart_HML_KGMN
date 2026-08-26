@@ -40,6 +40,7 @@ export default function ProductionPlanPage() {
   const [custSearch, setCustSearch] = useState('');   // 거래처 검색(찾아서 넣기)
 
   const days = useMemo(() => Array.from({ length: 5 }, (_, i) => format(addDays(new Date(weekStart + 'T00:00:00'), i), 'yyyy-MM-dd')), [weekStart]);
+  const prevDays = useMemo(() => Array.from({ length: 5 }, (_, i) => format(addDays(new Date(weekStart + 'T00:00:00'), -7 + i), 'yyyy-MM-dd')), [weekStart]);
   const weekLabel = `${days[0].slice(5)} ~ ${days[4].slice(5)}`;
 
   const [custMap, setCustMap] = useState<Record<string, string>>({}); // id→name
@@ -58,6 +59,10 @@ export default function ProductionPlanPage() {
   const rowTotal = (c: string) => days.reduce((s, d) => s + cell(c, d), 0);
   const dayTotal = (d: string) => rowIds.reduce((s, c) => s + cell(c, d), 0);
   const grandTotal = rowIds.reduce((s, c) => s + rowTotal(c), 0);
+  // 전주 실적(실제 출하 대수)
+  const actual = (c: string, d: string) => dailyByCust[cat]?.[c]?.[d] || 0;
+  const prevRowTotal = (c: string) => prevDays.reduce((s, d) => s + actual(c, d), 0);
+  const prevDayTotal = (d: string) => rowIds.reduce((s, c) => s + actual(c, d), 0);
 
   // 참고 실적: 지난주(전 주 월~금), 지난 3주 평균(주당)
   const ref = useMemo(() => {
@@ -339,23 +344,32 @@ export default function ProductionPlanPage() {
             <div className="overflow-x-auto bg-white rounded-xl border border-gray-200 shadow-sm">
               <table className="w-full border-collapse" style={{ minWidth: 700 }}>
                 <thead>
+                  <tr style={{ background: '#e2e8f0' }}>
+                    <th className="sticky left-0 bg-slate-200 border-b border-gray-300" style={{ minWidth: 210 }} />
+                    <th colSpan={5} className="px-1 py-1 text-center text-[13px] font-black text-slate-500 border-b border-r-2 border-gray-300">전주 실적 <span className="font-bold text-slate-400">{prevDays[0].slice(5)}~{prevDays[4].slice(5)}</span></th>
+                    <th colSpan={5} className="px-1 py-1 text-center text-[13px] font-black border-b border-gray-300" style={{ color: catColor }}>이번주 계획 <span className="font-bold text-slate-400">{days[0].slice(5)}~{days[4].slice(5)}</span></th>
+                    <th className="border-b border-gray-300" />
+                    {canEdit && <th className="border-b border-gray-300" />}
+                  </tr>
                   <tr style={{ background: '#f1f5f9' }}>
-                    <th onClick={cycleSort} className="text-left px-2 py-2 text-sm font-black text-gray-700 border-b-2 border-gray-200 sticky left-0 bg-slate-100 cursor-pointer select-none" style={{ minWidth: 210 }}>
+                    <th onClick={cycleSort} className="text-left px-2 py-1.5 text-sm font-black text-gray-700 border-b-2 border-gray-200 sticky left-0 bg-slate-100 cursor-pointer select-none" style={{ minWidth: 210 }}>
                       거래처 <span style={{ color: catColor }}>{sortDir === 'asc' ? '▲' : sortDir === 'desc' ? '▼' : '⇅'}</span>
                     </th>
-                    {days.map(d => {
-                      const dt = new Date(d + 'T00:00:00'); const isT = d === todayStr;
-                      return <th key={d} className="px-1 py-1.5 text-center text-sm font-black border-b-2 border-gray-200" style={{ minWidth: 80, background: isT ? catColor : '#eef2f7', color: isT ? '#fff' : '#334155' }}>
-                        {DOW[dt.getDay()]}<br /><span className="text-[12px] font-bold" style={{ color: isT ? 'rgba(255,255,255,.85)' : '#94a3b8' }}>{d.slice(5)}</span>
+                    {prevDays.map(d => { const dt = new Date(d + 'T00:00:00');
+                      return <th key={d} className="px-1 py-1 text-center text-[13px] font-bold border-b-2 border-gray-200 bg-slate-50 text-slate-400" style={{ minWidth: 56 }}>{DOW[dt.getDay()]}<br /><span className="text-[11px]">{d.slice(8)}</span></th>;
+                    })}
+                    {days.map((d, i) => { const dt = new Date(d + 'T00:00:00'); const isT = d === todayStr;
+                      return <th key={d} className={`px-1 py-1 text-center text-sm font-black border-b-2 border-gray-200 ${i === 0 ? 'border-l-2 border-l-gray-300' : ''}`} style={{ minWidth: 72, background: isT ? catColor : '#eef2f7', color: isT ? '#fff' : '#334155' }}>
+                        {DOW[dt.getDay()]}<br /><span className="text-[12px] font-bold" style={{ color: isT ? 'rgba(255,255,255,.85)' : '#94a3b8' }}>{d.slice(8)}</span>
                       </th>;
                     })}
-                    <th className="px-1 py-2 text-center text-sm font-black text-gray-700 border-b-2 border-gray-200" style={{ minWidth: 64 }}>합계</th>
+                    <th className="px-1 py-1.5 text-center text-sm font-black text-gray-700 border-b-2 border-gray-200" style={{ minWidth: 60 }}>합계</th>
                     {canEdit && <th className="px-1 border-b-2 border-gray-200" style={{ width: 34 }} />}
                   </tr>
                 </thead>
                 <tbody>
                   {displayRows.length === 0 ? (
-                    <tr><td colSpan={8} className="text-center text-gray-400 py-8 text-sm">‘자동채우기’ 또는 위 상위/검색으로 거래처를 추가하세요.</td></tr>
+                    <tr><td colSpan={13} className="text-center text-gray-400 py-8 text-sm">‘자동채우기’ 또는 위 상위/검색으로 거래처를 추가하세요.</td></tr>
                   ) : displayRows.map(c => {
                     const r = refOf(c);
                     return (
@@ -371,13 +385,16 @@ export default function ProductionPlanPage() {
                           ) : (
                             <div className="text-[12px] font-bold text-indigo-600 leading-tight truncate" style={{ maxWidth: 200 }}>{prodName(c) || <span className="text-gray-300">제품 미지정</span>}</div>
                           )}
-                          <div className="text-[11px] text-gray-400 leading-tight">지난주 {r.lastWeek} · 3주평균 {r.avg3w}/주</div>
+                          <div className="text-[11px] text-gray-400 leading-tight">전주계 {prevRowTotal(c)} · 3주평균 {r.avg3w}/주</div>
                         </td>
-                        {days.map(d => (
-                          <td key={d} className="px-1 py-1 text-center" style={d === todayStr ? { background: catColor + '14' } : undefined}>
+                        {prevDays.map(d => { const v = actual(c, d);
+                          return <td key={d} className="px-1 py-1 text-center bg-slate-50/60"><span className="text-base font-bold tabular-nums text-slate-400">{v || '·'}</span></td>;
+                        })}
+                        {days.map((d, i) => (
+                          <td key={d} className={`px-1 py-1 text-center ${i === 0 ? 'border-l-2 border-l-gray-200' : ''}`} style={d === todayStr ? { background: catColor + '14' } : undefined}>
                             <input type="number" inputMode="numeric" value={cell(c, d) === 0 ? '' : cell(c, d)} placeholder="·" disabled={!canEdit}
                               onChange={e => { setCell(c, d, parseInt(e.target.value || '0', 10) || 0); if (confirmed) setConfirmed(false); }}
-                              className="w-14 h-10 text-center text-xl font-black border-2 border-gray-200 rounded-lg focus:border-indigo-500 outline-none" />
+                              className="w-13 h-10 text-center text-xl font-black border-2 border-gray-200 rounded-lg focus:border-indigo-500 outline-none" style={{ width: 52 }} />
                           </td>
                         ))}
                         <td className="px-1 py-1 text-center"><span className="text-xl font-black tabular-nums" style={{ color: catColor }}>{rowTotal(c) || ''}</span></td>
@@ -388,7 +405,8 @@ export default function ProductionPlanPage() {
                   {displayRows.length > 0 && (
                     <tr style={{ background: '#f8fafc' }}>
                       <td className="px-2 py-2 text-[15px] font-black text-gray-600 sticky left-0 bg-slate-50">일별 합계</td>
-                      {days.map(d => <td key={d} className="px-1 py-2 text-center text-xl font-black text-gray-700 tabular-nums" style={d === todayStr ? { background: catColor + '14' } : undefined}>{dayTotal(d)}</td>)}
+                      {prevDays.map(d => <td key={d} className="px-1 py-2 text-center text-base font-black text-slate-400 tabular-nums bg-slate-50/60">{prevDayTotal(d) || '·'}</td>)}
+                      {days.map((d, i) => <td key={d} className={`px-1 py-2 text-center text-xl font-black text-gray-700 tabular-nums ${i === 0 ? 'border-l-2 border-l-gray-200' : ''}`} style={d === todayStr ? { background: catColor + '14' } : undefined}>{dayTotal(d)}</td>)}
                       <td className="px-1 py-2 text-center text-2xl font-black tabular-nums" style={{ color: catColor }}>{grandTotal}</td>
                       {canEdit && <td />}
                     </tr>
