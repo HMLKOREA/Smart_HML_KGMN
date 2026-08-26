@@ -97,24 +97,25 @@ export default function ProductionDailyTargets() {
                   <h2 className="text-xl font-black" style={{ color: c.color }}>{c.label}</h2>
                   <span className="text-lg font-bold text-gray-400">{catTotal(c.key)}대 · {list.length}건</span>
                 </div>
-                <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
+                <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(212px, 1fr))' }}>
                   {list.map(r => {
                     const s = r.customer_id && r.product_id ? silo[`${r.customer_id}::${r.product_id}`] : '';
                     const done = (r.actual_trucks || 0) >= (r.planned_trucks || 0) && (r.planned_trucks || 0) > 0;
                     return (
-                      <div key={r.id} className="rounded-2xl border-2 bg-white p-4 shadow-sm" style={{ borderColor: c.border }}>
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="text-xl font-black text-gray-900 leading-tight truncate" title={r.customer_name || ''}>{r.customer_name || '(거래처)'}</div>
-                            <div className="text-[15px] font-bold mt-0.5 truncate" style={{ color: c.color }}>{r.product_name || '-'}</div>
+                      <div key={r.id} className="rounded-xl border-2 bg-white px-3 py-2 shadow-sm flex items-center justify-between gap-2" style={{ borderColor: c.border }}>
+                        <div className="min-w-0">
+                          <div className="text-[17px] font-black text-gray-900 leading-tight truncate" title={r.customer_name || ''}>{r.customer_name || '(거래처)'}</div>
+                          <div className="flex items-baseline gap-1.5 leading-tight truncate">
+                            <span className="text-[14px] font-bold truncate" style={{ color: c.color }}>{r.product_name || '-'}</span>
+                            {s && <span className="text-[11px] font-bold text-slate-400">사일로 {s}</span>}
                           </div>
-                          {s && <span className="shrink-0 text-sm font-black px-2 py-1 rounded-lg bg-slate-100 text-slate-600">사일로 {s}</span>}
+                          {r.notes && <div className="text-[11px] text-gray-400 truncate" title={r.notes}>📌 {r.notes}</div>}
                         </div>
-                        <div className="mt-3 flex items-end justify-between">
-                          <span className="text-[13px] font-bold text-gray-400">{done ? '✅ 완료' : '계획'}</span>
-                          <span className="text-5xl font-black tabular-nums leading-none" style={{ color: c.color }}>{r.planned_trucks}<span className="text-lg text-gray-400 ml-1">대</span></span>
+                        <div className="shrink-0 text-right">
+                          <span className="text-4xl font-black tabular-nums leading-none" style={{ color: c.color }}>{r.planned_trucks}</span>
+                          <span className="text-sm text-gray-400 font-bold">대</span>
+                          {done && <div className="text-[11px] font-bold text-emerald-500 leading-none">✅완료</div>}
                         </div>
-                        {r.notes && <div className="mt-2 text-[12px] text-gray-500 truncate" title={r.notes}>📌 {r.notes}</div>}
                       </div>
                     );
                   })}

@@ -17,8 +17,13 @@ type CatKey = typeof CATS[number]['key'];
 const TT_TO_CAT: Record<string, CatKey> = { '탱크': 'tank_lorry', '카고': 'cargo_truck' };
 const DOW = ['일', '월', '화', '수', '목', '금', '토'];
 
+// 행 = 거래처 × 제품 (복합키)
+const RK = (cust: string, prod: string) => `${cust}::${prod}`;
+const custOf = (k: string) => k.split('::')[0];
+const prodIdOf = (k: string) => k.split('::')[1] || '';
+
 interface Cust { id: string; name: string; }
-interface Sched { id: string; schedule_date: string; transport_category: string; customer_id: string | null; planned_trucks: number | null; }
+interface Sched { id: string; schedule_date: string; transport_category: string; customer_id: string | null; product_id?: string | null; planned_trucks: number | null; status?: string; }
 
 function mondayOf(d: Date) { const x = new Date(d); const off = (x.getDay() + 6) % 7; x.setDate(x.getDate() - off); x.setHours(0, 0, 0, 0); return x; }
 
@@ -36,8 +41,8 @@ export default function ProductionPlanPage() {
   const [saving, setSaving] = useState(false);
   const [fillN, setFillN] = useState('10');
   const [sortDir, setSortDir] = useState<'none' | 'asc' | 'desc'>('none');
-  const [confirmed, setConfirmed] = useState(false); // 이번주+구분 확정 여부
-  const [custSearch, setCustSearch] = useState('');   // 거래처 검색(찾아서 넣기)
+  const [confirmed, setConfirmed] = useState(false);
+  const [custSearch, setCustSearch] = useState('');
 
   const days = useMemo(() => Array.from({ length: 5 }, (_, i) => format(addDays(new Date(weekStart + 'T00:00:00'), i), 'yyyy-MM-dd')), [weekStart]);
   const prevDays = useMemo(() => Array.from({ length: 5 }, (_, i) => format(addDays(new Date(weekStart + 'T00:00:00'), -7 + i), 'yyyy-MM-dd')), [weekStart]);
@@ -45,48 +50,65 @@ export default function ProductionPlanPage() {
 
   const [custMap, setCustMap] = useState<Record<string, string>>({}); // id→name
   const [custProducts, setCustProducts] = useState<Record<string, { id: string; name: string; silo: string | null }[]>>({}); // 거래처→제품들
-  const [rowProduct, setRowProduct] = useState<Record<string, string>>({}); // 거래처→선택 product_id
-  const prodOf = (c: string) => rowProduct[c] ?? custProducts[c]?.[0]?.id ?? '';
-  const prodName = (c: string) => { const pid = prodOf(c); return custProducts[c]?.find(p => p.id === pid)?.name || ''; };
-  const [fixed, setFixed] = useState<Record<CatKey, { id: string; name: string; avg: number }[]>>({ tank_lorry: [], cargo_truck: [] });
-  const [dailyByCust, setDailyByCust] = useState<Record<CatKey, Record<string, Record<string, number>>>>({ tank_lorry: {}, cargo_truck: {} }); // cat→cust→date→대수
-  const [rowIds, setRowIds] = useState<string[]>([]);
-  const [plan, setPlan] = useState<Record<string, Record<string, number>>>({}); // custId → date → trucks
-  const [rowDbId, setRowDbId] = useState<Record<string, string>>({});           // `${date}|${custId}` → schedule id
+  const [prodNameMap, setProdNameMap] = useState<Record<string, string>>({}); // product_id→name
+  const [fixed, setFixed] = useState<Record<CatKey, { key: string; avg: number }[]>>({ tank_lorry: [], cargo_truck: [] });
+  const [dailyByKey, setDailyByKey] = useState<Record<CatKey, Record<string, Record<string, number>>>>({ tank_lorry: {}, cargo_truck: {} }); // cat→rowKey→date→대수
+  const [rowIds, setRowIds] = useState<string[]>([]); // rowKey 배열
+  const [plan, setPlan] = useState<Record<string, Record<string, number>>>({}); // rowKey → date → trucks
+  const [rowDbId, setRowDbId] = useState<Record<string, string>>({});           // `${date}|${rowKey}` → schedule id
 
-  const cell = (c: string, d: string) => plan[c]?.[d] || 0;
-  const setCell = (c: string, d: string, v: number) => setPlan(p => ({ ...p, [c]: { ...(p[c] || {}), [d]: Math.max(0, v) } }));
-  const rowTotal = (c: string) => days.reduce((s, d) => s + cell(c, d), 0);
-  const dayTotal = (d: string) => rowIds.reduce((s, c) => s + cell(c, d), 0);
-  const grandTotal = rowIds.reduce((s, c) => s + rowTotal(c), 0);
+  const custName = (k: string) => custMap[custOf(k)] || '(알수없음)';
+  const siloOf = (k: string) => { const c = custOf(k), p = prodIdOf(k); return custProducts[c]?.find(x => x.id === p)?.silo || ''; };
+  const prodNameOf = (k: string) => { const p = prodIdOf(k); return prodNameMap[p] || custProducts[custOf(k)]?.find(x => x.id === p)?.name || ''; };
+
+  const cell = (k: string, d: string) => plan[k]?.[d] || 0;
+  const setCell = (k: string, d: string, v: number) => setPlan(p => ({ ...p, [k]: { ...(p[k] || {}), [d]: Math.max(0, v) } }));
+  const rowTotal = (k: string) => days.reduce((s, d) => s + cell(k, d), 0);
+  const dayTotal = (d: string) => rowIds.reduce((s, k) => s + cell(k, d), 0);
+  const grandTotal = rowIds.reduce((s, k) => s + rowTotal(k), 0);
   // 전주 실적(실제 출하 대수)
-  const actual = (c: string, d: string) => dailyByCust[cat]?.[c]?.[d] || 0;
-  const prevRowTotal = (c: string) => prevDays.reduce((s, d) => s + actual(c, d), 0);
-  const prevDayTotal = (d: string) => rowIds.reduce((s, c) => s + actual(c, d), 0);
+  const actual = (k: string, d: string) => dailyByKey[cat]?.[k]?.[d] || 0;
+  const prevRowTotal = (k: string) => prevDays.reduce((s, d) => s + actual(k, d), 0);
+  const prevDayTotal = (d: string) => rowIds.reduce((s, k) => s + actual(k, d), 0);
 
   // 참고 실적: 지난주(전 주 월~금), 지난 3주 평균(주당)
   const ref = useMemo(() => {
-    const d = dailyByCust[cat] || {};
+    const d = dailyByKey[cat] || {};
     const base = new Date(weekStart + 'T00:00:00');
     const fmt2 = (n: number) => format(addDays(base, n), 'yyyy-MM-dd');
     const pwFrom = fmt2(-7), pwTo = fmt2(-3), t3From = fmt2(-21), t3To = fmt2(-1);
     const sumRange = (dates: Record<string, number>, from: string, to: string) => Object.entries(dates).reduce((s, [dt, c]) => (dt >= from && dt <= to ? s + c : s), 0);
     const out: Record<string, { lastWeek: number; avg3w: number }> = {};
-    for (const cid of Object.keys(d)) out[cid] = { lastWeek: sumRange(d[cid], pwFrom, pwTo), avg3w: Math.round(sumRange(d[cid], t3From, t3To) / 3 * 10) / 10 };
+    for (const k of Object.keys(d)) out[k] = { lastWeek: sumRange(d[k], pwFrom, pwTo), avg3w: Math.round(sumRange(d[k], t3From, t3To) / 3 * 10) / 10 };
     return out;
-  }, [dailyByCust, cat, weekStart]);
-  const refOf = (c: string) => ref[c] || { lastWeek: 0, avg3w: 0 };
+  }, [dailyByKey, cat, weekStart]);
+  const refOf = (k: string) => ref[k] || { lastWeek: 0, avg3w: 0 };
 
-  // 표시용 정렬 행
+  // 표시용 정렬 행 — 같은 거래처의 제품은 항상 인접(그룹)
   const displayRows = useMemo(() => {
-    if (sortDir === 'none') return rowIds;
-    const arr = [...rowIds].sort((a, b) => (custMap[a] || '').localeCompare(custMap[b] || '', 'ko'));
-    return sortDir === 'desc' ? arr.reverse() : arr;
-  }, [rowIds, sortDir, custMap]);
+    const keys = [...rowIds];
+    if (sortDir === 'none') {
+      const order: string[] = []; const seen = new Set<string>();
+      for (const k of keys) { const c = custOf(k); if (!seen.has(c)) { seen.add(c); order.push(c); } }
+      return keys.sort((a, b) => {
+        const ca = order.indexOf(custOf(a)), cb = order.indexOf(custOf(b));
+        if (ca !== cb) return ca - cb;
+        return prodNameOf(a).localeCompare(prodNameOf(b), 'ko');
+      });
+    }
+    return keys.sort((a, b) => {
+      const cmp = (custMap[custOf(a)] || '').localeCompare(custMap[custOf(b)] || '', 'ko');
+      if (cmp !== 0) return sortDir === 'desc' ? -cmp : cmp;
+      return prodNameOf(a).localeCompare(prodNameOf(b), 'ko');
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rowIds, sortDir, custMap, prodNameMap, custProducts]);
 
   // 상단 모니터링 합계
-  const sumLastWeek = rowIds.reduce((s, c) => s + refOf(c).lastWeek, 0);
-  const sumAvg3w = Math.round(rowIds.reduce((s, c) => s + refOf(c).avg3w, 0) * 10) / 10;
+  const sumLastWeek = rowIds.reduce((s, k) => s + refOf(k).lastWeek, 0);
+  const sumAvg3w = Math.round(rowIds.reduce((s, k) => s + refOf(k).avg3w, 0) * 10) / 10;
+  const activeRows = rowIds.filter(k => rowTotal(k) > 0);
+  const activeCusts = new Set(activeRows.map(custOf)).size;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -97,67 +119,74 @@ export default function ProductionPlanPage() {
       (cs || []).forEach((c: Cust) => { cm[c.id] = c.name; });
       setCustMap(cm);
 
-      // 거래처×제품 마스터(다품목 선택용)
+      // 거래처×제품 마스터(다품목 분리·사일로)
       const cpMap: Record<string, { id: string; name: string; silo: string | null }[]> = {};
+      const pnm: Record<string, string> = {};
       { const PG2 = 1000; let p2 = 0, m2 = true;
         while (m2) {
           const { data } = await supabase.from('customer_products').select('customer_id, product_id, product_name, warehouse_code').eq('is_active', true).range(p2 * PG2, (p2 + 1) * PG2 - 1);
           const rows = (data || []) as { customer_id: string; product_id: string | null; product_name: string | null; warehouse_code: string | null }[];
           for (const r of rows) {
-            if (!r.customer_id || !r.product_id || !r.product_name) continue;
+            if (!r.customer_id || !r.product_id) continue;
+            if (r.product_name) pnm[r.product_id] = r.product_name;
             const a = cpMap[r.customer_id] || (cpMap[r.customer_id] = []);
-            if (!a.some(x => x.id === r.product_id)) a.push({ id: r.product_id, name: r.product_name, silo: r.warehouse_code });
+            if (!a.some(x => x.id === r.product_id)) a.push({ id: r.product_id, name: r.product_name || '', silo: r.warehouse_code });
           }
           m2 = rows.length === PG2; p2++;
         }
       }
       setCustProducts(cpMap);
 
-      // 2) 최근 90일 출하 → 고정물량(주당 평균 대수) 집계
+      // 2) 최근 90일 출하 → 거래처×제품별 주당 평균대수(고정물량) 집계
       const from = format(addDays(new Date(), -90), 'yyyy-MM-dd');
       const PAGE = 1000; let all: Record<string, unknown>[] = []; let pg = 0, more = true;
       while (more) {
-        const { data } = await supabase.from('v_shipments').select('customer_id, transport_type, shipment_date')
+        const { data } = await supabase.from('v_shipments').select('customer_id, product_id, product_name, transport_type, shipment_date')
           .gte('shipment_date', from).range(pg * PAGE, (pg + 1) * PAGE - 1);
         const rows = (data || []) as Record<string, unknown>[]; all = [...all, ...rows]; more = rows.length === PAGE; pg++;
       }
       const daily: Record<CatKey, Record<string, Record<string, number>>> = { tank_lorry: {}, cargo_truck: {} };
       for (const r of all) {
-        const cid = r.customer_id as string | null; const tt = r.transport_type as string | null; const sd = r.shipment_date as string;
+        const cid = r.customer_id as string | null; const pid = (r.product_id as string | null) || '';
+        const tt = r.transport_type as string | null; const sd = r.shipment_date as string;
+        const pn = r.product_name as string | null;
         if (!cid || !tt || !TT_TO_CAT[tt] || !cm[cid]) continue;
-        const ck = TT_TO_CAT[tt];
-        const dd = daily[ck][cid] || (daily[ck][cid] = {});
+        if (pid && pn && !pnm[pid]) pnm[pid] = pn;
+        const ck = TT_TO_CAT[tt]; const key = RK(cid, pid);
+        const dd = daily[ck][key] || (daily[ck][key] = {});
         dd[sd] = (dd[sd] || 0) + 1;
       }
-      setDailyByCust(daily);
-      const fx: Record<CatKey, { id: string; name: string; avg: number }[]> = { tank_lorry: [], cargo_truck: [] };
+      setDailyByKey(daily);
+      setProdNameMap(pnm);
+      const fx: Record<CatKey, { key: string; avg: number }[]> = { tank_lorry: [], cargo_truck: [] };
       (['tank_lorry', 'cargo_truck'] as CatKey[]).forEach(ck => {
-        fx[ck] = Object.entries(daily[ck]).map(([id, dates]) => {
+        fx[ck] = Object.entries(daily[ck]).map(([key, dates]) => {
           const cnt = Object.values(dates).reduce((s, v) => s + v, 0);
           const weeks = new Set(Object.keys(dates).map(d => d.slice(0, 4) + isoWeek(d))).size;
-          return { id, name: cm[id] || '(?)', avg: Math.round((cnt / Math.max(1, weeks)) * 10) / 10 };
+          return { key, avg: Math.round((cnt / Math.max(1, weeks)) * 10) / 10 };
         }).sort((a, b) => b.avg - a.avg);
       });
       setFixed(fx);
 
-      // 3) 이번주 계획 로드
+      // 3) 이번주 계획 로드 (거래처×제품별)
       const { data: sch } = await supabase.from('production_schedules')
         .select('id, schedule_date, transport_category, customer_id, product_id, planned_trucks, status')
         .gte('schedule_date', days[0]).lte('schedule_date', days[4]).eq('transport_category', cat);
-      const pl: Record<string, Record<string, number>> = {}; const dbid: Record<string, string> = {}; const rp: Record<string, string> = {};
+      const pl: Record<string, Record<string, number>> = {}; const dbid: Record<string, string> = {};
       let anyConfirmed = false;
-      (sch || []).forEach((s: Sched & { status?: string; product_id?: string | null }) => {
+      (sch || []).forEach((s: Sched) => {
         if (!s.customer_id) return;
-        (pl[s.customer_id] = pl[s.customer_id] || {})[s.schedule_date] = Number(s.planned_trucks) || 0;
-        dbid[`${s.schedule_date}|${s.customer_id}`] = s.id;
-        if (s.product_id) rp[s.customer_id] = s.product_id;
+        const pid = s.product_id || cpMap[s.customer_id]?.[0]?.id || '';
+        const key = RK(s.customer_id, pid);
+        (pl[key] = pl[key] || {})[s.schedule_date] = Number(s.planned_trucks) || 0;
+        dbid[`${s.schedule_date}|${key}`] = s.id;
         if (s.status === 'confirmed') anyConfirmed = true;
       });
-      setPlan(pl); setRowDbId(dbid); setConfirmed(anyConfirmed); setRowProduct(rp);
-      // 행 = 고정물량 순 + 계획에만 있는 거래처
-      const fixedIds = fx[cat].map(f => f.id);
-      const extra = Object.keys(pl).filter(id => !fixedIds.includes(id));
-      setRowIds([...fixedIds, ...extra]);
+      setPlan(pl); setRowDbId(dbid); setConfirmed(anyConfirmed);
+      // 행 = 고정물량 순 + 계획에만 있는 행
+      const fixedKeys = fx[cat].map(f => f.key);
+      const extra = Object.keys(pl).filter(k => !fixedKeys.includes(k));
+      setRowIds([...fixedKeys, ...extra]);
     } catch {
       toast.error('데이터 조회 실패');
     } finally {
@@ -174,48 +203,58 @@ export default function ProductionPlanPage() {
     setPlan(prev => {
       const next = { ...prev };
       for (const f of top) {
-        const weekly = (ref[f.id]?.avg3w || f.avg); // 최근 3주 평균 우선
+        const weekly = (ref[f.key]?.avg3w || f.avg);
         const per = Math.max(1, Math.round(weekly / 5));
-        next[f.id] = { ...(next[f.id] || {}) };
-        for (const d of days) next[f.id][d] = per; // 자동 채움(덮어쓰기) → 이후 수정
+        next[f.key] = { ...(next[f.key] || {}) };
+        for (const d of days) next[f.key][d] = per;
       }
       return next;
     });
-    setRowIds(prev => [...new Set([...top.map(f => f.id), ...prev])]);
+    setRowIds(prev => [...new Set([...top.map(f => f.key), ...prev])]);
     setConfirmed(false);
-    toast.success(`고정물량 상위 ${top.length}곳 자동 반영 (3주 평균 기준 · 수정 가능)`);
+    toast.success(`상위 ${top.length}개 품목 자동 반영 (3주 평균 기준 · 수정 가능)`);
   };
 
-  const addCustomer = (id: string) => {
-    if (!id || rowIds.includes(id)) return;
-    setRowIds(prev => [...prev, id]);
+  // 거래처 추가 → 해당 거래처의 (이력 있는) 제품을 각각 행으로
+  const addCustomer = (custId: string) => {
+    if (!custId) return;
+    const prods = custProducts[custId] || [];
+    let keys: string[];
+    if (prods.length) {
+      const hist = prods.filter(p => dailyByKey[cat]?.[RK(custId, p.id)]).map(p => RK(custId, p.id));
+      keys = hist.length ? hist : prods.map(p => RK(custId, p.id));
+    } else {
+      keys = [RK(custId, '')];
+    }
+    setRowIds(prev => [...new Set([...prev, ...keys])]);
   };
-  const removeCustomer = (id: string) => {
-    setRowIds(prev => prev.filter(x => x !== id));
-    setPlan(prev => { const n = { ...prev }; delete n[id]; return n; });
+  const addKey = (key: string) => { if (key && !rowIds.includes(key)) setRowIds(prev => [...prev, key]); };
+  const removeRow = (key: string) => {
+    setRowIds(prev => prev.filter(x => x !== key));
+    setPlan(prev => { const n = { ...prev }; delete n[key]; return n; });
   };
   const cycleSort = () => setSortDir(d => d === 'none' ? 'asc' : d === 'asc' ? 'desc' : 'none');
 
   const doSave = async (status: 'planned' | 'confirmed'): Promise<boolean> => {
     setSaving(true);
     try {
-      for (const c of rowIds) {
+      for (const k of rowIds) {
+        const c = custOf(k); const pid = prodIdOf(k) || null;
         for (const d of days) {
-          const v = cell(c, d);
-          const key = `${d}|${c}`;
-          const existing = rowDbId[key];
+          const v = cell(k, d);
+          const dk = `${d}|${k}`;
+          const existing = rowDbId[dk];
           if (v > 0) {
-            const pid = prodOf(c) || null;
             if (existing) await supabase.from('production_schedules').update({ planned_trucks: v, product_id: pid, status, updated_by: userName }).eq('id', existing);
             else {
               const { data } = await supabase.from('production_schedules').insert({
                 schedule_date: d, transport_category: cat, sub_category: '', customer_id: c, product_id: pid, planned_trucks: v, status, created_by: userName,
               }).select('id').single();
-              if (data) rowDbId[`${d}|${c}`] = data.id;
+              if (data) rowDbId[dk] = data.id;
             }
           } else if (existing) {
             await supabase.from('production_schedules').delete().eq('id', existing);
-            delete rowDbId[key];
+            delete rowDbId[dk];
           }
         }
       }
@@ -240,8 +279,8 @@ export default function ProductionPlanPage() {
   const sendNotify = async () => {
     if (!confirmed) { toast.warning('먼저 계획을 확정하세요.'); return; }
     const catLabel = CATS.find(c => c.key === cat)?.label || '';
-    const lines = [`📅 ${days[0]} ~ ${days[4]} · ${catLabel}`, `총 ${grandTotal}대 (${rowIds.filter(c => rowTotal(c) > 0).length}개 거래처)`, ''];
-    for (const c of rowIds) { const t = rowTotal(c); if (t > 0) lines.push(`· ${custMap[c] || '?'}${prodName(c) ? ` [${prodName(c)}]` : ''} : ${days.map(d => cell(c, d)).join('/')} = ${t}대`); }
+    const lines = [`📅 ${days[0]} ~ ${days[4]} · ${catLabel}`, `총 ${grandTotal}대 (${activeCusts}개 거래처 · ${activeRows.length}개 품목)`, ''];
+    for (const k of displayRows) { const t = rowTotal(k); if (t > 0) lines.push(`· ${custName(k)}${prodNameOf(k) ? ` [${prodNameOf(k)}]` : ''} : ${days.map(d => cell(k, d)).join('/')} = ${t}대`); }
     lines.push('', `확정: ${userName || '-'}`);
     try {
       const res = await fetch('/api/notify/teams-plan', {
@@ -258,10 +297,10 @@ export default function ProductionPlanPage() {
 
   const catColor = CATS.find(c => c.key === cat)?.color || '#2563eb';
   const todayStr = format(new Date(), 'yyyy-MM-dd');
-  // 상위10 빠른추가(그리드에 없는 것만) + 검색 결과
-  const top10 = fixed[cat].filter(f => !rowIds.includes(f.id)).slice(0, 10);
+  // 상위10 빠른추가(그리드에 없는 품목만) + 검색
+  const top10 = fixed[cat].filter(f => !rowIds.includes(f.key)).slice(0, 10);
   const q = custSearch.trim().toLowerCase();
-  const searchHits = q ? Object.keys(custMap).filter(id => !rowIds.includes(id) && (custMap[id] || '').toLowerCase().includes(q)).slice(0, 12) : [];
+  const searchHits = q ? Object.keys(custMap).filter(id => (custMap[id] || '').toLowerCase().includes(q)).slice(0, 12) : [];
 
   return (
     <div className="flex flex-col h-full bg-slate-50">
@@ -269,7 +308,7 @@ export default function ProductionPlanPage() {
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 py-2.5 border-b border-gray-200 bg-white">
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-6 rounded-sm" style={{ background: catColor }} />
-          <h1 className="text-xl font-extrabold text-gray-900">생산계획 <span className="text-sm font-bold text-gray-400">주간</span></h1>
+          <h1 className="text-xl font-extrabold text-gray-900">생산계획 <span className="text-sm font-bold text-gray-400">주간·제품별</span></h1>
           {confirmed && <span className="px-2.5 py-1 rounded-full text-xs font-black text-white" style={{ background: catColor }}>확정됨</span>}
         </div>
         <div className="flex items-center gap-2">
@@ -292,9 +331,9 @@ export default function ProductionPlanPage() {
         </div>
         {canEdit && (
           <div className="flex items-center gap-1.5 ml-auto flex-wrap">
-            <span className="text-sm font-bold text-gray-500">고정물량 상위</span>
+            <span className="text-sm font-bold text-gray-500">상위</span>
             <input type="number" min={1} value={fillN} onChange={e => setFillN(e.target.value)} className="w-14 px-2 py-1.5 border-2 border-gray-300 rounded-lg text-base font-bold text-center" />
-            <button onClick={fillFixed} className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-sm font-bold">곳 자동채우기</button>
+            <button onClick={fillFixed} className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-sm font-bold">개 자동채우기</button>
             <span className="w-px h-6 bg-gray-200 mx-1" />
             <button onClick={() => doSave('planned')} disabled={saving} className="px-4 py-1.5 rounded-lg bg-slate-700 text-white text-sm font-bold disabled:opacity-50">{saving ? '저장 중…' : '💾 저장'}</button>
             <button onClick={confirmPlan} disabled={saving} className="px-4 py-1.5 rounded-lg text-white text-sm font-bold disabled:opacity-50" style={{ background: catColor }}>✅ 확정</button>
@@ -309,7 +348,7 @@ export default function ProductionPlanPage() {
         <span className="text-gray-500">이번주 계획 <b className="text-lg" style={{ color: catColor }}>{grandTotal}</b>대</span>
         <span className="text-gray-500">지난주 실적 <b className="text-lg text-gray-700">{sumLastWeek}</b>대</span>
         <span className="text-gray-500">3주평균 <b className="text-lg text-gray-700">{sumAvg3w}</b>대/주 <span className="text-gray-400">({Math.round(sumAvg3w / 5 * 10) / 10}/일)</span></span>
-        <span className="text-gray-400">· 거래처 {rowIds.filter(c => rowTotal(c) > 0).length}곳</span>
+        <span className="text-gray-400">· 거래처 {activeCusts}곳 · 품목 {activeRows.length}건</span>
       </div>
 
       <div className="flex-1 overflow-auto px-3 sm:px-5 py-3">
@@ -317,32 +356,32 @@ export default function ProductionPlanPage() {
           <div className="flex items-center justify-center h-40 text-gray-400 text-lg">불러오는 중...</div>
         ) : (
           <div className="max-w-[1240px] mx-auto">
-            {/* 빠른추가: 상위10 버튼 + 검색 */}
+            {/* 빠른추가: 상위10 품목 버튼 + 거래처 검색 */}
             {canEdit && (
               <div className="mb-3 p-3 rounded-xl bg-white border border-gray-200">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[13px] font-bold text-gray-500">최근3개월 상위:</span>
+                  <span className="text-[13px] font-bold text-gray-500">최근3개월 상위품목:</span>
                   {top10.length === 0 ? <span className="text-[13px] text-gray-300">모두 추가됨</span> : top10.map(f => (
-                    <button key={f.id} onClick={() => addCustomer(f.id)} className="px-3 py-1.5 rounded-full bg-slate-100 border border-slate-300 text-sm font-bold text-slate-700 hover:bg-slate-200">
-                      + {custMap[f.id]} <span className="text-gray-400">{f.avg}</span>
+                    <button key={f.key} onClick={() => addKey(f.key)} className="px-3 py-1.5 rounded-full bg-slate-100 border border-slate-300 text-sm font-bold text-slate-700 hover:bg-slate-200">
+                      + {custName(f.key)} <span className="text-indigo-600">{prodNameOf(f.key) || '?'}</span> <span className="text-gray-400">{f.avg}</span>
                     </button>
                   ))}
                 </div>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <input value={custSearch} onChange={e => setCustSearch(e.target.value)} placeholder="거래처 검색 (예: K, 금호…)"
-                    className="px-3 py-2 border-2 border-gray-300 rounded-lg text-base w-52" />
+                  <input value={custSearch} onChange={e => setCustSearch(e.target.value)} placeholder="거래처 검색 (예: K, 금호…) → 제품 자동 분리"
+                    className="px-3 py-2 border-2 border-gray-300 rounded-lg text-base w-64" />
                   {searchHits.map(id => (
                     <button key={id} onClick={() => { addCustomer(id); setCustSearch(''); }} className="px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-sm font-bold text-indigo-700 hover:bg-indigo-100">
-                      + {custMap[id]}
+                      + {custMap[id]} <span className="text-[11px] text-indigo-400">{(custProducts[id]?.length || 0) > 1 ? `제품 ${custProducts[id].length}개` : ''}</span>
                     </button>
                   ))}
-                  {q && searchHits.length === 0 && <span className="text-[13px] text-gray-400">일치하는 거래처 없음(또는 이미 추가됨)</span>}
+                  {q && searchHits.length === 0 && <span className="text-[13px] text-gray-400">일치하는 거래처 없음</span>}
                 </div>
               </div>
             )}
 
             <div className="overflow-x-auto bg-white rounded-xl border border-gray-200 shadow-sm">
-              <table className="w-full border-collapse" style={{ minWidth: 700 }}>
+              <table className="w-full border-collapse" style={{ minWidth: 720 }}>
                 <thead>
                   <tr style={{ background: '#e2e8f0' }}>
                     <th className="sticky left-0 bg-slate-200 border-b border-gray-300" style={{ minWidth: 210 }} />
@@ -352,69 +391,68 @@ export default function ProductionPlanPage() {
                     {canEdit && <th className="border-b border-gray-300" />}
                   </tr>
                   <tr style={{ background: '#f1f5f9' }}>
-                    <th onClick={cycleSort} className="text-left px-2 py-1.5 text-sm font-black text-gray-700 border-b-2 border-gray-200 sticky left-0 bg-slate-100 cursor-pointer select-none" style={{ minWidth: 210 }}>
-                      거래처 <span style={{ color: catColor }}>{sortDir === 'asc' ? '▲' : sortDir === 'desc' ? '▼' : '⇅'}</span>
+                    <th onClick={cycleSort} className="text-left px-2 py-1 text-sm font-black text-gray-700 border-b-2 border-gray-200 sticky left-0 bg-slate-100 cursor-pointer select-none" style={{ minWidth: 210 }}>
+                      거래처 · 제품 <span style={{ color: catColor }}>{sortDir === 'asc' ? '▲' : sortDir === 'desc' ? '▼' : '⇅'}</span>
                     </th>
                     {prevDays.map(d => { const dt = new Date(d + 'T00:00:00');
-                      return <th key={d} className="px-1 py-1 text-center text-[13px] font-bold border-b-2 border-gray-200 bg-slate-50 text-slate-400" style={{ minWidth: 56 }}>{DOW[dt.getDay()]}<br /><span className="text-[11px]">{d.slice(8)}</span></th>;
+                      return <th key={d} className="px-1 py-0.5 text-center text-[13px] font-bold border-b-2 border-gray-200 bg-slate-50 text-slate-400" style={{ minWidth: 54 }}>{DOW[dt.getDay()]}<br /><span className="text-[11px]">{d.slice(8)}</span></th>;
                     })}
                     {days.map((d, i) => { const dt = new Date(d + 'T00:00:00'); const isT = d === todayStr;
-                      return <th key={d} className={`px-1 py-1 text-center text-sm font-black border-b-2 border-gray-200 ${i === 0 ? 'border-l-2 border-l-gray-300' : ''}`} style={{ minWidth: 72, background: isT ? catColor : '#eef2f7', color: isT ? '#fff' : '#334155' }}>
+                      return <th key={d} className={`px-1 py-0.5 text-center text-sm font-black border-b-2 border-gray-200 ${i === 0 ? 'border-l-2 border-l-gray-300' : ''}`} style={{ minWidth: 70, background: isT ? catColor : '#eef2f7', color: isT ? '#fff' : '#334155' }}>
                         {DOW[dt.getDay()]}<br /><span className="text-[12px] font-bold" style={{ color: isT ? 'rgba(255,255,255,.85)' : '#94a3b8' }}>{d.slice(8)}</span>
                       </th>;
                     })}
-                    <th className="px-1 py-1.5 text-center text-sm font-black text-gray-700 border-b-2 border-gray-200" style={{ minWidth: 60 }}>합계</th>
-                    {canEdit && <th className="px-1 border-b-2 border-gray-200" style={{ width: 34 }} />}
+                    <th className="px-1 py-1 text-center text-sm font-black text-gray-700 border-b-2 border-gray-200" style={{ minWidth: 56 }}>합계</th>
+                    {canEdit && <th className="px-1 border-b-2 border-gray-200" style={{ width: 30 }} />}
                   </tr>
                 </thead>
                 <tbody>
                   {displayRows.length === 0 ? (
-                    <tr><td colSpan={13} className="text-center text-gray-400 py-8 text-sm">‘자동채우기’ 또는 위 상위/검색으로 거래처를 추가하세요.</td></tr>
-                  ) : displayRows.map(c => {
-                    const r = refOf(c);
+                    <tr><td colSpan={13} className="text-center text-gray-400 py-8 text-sm">‘자동채우기’ 또는 위 상위품목/검색으로 거래처·제품을 추가하세요.</td></tr>
+                  ) : displayRows.map((k, idx) => {
+                    const r = refOf(k);
+                    const firstOfGroup = idx === 0 || custOf(displayRows[idx - 1]) !== custOf(k);
+                    const s = siloOf(k);
                     return (
-                      <tr key={c} className="border-b border-gray-100 hover:bg-slate-50/70">
-                        <td className="px-2 py-1 sticky left-0 bg-white" style={{ minWidth: 210 }}>
-                          <div className="text-[15px] font-bold text-gray-900 leading-tight truncate" style={{ maxWidth: 200 }} title={custMap[c] || ''}>{custMap[c] || '(알수없음)'}</div>
-                          {(custProducts[c]?.length || 0) > 1 ? (
-                            <select value={prodOf(c)} disabled={!canEdit}
-                              onChange={e => { setRowProduct(p => ({ ...p, [c]: e.target.value })); if (confirmed) setConfirmed(false); }}
-                              className="mt-0.5 w-full max-w-[200px] text-[12px] font-bold text-indigo-700 border border-indigo-200 rounded px-1 py-0.5 bg-indigo-50">
-                              {custProducts[c].map(p => <option key={p.id} value={p.id}>{p.name}{p.silo ? ` · ${p.silo}` : ''}</option>)}
-                            </select>
-                          ) : (
-                            <div className="text-[12px] font-bold text-indigo-600 leading-tight truncate" style={{ maxWidth: 200 }}>{prodName(c) || <span className="text-gray-300">제품 미지정</span>}</div>
-                          )}
-                          <div className="text-[11px] text-gray-400 leading-tight">전주계 {prevRowTotal(c)} · 3주평균 {r.avg3w}/주</div>
+                      <tr key={k} className="hover:bg-slate-50/70" style={{ borderTop: firstOfGroup ? '2px solid #e2e8f0' : '1px solid #f1f5f9' }}>
+                        <td className="px-2 py-0.5 sticky left-0 bg-white" style={{ minWidth: 210 }}>
+                          {firstOfGroup
+                            ? <div className="text-[14px] font-black text-gray-900 leading-tight truncate" style={{ maxWidth: 200 }} title={custName(k)}>{custName(k)}</div>
+                            : <div className="text-[11px] font-bold text-gray-300 leading-none truncate" style={{ maxWidth: 200 }}>↳ {custName(k)}</div>}
+                          <div className="flex items-baseline gap-1.5 leading-tight">
+                            <span className="text-[13px] font-black truncate" style={{ color: catColor, maxWidth: 130 }}>{prodNameOf(k) || <span className="text-gray-300">제품?</span>}</span>
+                            {s && <span className="text-[10px] font-bold text-gray-400">사일로 {s}</span>}
+                            <span className="text-[10px] text-gray-300">전주 {prevRowTotal(k)}·평균 {r.avg3w}</span>
+                          </div>
                         </td>
-                        {prevDays.map(d => { const v = actual(c, d);
-                          return <td key={d} className="px-1 py-1 text-center bg-slate-50/60"><span className="text-base font-bold tabular-nums text-slate-400">{v || '·'}</span></td>;
+                        {prevDays.map(d => { const v = actual(k, d);
+                          return <td key={d} className="px-1 py-0.5 text-center bg-slate-50/60"><span className="text-[15px] font-bold tabular-nums text-slate-400">{v || '·'}</span></td>;
                         })}
                         {days.map((d, i) => (
-                          <td key={d} className={`px-1 py-1 text-center ${i === 0 ? 'border-l-2 border-l-gray-200' : ''}`} style={d === todayStr ? { background: catColor + '14' } : undefined}>
-                            <input type="number" inputMode="numeric" value={cell(c, d) === 0 ? '' : cell(c, d)} placeholder="·" disabled={!canEdit}
-                              onChange={e => { setCell(c, d, parseInt(e.target.value || '0', 10) || 0); if (confirmed) setConfirmed(false); }}
-                              className="w-13 h-10 text-center text-xl font-black border-2 border-gray-200 rounded-lg focus:border-indigo-500 outline-none" style={{ width: 52 }} />
+                          <td key={d} className={`px-1 py-0.5 text-center ${i === 0 ? 'border-l-2 border-l-gray-200' : ''}`} style={d === todayStr ? { background: catColor + '14' } : undefined}>
+                            <input type="number" inputMode="numeric" value={cell(k, d) === 0 ? '' : cell(k, d)} placeholder="·" disabled={!canEdit}
+                              onChange={e => { setCell(k, d, parseInt(e.target.value || '0', 10) || 0); if (confirmed) setConfirmed(false); }}
+                              className="h-9 text-center text-lg font-black border-2 border-gray-200 rounded-lg focus:border-indigo-500 outline-none" style={{ width: 50 }} />
                           </td>
                         ))}
-                        <td className="px-1 py-1 text-center"><span className="text-xl font-black tabular-nums" style={{ color: catColor }}>{rowTotal(c) || ''}</span></td>
-                        {canEdit && <td className="px-0.5 text-center"><button onClick={() => removeCustomer(c)} title="행 삭제" className="w-7 h-7 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 text-lg leading-none">×</button></td>}
+                        <td className="px-1 py-0.5 text-center"><span className="text-lg font-black tabular-nums" style={{ color: catColor }}>{rowTotal(k) || ''}</span></td>
+                        {canEdit && <td className="px-0.5 text-center"><button onClick={() => removeRow(k)} title="행 삭제" className="w-6 h-6 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 text-base leading-none">×</button></td>}
                       </tr>
                     );
                   })}
                   {displayRows.length > 0 && (
-                    <tr style={{ background: '#f8fafc' }}>
-                      <td className="px-2 py-2 text-[15px] font-black text-gray-600 sticky left-0 bg-slate-50">일별 합계</td>
-                      {prevDays.map(d => <td key={d} className="px-1 py-2 text-center text-base font-black text-slate-400 tabular-nums bg-slate-50/60">{prevDayTotal(d) || '·'}</td>)}
-                      {days.map((d, i) => <td key={d} className={`px-1 py-2 text-center text-xl font-black text-gray-700 tabular-nums ${i === 0 ? 'border-l-2 border-l-gray-200' : ''}`} style={d === todayStr ? { background: catColor + '14' } : undefined}>{dayTotal(d)}</td>)}
-                      <td className="px-1 py-2 text-center text-2xl font-black tabular-nums" style={{ color: catColor }}>{grandTotal}</td>
+                    <tr style={{ background: '#f8fafc', borderTop: '2px solid #cbd5e1' }}>
+                      <td className="px-2 py-1.5 text-[15px] font-black text-gray-600 sticky left-0 bg-slate-50">일별 합계</td>
+                      {prevDays.map(d => <td key={d} className="px-1 py-1.5 text-center text-[15px] font-black text-slate-400 tabular-nums bg-slate-50/60">{prevDayTotal(d) || '·'}</td>)}
+                      {days.map((d, i) => <td key={d} className={`px-1 py-1.5 text-center text-xl font-black text-gray-700 tabular-nums ${i === 0 ? 'border-l-2 border-l-gray-200' : ''}`} style={d === todayStr ? { background: catColor + '14' } : undefined}>{dayTotal(d)}</td>)}
+                      <td className="px-1 py-1.5 text-center text-2xl font-black tabular-nums" style={{ color: catColor }}>{grandTotal}</td>
                       {canEdit && <td />}
                     </tr>
                   )}
                 </tbody>
               </table>
             </div>
-            <p className="text-[12px] text-gray-400 mt-2">셀에 대수를 입력 → <b>저장</b>(임시) → <b>확정</b>(고정) → <b>통보</b>(팀즈, 확정 후 활성). 대수 0은 저장 시 계획에서 빠집니다.</p>
+            <p className="text-[12px] text-gray-400 mt-2">한 거래처가 여러 제품을 내면 <b>제품별로 행이 분리</b>됩니다(같은 거래처끼리 묶여 정렬). 셀에 대수 입력 → <b>저장</b> → <b>확정</b> → <b>통보</b>. 대수 0은 저장 시 빠집니다.</p>
           </div>
         )}
       </div>
