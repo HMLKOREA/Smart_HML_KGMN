@@ -43,6 +43,10 @@ export default function ProductionPlanPage() {
   const weekLabel = `${days[0].slice(5)} ~ ${days[4].slice(5)}`;
 
   const [custMap, setCustMap] = useState<Record<string, string>>({}); // id→name
+  const [custProducts, setCustProducts] = useState<Record<string, { id: string; name: string; silo: string | null }[]>>({}); // 거래처→제품들
+  const [rowProduct, setRowProduct] = useState<Record<string, string>>({}); // 거래처→선택 product_id
+  const prodOf = (c: string) => rowProduct[c] ?? custProducts[c]?.[0]?.id ?? '';
+  const prodName = (c: string) => { const pid = prodOf(c); return custProducts[c]?.find(p => p.id === pid)?.name || ''; };
   const [fixed, setFixed] = useState<Record<CatKey, { id: string; name: string; avg: number }[]>>({ tank_lorry: [], cargo_truck: [] });
   const [dailyByCust, setDailyByCust] = useState<Record<CatKey, Record<string, Record<string, number>>>>({ tank_lorry: {}, cargo_truck: {} }); // cat→cust→date→대수
   const [rowIds, setRowIds] = useState<string[]>([]);
@@ -88,6 +92,22 @@ export default function ProductionPlanPage() {
       (cs || []).forEach((c: Cust) => { cm[c.id] = c.name; });
       setCustMap(cm);
 
+      // 거래처×제품 마스터(다품목 선택용)
+      const cpMap: Record<string, { id: string; name: string; silo: string | null }[]> = {};
+      { const PG2 = 1000; let p2 = 0, m2 = true;
+        while (m2) {
+          const { data } = await supabase.from('customer_products').select('customer_id, product_id, product_name, warehouse_code').eq('is_active', true).range(p2 * PG2, (p2 + 1) * PG2 - 1);
+          const rows = (data || []) as { customer_id: string; product_id: string | null; product_name: string | null; warehouse_code: string | null }[];
+          for (const r of rows) {
+            if (!r.customer_id || !r.product_id || !r.product_name) continue;
+            const a = cpMap[r.customer_id] || (cpMap[r.customer_id] = []);
+            if (!a.some(x => x.id === r.product_id)) a.push({ id: r.product_id, name: r.product_name, silo: r.warehouse_code });
+          }
+          m2 = rows.length === PG2; p2++;
+        }
+      }
+      setCustProducts(cpMap);
+
       // 2) 최근 90일 출하 → 고정물량(주당 평균 대수) 집계
       const from = format(addDays(new Date(), -90), 'yyyy-MM-dd');
       const PAGE = 1000; let all: Record<string, unknown>[] = []; let pg = 0, more = true;
@@ -117,17 +137,18 @@ export default function ProductionPlanPage() {
 
       // 3) 이번주 계획 로드
       const { data: sch } = await supabase.from('production_schedules')
-        .select('id, schedule_date, transport_category, customer_id, planned_trucks, status')
+        .select('id, schedule_date, transport_category, customer_id, product_id, planned_trucks, status')
         .gte('schedule_date', days[0]).lte('schedule_date', days[4]).eq('transport_category', cat);
-      const pl: Record<string, Record<string, number>> = {}; const dbid: Record<string, string> = {};
+      const pl: Record<string, Record<string, number>> = {}; const dbid: Record<string, string> = {}; const rp: Record<string, string> = {};
       let anyConfirmed = false;
-      (sch || []).forEach((s: Sched & { status?: string }) => {
+      (sch || []).forEach((s: Sched & { status?: string; product_id?: string | null }) => {
         if (!s.customer_id) return;
         (pl[s.customer_id] = pl[s.customer_id] || {})[s.schedule_date] = Number(s.planned_trucks) || 0;
         dbid[`${s.schedule_date}|${s.customer_id}`] = s.id;
+        if (s.product_id) rp[s.customer_id] = s.product_id;
         if (s.status === 'confirmed') anyConfirmed = true;
       });
-      setPlan(pl); setRowDbId(dbid); setConfirmed(anyConfirmed);
+      setPlan(pl); setRowDbId(dbid); setConfirmed(anyConfirmed); setRowProduct(rp);
       // 행 = 고정물량 순 + 계획에만 있는 거래처
       const fixedIds = fx[cat].map(f => f.id);
       const extra = Object.keys(pl).filter(id => !fixedIds.includes(id));
@@ -179,10 +200,11 @@ export default function ProductionPlanPage() {
           const key = `${d}|${c}`;
           const existing = rowDbId[key];
           if (v > 0) {
-            if (existing) await supabase.from('production_schedules').update({ planned_trucks: v, status, updated_by: userName }).eq('id', existing);
+            const pid = prodOf(c) || null;
+            if (existing) await supabase.from('production_schedules').update({ planned_trucks: v, product_id: pid, status, updated_by: userName }).eq('id', existing);
             else {
               const { data } = await supabase.from('production_schedules').insert({
-                schedule_date: d, transport_category: cat, sub_category: '', customer_id: c, planned_trucks: v, status, created_by: userName,
+                schedule_date: d, transport_category: cat, sub_category: '', customer_id: c, product_id: pid, planned_trucks: v, status, created_by: userName,
               }).select('id').single();
               if (data) rowDbId[`${d}|${c}`] = data.id;
             }
@@ -214,7 +236,7 @@ export default function ProductionPlanPage() {
     if (!confirmed) { toast.warning('먼저 계획을 확정하세요.'); return; }
     const catLabel = CATS.find(c => c.key === cat)?.label || '';
     const lines = [`📅 ${days[0]} ~ ${days[4]} · ${catLabel}`, `총 ${grandTotal}대 (${rowIds.filter(c => rowTotal(c) > 0).length}개 거래처)`, ''];
-    for (const c of rowIds) { const t = rowTotal(c); if (t > 0) lines.push(`· ${custMap[c] || '?'} : ${days.map(d => cell(c, d)).join('/')} = ${t}대`); }
+    for (const c of rowIds) { const t = rowTotal(c); if (t > 0) lines.push(`· ${custMap[c] || '?'}${prodName(c) ? ` [${prodName(c)}]` : ''} : ${days.map(d => cell(c, d)).join('/')} = ${t}대`); }
     lines.push('', `확정: ${userName || '-'}`);
     try {
       const res = await fetch('/api/notify/teams-plan', {
@@ -242,7 +264,7 @@ export default function ProductionPlanPage() {
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 py-2.5 border-b border-gray-200 bg-white">
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-6 rounded-sm" style={{ background: catColor }} />
-          <h1 className="text-xl font-extrabold text-gray-900">생산관리 <span className="text-sm font-bold text-gray-400">주간 출하계획</span></h1>
+          <h1 className="text-xl font-extrabold text-gray-900">생산계획 <span className="text-sm font-bold text-gray-400">주간</span></h1>
           {confirmed && <span className="px-2.5 py-1 rounded-full text-xs font-black text-white" style={{ background: catColor }}>확정됨</span>}
         </div>
         <div className="flex items-center gap-2">
@@ -318,7 +340,7 @@ export default function ProductionPlanPage() {
               <table className="w-full border-collapse" style={{ minWidth: 700 }}>
                 <thead>
                   <tr style={{ background: '#f1f5f9' }}>
-                    <th onClick={cycleSort} className="text-left px-2 py-2 text-sm font-black text-gray-700 border-b-2 border-gray-200 sticky left-0 bg-slate-100 cursor-pointer select-none" style={{ minWidth: 168 }}>
+                    <th onClick={cycleSort} className="text-left px-2 py-2 text-sm font-black text-gray-700 border-b-2 border-gray-200 sticky left-0 bg-slate-100 cursor-pointer select-none" style={{ minWidth: 210 }}>
                       거래처 <span style={{ color: catColor }}>{sortDir === 'asc' ? '▲' : sortDir === 'desc' ? '▼' : '⇅'}</span>
                     </th>
                     {days.map(d => {
@@ -338,8 +360,17 @@ export default function ProductionPlanPage() {
                     const r = refOf(c);
                     return (
                       <tr key={c} className="border-b border-gray-100 hover:bg-slate-50/70">
-                        <td className="px-2 py-1 sticky left-0 bg-white">
-                          <div className="text-[15px] font-bold text-gray-900 leading-tight truncate" style={{ maxWidth: 168 }} title={custMap[c] || ''}>{custMap[c] || '(알수없음)'}</div>
+                        <td className="px-2 py-1 sticky left-0 bg-white" style={{ minWidth: 210 }}>
+                          <div className="text-[15px] font-bold text-gray-900 leading-tight truncate" style={{ maxWidth: 200 }} title={custMap[c] || ''}>{custMap[c] || '(알수없음)'}</div>
+                          {(custProducts[c]?.length || 0) > 1 ? (
+                            <select value={prodOf(c)} disabled={!canEdit}
+                              onChange={e => { setRowProduct(p => ({ ...p, [c]: e.target.value })); if (confirmed) setConfirmed(false); }}
+                              className="mt-0.5 w-full max-w-[200px] text-[12px] font-bold text-indigo-700 border border-indigo-200 rounded px-1 py-0.5 bg-indigo-50">
+                              {custProducts[c].map(p => <option key={p.id} value={p.id}>{p.name}{p.silo ? ` · ${p.silo}` : ''}</option>)}
+                            </select>
+                          ) : (
+                            <div className="text-[12px] font-bold text-indigo-600 leading-tight truncate" style={{ maxWidth: 200 }}>{prodName(c) || <span className="text-gray-300">제품 미지정</span>}</div>
+                          )}
                           <div className="text-[11px] text-gray-400 leading-tight">지난주 {r.lastWeek} · 3주평균 {r.avg3w}/주</div>
                         </td>
                         {days.map(d => (

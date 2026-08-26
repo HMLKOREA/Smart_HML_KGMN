@@ -95,7 +95,7 @@ const navGroups: NavGroup[] = [
     key: 'logistics', label: '운송 관리', en: 'Logistics', iconKey: 'shipping', items: [
       { label: '출하관리', path: '/shipping', iconKey: 'shipping', roles: ['admin', 'monitor', 'field'] },
       { label: '배차관리', path: '/dispatch', iconKey: 'dispatch', roles: ['admin', 'monitor', 'field', 'transporter'] },
-      { label: '생산관리', path: '/production-plan', iconKey: 'production', roles: ['admin', 'monitor', 'field'] },
+      { label: '생산계획', path: '/production-plan', iconKey: 'production', roles: ['admin', 'monitor', 'field'] },
     ],
   },
   {
