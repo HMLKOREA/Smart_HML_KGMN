@@ -43,6 +43,7 @@ export default function ProductionPlanPage() {
   const [sortDir, setSortDir] = useState<'none' | 'asc' | 'desc'>('none');
   const [confirmed, setConfirmed] = useState(false);
   const [custSearch, setCustSearch] = useState('');
+  const [viewMode, setViewMode] = useState<'edit' | 'confirmed'>('edit'); // 입력 / 확정본
 
   const days = useMemo(() => Array.from({ length: 5 }, (_, i) => format(addDays(new Date(weekStart + 'T00:00:00'), i), 'yyyy-MM-dd')), [weekStart]);
   const prevDays = useMemo(() => Array.from({ length: 5 }, (_, i) => format(addDays(new Date(weekStart + 'T00:00:00'), -7 + i), 'yyyy-MM-dd')), [weekStart]);
@@ -235,6 +236,23 @@ export default function ProductionPlanPage() {
   };
   const cycleSort = () => setSortDir(d => d === 'none' ? 'asc' : d === 'asc' ? 'desc' : 'none');
 
+  // 전주 실적 → 금주 계획 복사 (요일 위치 그대로)
+  const copyPrevRow = (k: string) => {
+    setPlan(prev => { const row = { ...(prev[k] || {}) }; days.forEach((d, i) => { row[d] = actual(k, prevDays[i]); }); return { ...prev, [k]: row }; });
+    if (confirmed) setConfirmed(false);
+  };
+  const copyPrevAll = () => {
+    setPlan(prev => {
+      const next = { ...prev };
+      for (const k of rowIds) { const row = { ...(next[k] || {}) }; days.forEach((d, i) => { row[d] = actual(k, prevDays[i]); }); next[k] = row; }
+      return next;
+    });
+    if (confirmed) setConfirmed(false);
+    toast.success('전주 실적을 이번주 계획으로 복사했습니다. (수정 가능)');
+  };
+  // 바 스케일 기준(전주/금주 중 최대 주간합)
+  const maxBar = Math.max(1, ...rowIds.map(k => Math.max(prevRowTotal(k), rowTotal(k))));
+
   const doSave = async (status: 'planned' | 'confirmed'): Promise<boolean> => {
     setSaving(true);
     try {
@@ -259,6 +277,7 @@ export default function ProductionPlanPage() {
         }
       }
       setConfirmed(status === 'confirmed');
+      if (status === 'confirmed') setViewMode('confirmed');
       toast.success(status === 'confirmed' ? '주간 계획이 확정되었습니다. 이제 통보할 수 있습니다.' : '저장되었습니다.');
       load();
       return true;
@@ -329,8 +348,15 @@ export default function ProductionPlanPage() {
             </button>
           ))}
         </div>
-        {canEdit && (
+        {/* 입력 / 확정본 보기 전환 */}
+        <div className="flex items-center rounded-lg border-2 border-slate-200 overflow-hidden">
+          <button onClick={() => setViewMode('edit')} className={`px-3 py-1.5 text-sm font-bold ${viewMode === 'edit' ? 'bg-slate-700 text-white' : 'bg-white text-slate-500'}`}>✏️ 입력</button>
+          <button onClick={() => confirmed && setViewMode('confirmed')} disabled={!confirmed} title={confirmed ? '확정된 물량만 보기' : '확정 후 보기'}
+            className={`px-3 py-1.5 text-sm font-bold ${viewMode === 'confirmed' ? 'text-white' : confirmed ? 'bg-white text-slate-500' : 'bg-gray-50 text-gray-300 cursor-not-allowed'}`} style={viewMode === 'confirmed' ? { background: catColor } : undefined}>📋 확정본</button>
+        </div>
+        {canEdit && viewMode === 'edit' && (
           <div className="flex items-center gap-1.5 ml-auto flex-wrap">
+            <button onClick={copyPrevAll} className="px-3 py-1.5 rounded-lg bg-white border-2 border-amber-400 text-amber-600 text-sm font-bold" title="전주 실적을 이번주 계획으로 전체 복사">⧉ 전주복사(전체)</button>
             <span className="text-sm font-bold text-gray-500">상위</span>
             <input type="number" min={1} value={fillN} onChange={e => setFillN(e.target.value)} className="w-14 px-2 py-1.5 border-2 border-gray-300 rounded-lg text-base font-bold text-center" />
             <button onClick={fillFixed} className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-sm font-bold">개 자동채우기</button>
@@ -357,7 +383,7 @@ export default function ProductionPlanPage() {
         ) : (
           <div className="max-w-[1240px] mx-auto">
             {/* 빠른추가: 상위10 품목 버튼 + 거래처 검색 */}
-            {canEdit && (
+            {canEdit && viewMode === 'edit' && (
               <div className="mb-3 p-3 rounded-xl bg-white border border-gray-200">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[13px] font-bold text-gray-500">최근3개월 상위품목:</span>
@@ -380,14 +406,16 @@ export default function ProductionPlanPage() {
               </div>
             )}
 
+            {viewMode === 'edit' ? (<>
             <div className="overflow-x-auto bg-white rounded-xl border border-gray-200 shadow-sm">
               <table className="w-full border-collapse" style={{ minWidth: 720 }}>
                 <thead>
                   <tr style={{ background: '#e2e8f0' }}>
                     <th className="sticky left-0 bg-slate-200 border-b border-gray-300" style={{ minWidth: 210 }} />
-                    <th colSpan={5} className="px-1 py-1 text-center text-[13px] font-black text-slate-500 border-b border-r-2 border-gray-300">전주 실적 <span className="font-bold text-slate-400">{prevDays[0].slice(5)}~{prevDays[4].slice(5)}</span></th>
-                    <th colSpan={5} className="px-1 py-1 text-center text-[13px] font-black border-b border-gray-300" style={{ color: catColor }}>이번주 계획 <span className="font-bold text-slate-400">{days[0].slice(5)}~{days[4].slice(5)}</span></th>
-                    <th className="border-b border-gray-300" />
+                    <th colSpan={5} className="px-1 py-1 text-center text-[13px] font-black text-slate-500 border-b border-gray-300">전주 실적 <span className="font-bold text-slate-400">{prevDays[0].slice(5)}~{prevDays[4].slice(5)}</span></th>
+                    <th className="border-b border-gray-300 bg-amber-50" />
+                    <th colSpan={5} className="px-1 py-1 text-center text-[13px] font-black border-b border-l-2 border-gray-300" style={{ color: catColor }}>이번주 계획 <span className="font-bold text-slate-400">{days[0].slice(5)}~{days[4].slice(5)}</span></th>
+                    <th className="border-b border-gray-300 text-center text-[12px] font-black text-slate-400">전주▪금주</th>
                     {canEdit && <th className="border-b border-gray-300" />}
                   </tr>
                   <tr style={{ background: '#f1f5f9' }}>
@@ -395,14 +423,15 @@ export default function ProductionPlanPage() {
                       거래처 · 제품 <span style={{ color: catColor }}>{sortDir === 'asc' ? '▲' : sortDir === 'desc' ? '▼' : '⇅'}</span>
                     </th>
                     {prevDays.map(d => { const dt = new Date(d + 'T00:00:00');
-                      return <th key={d} className="px-1 py-0.5 text-center text-[13px] font-bold border-b-2 border-gray-200 bg-slate-50 text-slate-400" style={{ minWidth: 54 }}>{DOW[dt.getDay()]}<br /><span className="text-[11px]">{d.slice(8)}</span></th>;
+                      return <th key={d} className="px-1 py-0.5 text-center text-[13px] font-bold border-b-2 border-gray-200 bg-slate-50 text-slate-400" style={{ minWidth: 52 }}>{DOW[dt.getDay()]}<br /><span className="text-[11px]">{d.slice(8)}</span></th>;
                     })}
+                    <th className="px-0.5 py-0.5 text-center text-[11px] font-bold border-b-2 border-gray-200 bg-amber-50 text-amber-600" style={{ width: 36 }}>복사</th>
                     {days.map((d, i) => { const dt = new Date(d + 'T00:00:00'); const isT = d === todayStr;
-                      return <th key={d} className={`px-1 py-0.5 text-center text-sm font-black border-b-2 border-gray-200 ${i === 0 ? 'border-l-2 border-l-gray-300' : ''}`} style={{ minWidth: 70, background: isT ? catColor : '#eef2f7', color: isT ? '#fff' : '#334155' }}>
+                      return <th key={d} className={`px-1 py-0.5 text-center text-sm font-black border-b-2 border-gray-200 ${i === 0 ? 'border-l-2 border-l-gray-300' : ''}`} style={{ minWidth: 68, background: isT ? catColor : '#eef2f7', color: isT ? '#fff' : '#334155' }}>
                         {DOW[dt.getDay()]}<br /><span className="text-[12px] font-bold" style={{ color: isT ? 'rgba(255,255,255,.85)' : '#94a3b8' }}>{d.slice(8)}</span>
                       </th>;
                     })}
-                    <th className="px-1 py-1 text-center text-sm font-black text-gray-700 border-b-2 border-gray-200" style={{ minWidth: 56 }}>합계</th>
+                    <th className="px-1 py-1 text-center text-sm font-black text-gray-700 border-b-2 border-gray-200" style={{ minWidth: 116 }}>합계·바</th>
                     {canEdit && <th className="px-1 border-b-2 border-gray-200" style={{ width: 30 }} />}
                   </tr>
                 </thead>
@@ -428,6 +457,10 @@ export default function ProductionPlanPage() {
                         {prevDays.map(d => { const v = actual(k, d);
                           return <td key={d} className="px-1 py-0.5 text-center bg-slate-50/60"><span className="text-[15px] font-bold tabular-nums text-slate-400">{v || '·'}</span></td>;
                         })}
+                        <td className="px-0.5 text-center bg-amber-50/50">
+                          <button onClick={() => copyPrevRow(k)} disabled={!canEdit || prevRowTotal(k) === 0} title="전주 실적을 이번주로 복사"
+                            className="w-7 h-7 rounded-md text-amber-500 hover:bg-amber-100 disabled:text-gray-200 text-lg leading-none">⧉</button>
+                        </td>
                         {days.map((d, i) => (
                           <td key={d} className={`px-1 py-0.5 text-center ${i === 0 ? 'border-l-2 border-l-gray-200' : ''}`} style={d === todayStr ? { background: catColor + '14' } : undefined}>
                             <input type="number" inputMode="numeric" value={cell(k, d) === 0 ? '' : cell(k, d)} placeholder="·" disabled={!canEdit}
@@ -435,7 +468,15 @@ export default function ProductionPlanPage() {
                               className="h-9 text-center text-lg font-black border-2 border-gray-200 rounded-lg focus:border-indigo-500 outline-none" style={{ width: 50 }} />
                           </td>
                         ))}
-                        <td className="px-1 py-0.5 text-center"><span className="text-lg font-black tabular-nums" style={{ color: catColor }}>{rowTotal(k) || ''}</span></td>
+                        <td className="px-1.5 py-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <div className="flex-1 min-w-[56px]">
+                              <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden mb-[3px]" title={`전주 ${prevRowTotal(k)}대`}><div className="h-full rounded-full bg-slate-300" style={{ width: `${Math.min(100, prevRowTotal(k) / maxBar * 100)}%` }} /></div>
+                              <div className="h-2.5 rounded-full bg-slate-100 overflow-hidden" title={`금주 ${rowTotal(k)}대`}><div className="h-full rounded-full" style={{ width: `${Math.min(100, rowTotal(k) / maxBar * 100)}%`, background: catColor }} /></div>
+                            </div>
+                            <span className="text-lg font-black tabular-nums w-6 text-right" style={{ color: catColor }}>{rowTotal(k) || ''}</span>
+                          </div>
+                        </td>
                         {canEdit && <td className="px-0.5 text-center"><button onClick={() => removeRow(k)} title="행 삭제" className="w-6 h-6 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 text-base leading-none">×</button></td>}
                       </tr>
                     );
@@ -444,15 +485,70 @@ export default function ProductionPlanPage() {
                     <tr style={{ background: '#f8fafc', borderTop: '2px solid #cbd5e1' }}>
                       <td className="px-2 py-1.5 text-[15px] font-black text-gray-600 sticky left-0 bg-slate-50">일별 합계</td>
                       {prevDays.map(d => <td key={d} className="px-1 py-1.5 text-center text-[15px] font-black text-slate-400 tabular-nums bg-slate-50/60">{prevDayTotal(d) || '·'}</td>)}
+                      <td className="bg-amber-50/50" />
                       {days.map((d, i) => <td key={d} className={`px-1 py-1.5 text-center text-xl font-black text-gray-700 tabular-nums ${i === 0 ? 'border-l-2 border-l-gray-200' : ''}`} style={d === todayStr ? { background: catColor + '14' } : undefined}>{dayTotal(d)}</td>)}
-                      <td className="px-1 py-1.5 text-center text-2xl font-black tabular-nums" style={{ color: catColor }}>{grandTotal}</td>
+                      <td className="px-1.5 py-1.5 text-right text-2xl font-black tabular-nums" style={{ color: catColor }}>{grandTotal}</td>
                       {canEdit && <td />}
                     </tr>
                   )}
                 </tbody>
               </table>
             </div>
-            <p className="text-[12px] text-gray-400 mt-2">한 거래처가 여러 제품을 내면 <b>제품별로 행이 분리</b>됩니다(같은 거래처끼리 묶여 정렬). 셀에 대수 입력 → <b>저장</b> → <b>확정</b> → <b>통보</b>. 대수 0은 저장 시 빠집니다.</p>
+            <p className="text-[12px] text-gray-400 mt-2">한 거래처가 여러 제품을 내면 <b>제품별로 행이 분리</b>됩니다(같은 거래처끼리 묶여 정렬). <b className="text-amber-600">⧉</b> 전주복사로 초기물량을 세팅하고, 셀 수정 → <b>확정</b>하면 확정본 뷰로 전환됩니다. 대수 0은 저장 시 빠집니다.</p>
+            </>) : (
+              /* ===== 확정본: 확정된 물량만 바 형식으로 ===== */
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-full text-xs font-black text-white" style={{ background: catColor }}>확정본</span>
+                    <span className="text-lg font-black text-gray-800">{weekLabel} · {CATS.find(c => c.key === cat)?.label}</span>
+                    <span className="text-base font-bold text-gray-400">총 {grandTotal}대 · {activeCusts}곳 · {activeRows.length}품목</span>
+                  </div>
+                  {canEdit && (
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setViewMode('edit')} className="px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-300 text-sm font-bold text-slate-600">✏️ 수정</button>
+                      <button onClick={sendNotify} className="px-4 py-1.5 rounded-lg bg-violet-600 text-white text-sm font-bold">📢 통보</button>
+                    </div>
+                  )}
+                </div>
+                {activeRows.length === 0 ? (
+                  <div className="text-center text-gray-400 py-10 text-sm">확정된 물량이 없습니다.</div>
+                ) : (
+                  <div className="flex flex-col">
+                    {displayRows.filter(k => rowTotal(k) > 0).map((k, idx, arr) => {
+                      const firstOfGroup = idx === 0 || custOf(arr[idx - 1]) !== custOf(k);
+                      const s = siloOf(k); const t = rowTotal(k);
+                      return (
+                        <div key={k} className="flex items-center gap-3 py-1.5" style={{ borderTop: firstOfGroup ? '2px solid #e2e8f0' : '1px solid #f1f5f9' }}>
+                          <div className="shrink-0" style={{ width: 210 }}>
+                            {firstOfGroup
+                              ? <div className="text-[15px] font-black text-gray-900 leading-tight truncate" title={custName(k)}>{custName(k)}</div>
+                              : <div className="text-[11px] font-bold text-gray-300 leading-none truncate">↳ {custName(k)}</div>}
+                            <div className="flex items-baseline gap-1.5 leading-tight">
+                              <span className="text-[13px] font-black truncate" style={{ color: catColor, maxWidth: 130 }}>{prodNameOf(k) || '제품?'}</span>
+                              {s && <span className="text-[10px] font-bold text-gray-400">사일로 {s}</span>}
+                            </div>
+                          </div>
+                          <div className="flex-1 h-6 rounded-lg bg-slate-100 overflow-hidden relative">
+                            <div className="h-full rounded-lg flex items-center justify-end pr-2" style={{ width: `${Math.max(6, Math.min(100, t / maxBar * 100))}%`, background: catColor }}>
+                              <span className="text-white text-xs font-black">{days.map(d => cell(k, d)).filter(v => v > 0).join('·')}</span>
+                            </div>
+                          </div>
+                          <span className="shrink-0 text-2xl font-black tabular-nums w-14 text-right" style={{ color: catColor }}>{t}<span className="text-xs text-gray-400 font-bold">대</span></span>
+                        </div>
+                      );
+                    })}
+                    <div className="flex items-center gap-3 py-2 mt-1" style={{ borderTop: '2px solid #cbd5e1' }}>
+                      <div className="shrink-0 text-[15px] font-black text-gray-600" style={{ width: 210 }}>합계</div>
+                      <div className="flex-1 flex gap-3 text-sm font-bold text-gray-500">
+                        {days.map(d => { const dt = new Date(d + 'T00:00:00'); return <span key={d}>{DOW[dt.getDay()]} <b className="text-gray-800">{dayTotal(d)}</b></span>; })}
+                      </div>
+                      <span className="shrink-0 text-2xl font-black tabular-nums w-14 text-right" style={{ color: catColor }}>{grandTotal}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
