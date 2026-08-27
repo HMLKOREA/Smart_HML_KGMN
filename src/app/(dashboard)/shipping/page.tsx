@@ -1585,15 +1585,9 @@ export default function ShippingPage() {
         const sortedWaitingRows = [...waitingRows].sort((a, b) => (isDone(a) ? 1 : 0) - (isDone(b) ? 1 : 0));
         const waitingDoneCount = waitingRows.filter(isDone).length;
 
-        // 버튼 팔레트 — 정돈된 6색(흰 카드 + 진한 컬러 테두리·글자)
-        const btnColors = [
-          { border: '#2563eb', text: '#1e40af', hover: '#eff6ff' }, // blue
-          { border: '#0d9488', text: '#0f766e', hover: '#f0fdfa' }, // teal
-          { border: '#d97706', text: '#b45309', hover: '#fffbeb' }, // amber
-          { border: '#7c3aed', text: '#6d28d9', hover: '#f5f3ff' }, // violet
-          { border: '#dc2626', text: '#b91c1c', hover: '#fef2f2' }, // red
-          { border: '#0891b2', text: '#0e7490', hover: '#ecfeff' }, // cyan
-        ];
+        // 통일 스타일 — 흰 카드 + 단일 네이비 테두리 + 검은 글자(회사 통일감)
+        const CARD_BORDER = '#1e293b';
+        const CARD_HOVER = '#f1f5f9';
 
         return (
           <div style={{ position: 'fixed', inset: 0, zIndex: 200 }}>
@@ -1632,16 +1626,17 @@ export default function ShippingPage() {
                   )}
                 </div>
 
-                {/* Company Buttons Grid */}
+                {/* Company Buttons Grid — 화면을 꽉 채우는 큰 박스 */}
                 <div style={{
-                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  padding: '20px 20px',
-                }} className="sm:!p-[40px_60px]">
+                  flex: 1, display: 'flex', minHeight: 0,
+                  padding: '18px 22px 22px',
+                }} className="sm:!p-[26px_46px_34px]">
                   <div
                     className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
                     style={{
-                      gap: 22,
-                      width: '100%', maxWidth: 1200,
+                      gap: 16,
+                      width: '100%', maxWidth: 1320, margin: '0 auto',
+                      gridAutoRows: '1fr',   // 행 높이 균등 확장 → 세로로 꽉 채움
                     }}
                   >
                     {/* 경기광업(전체) 탭 — 전체 운송사 보기 */}
@@ -1653,59 +1648,49 @@ export default function ShippingPage() {
                         setWaitingPassword('');
                         setWaitingPasswordError('');
                       }}
-                      className="col-span-2 sm:col-span-3 lg:col-span-4 py-11 sm:!py-13"
+                      className="col-span-2 sm:col-span-3 lg:col-span-4"
                       style={{
+                        minHeight: 96,
                         backgroundColor: '#1e293b',
-                        border: '3px solid #0ea5e9',
-                        borderRadius: 20,
-                        fontSize: 40, fontWeight: 900, color: '#fff',
+                        border: '3px solid #1e293b',
+                        borderRadius: 18,
+                        fontSize: 42, fontWeight: 900, color: '#fff',
                         cursor: 'pointer', textAlign: 'center', letterSpacing: '0.02em',
                         boxShadow: '0 2px 10px rgba(15,23,42,0.12)',
                         transition: 'all 0.12s',
                       }}
-                      onMouseOver={e => { e.currentTarget.style.backgroundColor = '#0f172a'; e.currentTarget.style.transform = 'scale(1.01)'; e.currentTarget.style.boxShadow = '0 6px 18px rgba(0,0,0,0.2)'; }}
-                      onMouseOut={e => { e.currentTarget.style.backgroundColor = '#1e293b'; e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
+                      onMouseOver={e => { e.currentTarget.style.backgroundColor = '#0f172a'; e.currentTarget.style.boxShadow = '0 6px 18px rgba(0,0,0,0.2)'; }}
+                      onMouseOut={e => { e.currentTarget.style.backgroundColor = '#1e293b'; e.currentTarget.style.boxShadow = '0 2px 10px rgba(15,23,42,0.12)'; }}
                     >
                       경기광업 (전체)
                     </button>
-                    {sortedCompanies.map((company, idx) => {
-                      const color = btnColors[idx % btnColors.length];
-                      return (
-                        <button
-                          key={company.id}
-                          onClick={() => {
-                            setWaitingCompanyId(company.id);
-                            setWaitingCompanyName(company.name);
-                            setWaitingStep('password');
-                            setWaitingPassword('');
-                            setWaitingPasswordError('');
-                          }}
-                          className="py-12 sm:!py-16"
-                          style={{
-                            paddingLeft: 16, paddingRight: 16,
-                            backgroundColor: '#ffffff',
-                            border: `4px solid ${color.border}`,
-                            borderRadius: 20,
-                            fontSize: 38, fontWeight: 900, color: color.text,
-                            cursor: 'pointer', textAlign: 'center', letterSpacing: '0.01em',
-                            boxShadow: '0 2px 8px rgba(15,23,42,0.06)',
-                            transition: 'all 0.12s',
-                          }}
-                          onMouseOver={e => {
-                            (e.currentTarget).style.backgroundColor = color.hover;
-                            (e.currentTarget).style.transform = 'scale(1.03)';
-                            (e.currentTarget).style.boxShadow = '0 8px 22px rgba(15,23,42,0.16)';
-                          }}
-                          onMouseOut={e => {
-                            (e.currentTarget).style.backgroundColor = '#ffffff';
-                            (e.currentTarget).style.transform = 'scale(1)';
-                            (e.currentTarget).style.boxShadow = '0 2px 8px rgba(15,23,42,0.06)';
-                          }}
-                        >
-                          {company.name}
-                        </button>
-                      );
-                    })}
+                    {sortedCompanies.map((company) => (
+                      <button
+                        key={company.id}
+                        onClick={() => {
+                          setWaitingCompanyId(company.id);
+                          setWaitingCompanyName(company.name);
+                          setWaitingStep('password');
+                          setWaitingPassword('');
+                          setWaitingPasswordError('');
+                        }}
+                        style={{
+                          minHeight: 120,
+                          padding: '8px 16px',
+                          backgroundColor: '#ffffff',
+                          border: `3px solid ${CARD_BORDER}`,
+                          borderRadius: 18,
+                          fontSize: 44, fontWeight: 900, color: '#0f172a',
+                          cursor: 'pointer', textAlign: 'center', letterSpacing: '0.01em',
+                          boxShadow: '0 2px 8px rgba(15,23,42,0.07)',
+                          transition: 'all 0.12s',
+                        }}
+                        onMouseOver={e => { e.currentTarget.style.backgroundColor = CARD_HOVER; e.currentTarget.style.boxShadow = '0 8px 22px rgba(15,23,42,0.16)'; }}
+                        onMouseOut={e => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(15,23,42,0.07)'; }}
+                      >
+                        {company.name}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
