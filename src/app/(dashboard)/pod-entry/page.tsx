@@ -7,6 +7,7 @@ import { getSession } from '@/lib/auth/session';
 import AccessDenied from '@/components/ui/AccessDenied';
 import { format, addDays } from 'date-fns';
 import PodModal, { type PodShipment } from '@/components/modules/dispatch/PodModal';
+import { POD_ENABLED } from '@/lib/featureFlags';
 
 interface Row {
   id: string; customer_name: string | null; product_name: string | null;
@@ -42,7 +43,7 @@ export default function PodEntryPage() {
   }, [supabase, date]);
   useEffect(() => { if (canView) load(); }, [canView, load]);
 
-  if (!canView) return <AccessDenied />;
+  if (!POD_ENABLED || !canView) return <AccessDenied />;
 
   const dt = new Date(date + 'T00:00:00');
   const isToday = date === format(new Date(), 'yyyy-MM-dd');
