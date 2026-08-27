@@ -105,14 +105,38 @@ function buildMessageText(customerName: string, shipments: ShipmentInfo[]): stri
   ].join('\n');
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const configured = !!(API_KEY && API_SECRET && PFID);
-  return NextResponse.json({
+  const base = {
     configured,
     hasTemplate: !!TEMPLATE_ID,
     hasSenderPhone: !!SENDER_PHONE,
     pfid: PFID || '(미설정)',
-  });
+  };
+
+  // ?detail=1 → 승인된 템플릿의 실제 변수/본문 조회(변수 매칭 검증용, 시크릿은 노출 안 함)
+  const wantDetail = request.nextUrl.searchParams.get('detail');
+  if (wantDetail && API_KEY && API_SECRET && TEMPLATE_ID) {
+    try {
+      const res = await fetch(`https://api.solapi.com/kakao/v2/templates/${TEMPLATE_ID}`, {
+        headers: { Authorization: getSolapiAuthHeader() },
+      });
+      const t = await res.json();
+      if (!res.ok) return NextResponse.json({ ...base, detailError: t.errorMessage || t.message || JSON.stringify(t) });
+      const content: string = t.content || '';
+      const tokens = [...new Set((content.match(/#\{[^}]+\}/g) || []))];
+      return NextResponse.json({
+        ...base,
+        template: {
+          name: t.name, status: t.status, buttons: (t.buttons || []).map((b: { buttonName?: string }) => b.buttonName),
+          variables: tokens, content,
+        },
+      });
+    } catch (e) {
+      return NextResponse.json({ ...base, detailError: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  return NextResponse.json(base);
 }
 
 export async function POST(request: NextRequest) {
