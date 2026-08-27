@@ -35,6 +35,7 @@ export default function PodModal({ shipment, isAdmin, isTransporter, onClose, on
   const [weight, setWeight] = useState<string>(shipment.weight_net != null ? String(shipment.weight_net) : '');
   const [busy, setBusy] = useState(false);
   const [viewer, setViewer] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
 
   const isLocked = locked(shipment);
   const canEditWeight = isAdmin || !isLocked;
@@ -72,13 +73,21 @@ export default function PodModal({ shipment, isAdmin, isTransporter, onClose, on
     img.src = url;
   });
 
+  const addFiles = async (fs: File[]) => {
+    const imgs = fs.filter(f => f.type.startsWith('image/'));
+    if (!imgs.length) return;
+    const out = await Promise.all(imgs.map(compress));
+    setPicked(prev => [...prev, ...out]);
+    setPreviews(prev => [...prev, ...out.map(f => URL.createObjectURL(f))]);
+  };
   const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fs = Array.from(e.target.files || []);
     if (fileRef.current) fileRef.current.value = '';
-    if (!fs.length) return;
-    const out = await Promise.all(fs.map(compress));
-    setPicked(prev => [...prev, ...out]);
-    setPreviews(prev => [...prev, ...out.map(f => URL.createObjectURL(f))]);
+    await addFiles(fs);
+  };
+  const onDrop = async (e: React.DragEvent) => {
+    e.preventDefault(); setDragging(false);
+    await addFiles(Array.from(e.dataTransfer.files || []));
   };
   const removePicked = (i: number) => {
     setPicked(prev => prev.filter((_, x) => x !== i));
@@ -151,10 +160,13 @@ export default function PodModal({ shipment, isAdmin, isTransporter, onClose, on
           <div style={{ marginTop: 18 }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: '#334155', marginBottom: 6 }}>증빙 사진 (출하증 도장 · 계근증 등)</div>
             <input ref={fileRef} type="file" accept="image/*" capture="environment" multiple onChange={onPick} style={{ display: 'none' }} id="podfile" />
-            <button onClick={() => fileRef.current?.click()} disabled={busy}
-              style={{ width: '100%', padding: '16px', borderRadius: 12, border: '2px dashed #93c5fd', background: '#eff6ff', color: '#1d4ed8', fontSize: 16, fontWeight: 800, cursor: 'pointer' }}>
+            <div onClick={() => !busy && fileRef.current?.click()}
+              onDragOver={e => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)} onDrop={onDrop}
+              style={{ width: '100%', padding: '20px 16px', borderRadius: 12, border: `2px dashed ${dragging ? '#2563eb' : '#93c5fd'}`, background: dragging ? '#dbeafe' : '#eff6ff', color: '#1d4ed8', fontSize: 16, fontWeight: 800, cursor: 'pointer', textAlign: 'center', transition: 'all .12s' }}>
               📷 사진 촬영 / 선택
-            </button>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: '#60a5fa', marginTop: 4 }}>여기로 사진을 끌어다 놓아도 됩니다</div>
+            </div>
 
             {previews.length > 0 && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(88px, 1fr))', gap: 8, marginTop: 12 }}>
