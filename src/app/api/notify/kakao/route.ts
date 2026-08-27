@@ -61,6 +61,13 @@ function normalizePhone(phone: string): string {
   return cleaned;
 }
 
+/** 유효 휴대폰 여부 — 상차도 더미번호(111-1111-1111 등)·잘못된 번호 발송 차단 */
+function isValidMobile(normalized: string): boolean {
+  if (!/^01[016789]\d{7,8}$/.test(normalized)) return false; // 010/011… 형식만
+  if (/^(\d)\1+$/.test(normalized)) return false;            // 1111111… 같은 반복 더미
+  return true;
+}
+
 /** Solapi HMAC 인증 헤더 생성 */
 function getSolapiAuthHeader(): string {
   const date = new Date().toISOString();
@@ -182,6 +189,14 @@ export async function POST(request: NextRequest) {
       }
 
       const phone = normalizePhone(contact.phone);
+      if (!isValidMobile(phone)) {
+        noPhoneResults.push({
+          customerId,
+          customerName: contact.name || items[0]?.customer_name || '(알 수 없음)',
+          error: '유효한 휴대폰 번호가 아닙니다(상차도/미등록). 통보 대상에서 제외됨.',
+        });
+        continue;
+      }
       const text = buildMessageText(contact.name, items);
 
       if (PFID && TEMPLATE_ID) {

@@ -121,6 +121,7 @@ export default function DispatchPage() {
     setSort(prev => (prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
   const [loading, setLoading] = useState(true);
   const [companies, setCompanies] = useState<LookupCompany[]>([]);
+  const [notifying, setNotifying] = useState(false);
   const [drivers, setDrivers] = useState<LookupDriver[]>([]);
 
   // ── Filter State ──
@@ -315,6 +316,49 @@ export default function DispatchPage() {
       fetchData();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '저장 실패');
+    }
+  };
+
+  // ── 배차통보(동선 통합): 운송사 배정된 미통보 건을 카카오 알림톡으로 발송 ──
+  const notifyDispatch = async () => {
+    const targets = data.filter(d => d.company_id && !d.dispatch_notified);
+    if (targets.length === 0) { toast.warning('배차통보 대상이 없습니다. (운송사 배정 + 미통보 건만 대상)'); return; }
+    const companyCount = new Set(targets.map(t => t.company_id)).size;
+    if (!confirm(`운송사 ${companyCount}곳 · ${targets.length}건을 배차통보할까요?\n(배정된 운송사에게 카카오 알림톡 발송)`)) return;
+    setNotifying(true);
+    try {
+      const contactMap: Record<string, { name: string; email: string; phone: string }> = {};
+      companies.forEach(c => { contactMap[c.id] = { name: c.name, email: c.email || '', phone: c.phone || '' }; });
+      const shipments = targets.map(s => ({
+        id: s.id, shipment_date: s.shipment_date,
+        customer_id: s.company_id as string,     // 그룹키 = 운송사
+        customer_name: s.company_name,            // 수신자명 = 운송사명
+        product_name: s.product_name, company_name: s.company_name,
+        vehicle_number: s.vehicle_number, driver_name: s.driver_name,
+        quantity: s.quantity, unit: s.unit,
+      }));
+      const res = await fetch('/api/notify/kakao', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shipments, customerMap: contactMap }),
+      });
+      const j = await res.json();
+      if (!res.ok && res.status === 400) { toast.error('Solapi 설정이 필요합니다. 관리자에게 문의하세요.'); return; }
+      const ok = res.ok && j.success !== false;
+      // 서버가 제외한 운송사(상차도/번호없음)는 통보완료 처리에서 뺀다
+      const excluded = new Set<string>((j.noPhoneResults || []).map((r: { customerId: string }) => r.customerId));
+      const notifiedIds = targets.filter(t => !excluded.has(t.company_id as string)).map(t => t.id);
+      if (ok && notifiedIds.length) {
+        await supabase.from('shipments').update({ dispatch_notified: true }).in('id', notifiedIds);
+        logActivity({ module: 'dispatch', action: 'notify', targetLabel: `${notifiedIds.length}건 배차통보` });
+      }
+      if (ok) toast.success(j.message || `배차통보 완료 (${notifiedIds.length}건)`);
+      else toast.warning(j.message || j.error || '배차통보 발송에 실패했습니다.');
+      if (excluded.size) toast.info(`제외 ${excluded.size}곳: 상차도/휴대폰 미등록 (통보 안 됨)`);
+      fetchData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '배차통보 중 오류가 발생했습니다.');
+    } finally {
+      setNotifying(false);
     }
   };
 
@@ -583,6 +627,15 @@ export default function DispatchPage() {
                 fontSize: 13, padding: '6px 14px', borderRadius: 7, border: 'none', cursor: 'pointer', fontWeight: 600,
                 background: '#f59e0b', color: '#fff',
               }}>저장</button>
+            )}
+            {!isTransporter && (
+              <button onClick={notifyDispatch} disabled={notifying} title="운송사 배정된 미통보 건을 카카오 알림톡으로 통보"
+                style={{
+                  fontSize: 13, padding: '6px 14px', borderRadius: 7, border: 'none', cursor: notifying ? 'default' : 'pointer', fontWeight: 700,
+                  background: notifying ? '#a78bfa' : '#7c3aed', color: '#fff', display: 'flex', alignItems: 'center', gap: 5,
+                }}>
+                📢 {notifying ? '통보 중…' : '배차통보'}
+              </button>
             )}
             <button onClick={handleExcel} style={{
               fontSize: 13, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontWeight: 500,
