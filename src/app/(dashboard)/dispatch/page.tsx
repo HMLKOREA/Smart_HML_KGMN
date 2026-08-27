@@ -364,6 +364,18 @@ export default function DispatchPage() {
     }
   };
 
+  // 관리자: 증빙 사용량 확인 + 보관정책 자동정리(수동 실행)
+  const podCleanup = async () => {
+    try {
+      const u = await (await fetch('/api/pod/cleanup')).json();
+      if (u.error) { toast.error(u.error); return; }
+      if (!confirm(`증빙 사진 총 ${u.total}장 (약 ${u.estimateMB}MB).\n\n보관정책대로 지금 정리할까요?\n· 최근 2개월 및 미마감분은 보존\n· 월마감(+5일) 지난 과거분만 삭제`)) return;
+      const r = await (await fetch('/api/pod/cleanup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ auto: true }) })).json();
+      if (r.error) toast.error(r.error); else toast.success(r.message || '정리 완료');
+      fetchData();
+    } catch { toast.error('증빙 정리 오류'); }
+  };
+
   const openPod = (row: Shipment) => setPodShip({
     id: row.id, company_name: row.company_name, customer_name: row.customer_name,
     product_name: row.product_name, shipment_date: row.shipment_date,
@@ -649,6 +661,12 @@ export default function DispatchPage() {
               fontSize: 13, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontWeight: 500,
               background: '#fff', color: '#374151', border: '1px solid #d1d5db',
             }}>엑셀내보내기</button>
+            {userRole === 'admin' && (
+              <button onClick={podCleanup} title="증빙 사진 보관정책 정리(관리자)" style={{
+                fontSize: 13, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontWeight: 500,
+                background: '#fff', color: '#64748b', border: '1px solid #d1d5db',
+              }}>🗂 증빙정리</button>
+            )}
           </div>
         </div>
 

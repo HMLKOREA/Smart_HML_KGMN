@@ -1,0 +1,24 @@
+name: POD 증빙 자동 정리 (월단위 보관주기)
+
+# 매일 05:10 KST(=20:10 UTC)에 자동 정리 점검.
+# 삭제 조건은 서버가 판단: 최근 2개월 보존 + 월마감(+5일) 지난 기간 + 3개월 백스톱.
+# 대부분의 날은 삭제 0건. 월이 바뀌며 대상이 생길 때만 정리됨.
+# 수동 실행(workflow_dispatch)도 가능.
+on:
+  schedule:
+    - cron: '10 20 * * *'   # 20:10 UTC = 05:10 KST
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POD 자동 정리 호출
+        run: |
+          HTTP=$(curl -s -o resp.json -w "%{http_code}" \
+            -X POST "https://smart-hml.vercel.app/api/pod/cleanup" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -d '{"auto":true}')
+          echo "POD cleanup HTTP $HTTP"; cat resp.json; echo ""
+          case "$HTTP" in 2*) echo "✅ POD 정리 OK";; *) echo "❌ POD 정리 실패"; exit 1;; esac
