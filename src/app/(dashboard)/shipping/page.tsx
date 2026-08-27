@@ -115,6 +115,7 @@ export default function ShippingPage() {
   const session = useMemo(() => getSession(), []);
   const isTransporter = session?.profile?.role === 'transporter';
   const isAdmin = session?.profile?.role === 'admin';
+  const isField = session?.profile?.role === 'field'; // 경기광업 금산 = 현장 키오스크
 
   // ── Data State ──
   const [data, setData] = useState<Shipment[]>([]);
@@ -148,6 +149,7 @@ export default function ShippingPage() {
   const [issueFlow, setIssueFlow] = useState<{ row: Shipment; step: 'safety' | 'silo' | 'message' } | null>(null);
   const [showListPrint, setShowListPrint] = useState(false);
   const [showWaitingScreen, setShowWaitingScreen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [showDispatchNotify, setShowDispatchNotify] = useState(false);
   const [notifyMethod, setNotifyMethod] = useState<'email' | 'kakao'>('email');
   const [notifyLoading, setNotifyLoading] = useState(false);
@@ -702,10 +704,30 @@ export default function ShippingPage() {
     setWaitingPasswordError('');
     setShowWaitingScreen(true);
   };
-  // 팝업(?waiting=1)으로 열리면 자동으로 대기화면 표시
+  // 전체화면(F11 상당) 진입 — 현장 키오스크용
+  const enterFullscreen = () => {
+    try {
+      const el = document.documentElement;
+      if (!document.fullscreenElement && el.requestFullscreen) el.requestFullscreen().catch(() => {});
+    } catch { /* noop */ }
+  };
+  // 전체화면 상태 추적(닫기버튼 노출 제어)
   useEffect(() => {
-    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('waiting') === '1') {
-      openWaitingScreen();
+    const onFs = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFs);
+    return () => document.removeEventListener('fullscreenchange', onFs);
+  }, []);
+  // 팝업(?waiting=1)으로 열리면 자동으로 대기화면 표시 + (금산 현장) 전체화면 키오스크
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (new URLSearchParams(window.location.search).get('waiting') !== '1') return;
+    openWaitingScreen();
+    if (isField) {
+      enterFullscreen(); // 팝업 오픈 직후 시도(사용자 제스처 잔여활성 이용)
+      // 실패 대비: 최초 터치/키 입력 시 전체화면 확실히 진입
+      const once = () => { enterFullscreen(); window.removeEventListener('pointerdown', once); window.removeEventListener('keydown', once); };
+      window.addEventListener('pointerdown', once);
+      window.addEventListener('keydown', once);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const closeWaitingScreen = () => {
@@ -1563,19 +1585,14 @@ export default function ShippingPage() {
         const sortedWaitingRows = [...waitingRows].sort((a, b) => (isDone(a) ? 1 : 0) - (isDone(b) ? 1 : 0));
         const waitingDoneCount = waitingRows.filter(isDone).length;
 
-        // 버튼 배경색 팔레트
+        // 버튼 팔레트 — 정돈된 6색(흰 카드 + 진한 컬러 테두리·글자)
         const btnColors = [
-          { bg: '#ecfdf5', border: '#86efac', hover: '#d1fae5' },
-          { bg: '#eff6ff', border: '#93c5fd', hover: '#dbeafe' },
-          { bg: '#fffbeb', border: '#fcd34d', hover: '#fef3c7' },
-          { bg: '#fdf2f8', border: '#f9a8d4', hover: '#fce7f3' },
-          { bg: '#f0fdf4', border: '#86efac', hover: '#dcfce7' },
-          { bg: '#eef2ff', border: '#a5b4fc', hover: '#e0e7ff' },
-          { bg: '#fefce8', border: '#fde047', hover: '#fef9c3' },
-          { bg: '#fff1f2', border: '#fda4af', hover: '#ffe4e6' },
-          { bg: '#f0fdfa', border: '#5eead4', hover: '#ccfbf1' },
-          { bg: '#faf5ff', border: '#c4b5fd', hover: '#ede9fe' },
-          { bg: '#f7fee7', border: '#bef264', hover: '#ecfccb' },
+          { border: '#2563eb', text: '#1e40af', hover: '#eff6ff' }, // blue
+          { border: '#0d9488', text: '#0f766e', hover: '#f0fdfa' }, // teal
+          { border: '#d97706', text: '#b45309', hover: '#fffbeb' }, // amber
+          { border: '#7c3aed', text: '#6d28d9', hover: '#f5f3ff' }, // violet
+          { border: '#dc2626', text: '#b91c1c', hover: '#fef2f2' }, // red
+          { border: '#0891b2', text: '#0e7490', hover: '#ecfeff' }, // cyan
         ];
 
         return (
@@ -1597,19 +1614,22 @@ export default function ShippingPage() {
                     <svg style={{ width: 22, height: 22, color: '#38bdf8' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} className="hidden sm:block">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 0 0-.879-2.121l-2.246-2.245A2.999 2.999 0 0 0 16.875 9H14.25m0 0V5.625c0-.621-.504-1.125-1.125-1.125H5.25c-.621 0-1.125.504-1.125 1.125v12.249" />
                     </svg>
-                    <h2 style={{ fontSize: 22, fontWeight: 800 }} className="sm:!text-[28px]">출하증 대기화면</h2>
-                    <span style={{ fontSize: 15, color: '#94a3b8' }} className="hidden sm:inline">운송사를 선택하세요</span>
+                    <h2 style={{ fontSize: 24, fontWeight: 800 }} className="sm:!text-[30px]">출하증 대기화면</h2>
+                    <span style={{ fontSize: 16, color: '#94a3b8' }} className="hidden sm:inline">운송사를 선택하세요</span>
                   </div>
-                  <button
-                    onClick={closeWaitingScreen}
-                    style={{
-                      padding: '13px 26px', fontSize: 19, fontWeight: 800,
-                      backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: 12,
-                      cursor: 'pointer', flexShrink: 0,
-                    }}
-                  >
-                    닫기
-                  </button>
+                  {/* 전체화면(키오스크)에서는 닫기 숨김 — 기사님이 화면을 벗어나지 못하게. 종료는 Esc(전체화면 해제) 후 닫기 노출 */}
+                  {!isFullscreen && (
+                    <button
+                      onClick={closeWaitingScreen}
+                      style={{
+                        padding: '13px 26px', fontSize: 19, fontWeight: 800,
+                        backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: 12,
+                        cursor: 'pointer', flexShrink: 0,
+                      }}
+                    >
+                      닫기
+                    </button>
+                  )}
                 </div>
 
                 {/* Company Buttons Grid */}
@@ -1620,8 +1640,8 @@ export default function ShippingPage() {
                   <div
                     className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
                     style={{
-                      gap: 18,
-                      width: '100%', maxWidth: 1150,
+                      gap: 22,
+                      width: '100%', maxWidth: 1200,
                     }}
                   >
                     {/* 경기광업(전체) 탭 — 전체 운송사 보기 */}
@@ -1633,14 +1653,15 @@ export default function ShippingPage() {
                         setWaitingPassword('');
                         setWaitingPasswordError('');
                       }}
-                      className="col-span-2 sm:col-span-3 lg:col-span-4 py-9 sm:!py-11"
+                      className="col-span-2 sm:col-span-3 lg:col-span-4 py-11 sm:!py-13"
                       style={{
                         backgroundColor: '#1e293b',
-                        border: '2px solid #0ea5e9',
-                        borderRadius: 18,
-                        fontSize: 30, fontWeight: 900, color: '#fff',
-                        cursor: 'pointer', textAlign: 'center', letterSpacing: '0.03em',
-                        transition: 'all 0.15s',
+                        border: '3px solid #0ea5e9',
+                        borderRadius: 20,
+                        fontSize: 40, fontWeight: 900, color: '#fff',
+                        cursor: 'pointer', textAlign: 'center', letterSpacing: '0.02em',
+                        boxShadow: '0 2px 10px rgba(15,23,42,0.12)',
+                        transition: 'all 0.12s',
                       }}
                       onMouseOver={e => { e.currentTarget.style.backgroundColor = '#0f172a'; e.currentTarget.style.transform = 'scale(1.01)'; e.currentTarget.style.boxShadow = '0 6px 18px rgba(0,0,0,0.2)'; }}
                       onMouseOut={e => { e.currentTarget.style.backgroundColor = '#1e293b'; e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
@@ -1659,25 +1680,26 @@ export default function ShippingPage() {
                             setWaitingPassword('');
                             setWaitingPasswordError('');
                           }}
-                          className="py-10 sm:!py-14"
+                          className="py-12 sm:!py-16"
                           style={{
                             paddingLeft: 16, paddingRight: 16,
-                            backgroundColor: color.bg,
-                            border: `3px solid ${color.border}`,
-                            borderRadius: 18,
-                            fontSize: 30, fontWeight: 900, color: '#0f172a',
-                            cursor: 'pointer', textAlign: 'center', letterSpacing: '0.02em',
-                            transition: 'all 0.15s',
+                            backgroundColor: '#ffffff',
+                            border: `4px solid ${color.border}`,
+                            borderRadius: 20,
+                            fontSize: 38, fontWeight: 900, color: color.text,
+                            cursor: 'pointer', textAlign: 'center', letterSpacing: '0.01em',
+                            boxShadow: '0 2px 8px rgba(15,23,42,0.06)',
+                            transition: 'all 0.12s',
                           }}
                           onMouseOver={e => {
                             (e.currentTarget).style.backgroundColor = color.hover;
                             (e.currentTarget).style.transform = 'scale(1.03)';
-                            (e.currentTarget).style.boxShadow = '0 4px 14px rgba(0,0,0,0.12)';
+                            (e.currentTarget).style.boxShadow = '0 8px 22px rgba(15,23,42,0.16)';
                           }}
                           onMouseOut={e => {
-                            (e.currentTarget).style.backgroundColor = color.bg;
+                            (e.currentTarget).style.backgroundColor = '#ffffff';
                             (e.currentTarget).style.transform = 'scale(1)';
-                            (e.currentTarget).style.boxShadow = 'none';
+                            (e.currentTarget).style.boxShadow = '0 2px 8px rgba(15,23,42,0.06)';
                           }}
                         >
                           {company.name}
