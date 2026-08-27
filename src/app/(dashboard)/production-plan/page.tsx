@@ -70,13 +70,17 @@ export default function ProductionPlanPage() {
   const siloOf = (k: string) => { const c = custOf(k), p = prodIdOf(k); return custProducts[c]?.find(x => x.id === p)?.silo || ''; };
   const prodNameOf = (k: string) => { const p = prodIdOf(k); return prodNameMap[p] || custProducts[custOf(k)]?.find(x => x.id === p)?.name || ''; };
 
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const isPast = (d: string) => d < todayStr; // 오늘 이전 = 마감(실적 자동)
+  // 출하 실적(90일 v_shipments 집계) — 이번주 마감일 실적도 여기서 나옴
+  const actual = (k: string, d: string) => dailyByKey[cat]?.[k]?.[d] || 0;
   const cell = (k: string, d: string) => plan[k]?.[d] || 0;
   const setCell = (k: string, d: string, v: number) => setPlan(p => ({ ...p, [k]: { ...(p[k] || {}), [d]: Math.max(0, v) } }));
-  const rowTotal = (k: string) => days.reduce((s, d) => s + cell(k, d), 0);
-  const dayTotal = (d: string) => rowIds.reduce((s, k) => s + cell(k, d), 0);
+  // 표시/합계용 실효값: 마감일=실적, 오늘+미래=계획
+  const eff = (k: string, d: string) => isPast(d) ? actual(k, d) : cell(k, d);
+  const rowTotal = (k: string) => days.reduce((s, d) => s + eff(k, d), 0);
+  const dayTotal = (d: string) => rowIds.reduce((s, k) => s + eff(k, d), 0);
   const grandTotal = rowIds.reduce((s, k) => s + rowTotal(k), 0);
-  // 전주 실적(실제 출하 대수)
-  const actual = (k: string, d: string) => dailyByKey[cat]?.[k]?.[d] || 0;
   const prevRowTotal = (k: string) => prevDays.reduce((s, d) => s + actual(k, d), 0);
   const prevDayTotal = (d: string) => rowIds.reduce((s, k) => s + actual(k, d), 0);
 
@@ -192,42 +196,20 @@ export default function ProductionPlanPage() {
         if (s.status === 'confirmed') anyConfirmed = true;
       });
       setPlan(pl); setRowDbId(dbid); setConfirmed(anyConfirmed);
-      // 행 구성: 카고(품목 多)=이미 입력/추가된 것만, 탱크(정기)=고정물량 상위 자동표시
-      const fixedKeys = fx[cat].map(f => f.key);
+      // 행 구성(카고·탱크 통일): 이번주 마감일에 실제 출하가 있던 행 + 이미 계획된 행
       const planKeys = Object.keys(pl);
-      if (cat === 'cargo_truck') {
-        setRowIds([...new Set(planKeys)]);
-      } else {
-        const extra = planKeys.filter(k => !fixedKeys.includes(k));
-        setRowIds([...fixedKeys, ...extra]);
-      }
-    } catch {
-      toast.error('데이터 조회 실패');
+      const past = days.filter(d => d < todayStr);
+      const actualKeys = past.length ? Object.keys(daily[cat]).filter(k => past.some(d => (daily[cat][k]?.[d] || 0) > 0)) : [];
+      setRowIds([...new Set([...actualKeys, ...planKeys])]);
+    } catch (e) {
+      console.error('[production-plan] load 실패', e);
+      toast.error('데이터 조회 실패: ' + (e instanceof Error ? e.message : '알 수 없는 오류'));
     } finally {
       setLoading(false);
     }
   }, [supabase, days, cat, toast]);
 
   useEffect(() => { if (canView) load(); }, [canView, load]);
-
-  // 고정물량 상위 N 채우기 (주당평균/5 를 월~금에 배분)
-  const fillFixed = () => {
-    const n = Math.max(1, parseInt(fillN || '0', 10) || 0);
-    const top = fixed[cat].slice(0, n);
-    setPlan(prev => {
-      const next = { ...prev };
-      for (const f of top) {
-        const weekly = (ref[f.key]?.avg3w || f.avg);
-        const per = Math.max(1, Math.round(weekly / 5));
-        next[f.key] = { ...(next[f.key] || {}) };
-        for (const d of days) next[f.key][d] = per;
-      }
-      return next;
-    });
-    setRowIds(prev => [...new Set([...top.map(f => f.key), ...prev])]);
-    setConfirmed(false);
-    toast.success(`상위 ${top.length}개 품목 자동 반영 (3주 평균 기준 · 수정 가능)`);
-  };
 
   // 거래처 추가 → 해당 거래처의 (이력 있는) 제품을 각각 행으로
   const addCustomer = (custId: string) => {
@@ -249,19 +231,38 @@ export default function ProductionPlanPage() {
   };
   const cycleSort = () => setSortDir(d => d === 'none' ? 'asc' : d === 'asc' ? 'desc' : 'none');
 
-  // 전주 실적 → 금주 계획 복사 (요일 위치 그대로)
+  // 전주 실적 → 금주 계획 복사 (요일 위치 그대로, 마감일은 건너뜀)
   const copyPrevRow = (k: string) => {
-    setPlan(prev => { const row = { ...(prev[k] || {}) }; days.forEach((d, i) => { row[d] = actual(k, prevDays[i]); }); return { ...prev, [k]: row }; });
+    if (prevRowTotal(k) === 0) { toast.warning(`${custName(k)} · ${prodNameOf(k) || '제품'} 전주 실적이 없습니다.`); return; }
+    setPlan(prev => { const row = { ...(prev[k] || {}) }; days.forEach((d, i) => { if (!isPast(d)) row[d] = actual(k, prevDays[i]); }); return { ...prev, [k]: row }; });
     if (confirmed) setConfirmed(false);
   };
   const copyPrevAll = () => {
+    const targets = rowIds.filter(k => prevRowTotal(k) > 0);
+    if (targets.length === 0) { toast.warning('복사할 전주 실적이 없습니다.'); return; }
     setPlan(prev => {
       const next = { ...prev };
-      for (const k of rowIds) { const row = { ...(next[k] || {}) }; days.forEach((d, i) => { row[d] = actual(k, prevDays[i]); }); next[k] = row; }
+      for (const k of targets) { const row = { ...(next[k] || {}) }; days.forEach((d, i) => { if (!isPast(d)) row[d] = actual(k, prevDays[i]); }); next[k] = row; }
       return next;
     });
     if (confirmed) setConfirmed(false);
-    toast.success('전주 실적을 이번주 계획으로 복사했습니다. (수정 가능)');
+    toast.success(`전주 실적을 이번주 계획으로 복사(${targets.length}행 · 마감일 제외 · 수정 가능)`);
+  };
+  // 전주 물량 상위 N개 채우기 (BCT 레귤러리티): 물량순 상위 → 미래 요일에 전주값
+  const fillTopByPrev = () => {
+    const n = Math.max(1, parseInt(fillN || '0', 10) || 0);
+    const ranked = Object.keys(dailyByKey[cat] || {})
+      .map(k => ({ k, p: prevRowTotal(k) })).filter(x => x.p > 0)
+      .sort((a, b) => b.p - a.p).slice(0, n);
+    if (ranked.length === 0) { toast.warning('전주 실적이 있는 품목이 없습니다.'); return; }
+    setRowIds(prev => [...new Set([...ranked.map(r => r.k), ...prev])]);
+    setPlan(prev => {
+      const next = { ...prev };
+      for (const { k } of ranked) { const row = { ...(next[k] || {}) }; days.forEach((d, i) => { if (!isPast(d)) row[d] = actual(k, prevDays[i]); }); next[k] = row; }
+      return next;
+    });
+    setConfirmed(false);
+    toast.success(`전주 물량 상위 ${ranked.length}개 채움 (미래 요일=전주 실적 · 수정 가능)`);
   };
   // 바 스케일 기준(전주/금주 중 최대 주간합)
   const maxBar = Math.max(1, ...rowIds.map(k => Math.max(prevRowTotal(k), rowTotal(k))));
@@ -302,6 +303,7 @@ export default function ProductionPlanPage() {
       for (const k of rowIds) {
         const c = custOf(k); const pid = prodIdOf(k) || null;
         for (const d of days) {
+          if (isPast(d)) continue; // 마감일은 실적으로 표시 → 저장 대상 아님
           const v = cell(k, d);
           const dk = `${d}|${k}`;
           const existing = rowDbId[dk];
@@ -342,7 +344,7 @@ export default function ProductionPlanPage() {
     if (!confirmed) { toast.warning('먼저 계획을 확정하세요.'); return; }
     const catLabel = CATS.find(c => c.key === cat)?.label || '';
     const lines = [`📅 ${days[0]} ~ ${days[4]} · ${catLabel}`, `총 ${grandTotal}대 (${activeCusts}개 거래처 · ${activeRows.length}개 품목)`, ''];
-    for (const k of displayRows) { const t = rowTotal(k); if (t > 0) lines.push(`· ${custName(k)}${prodNameOf(k) ? ` [${prodNameOf(k)}]` : ''} : ${days.map(d => cell(k, d)).join('/')} = ${t}대`); }
+    for (const k of displayRows) { const t = rowTotal(k); if (t > 0) lines.push(`· ${custName(k)}${prodNameOf(k) ? ` [${prodNameOf(k)}]` : ''} : ${days.map(d => eff(k, d)).join('/')} = ${t}대`); }
     lines.push('', `확정: ${userName || '-'}`);
     try {
       const res = await fetch('/api/notify/teams-plan', {
@@ -358,7 +360,6 @@ export default function ProductionPlanPage() {
   if (!canView) return <AccessDenied />;
 
   const catColor = CATS.find(c => c.key === cat)?.color || '#2563eb';
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
   // 상위10 빠른추가(그리드에 없는 품목만) + 검색
   const top10 = fixed[cat].filter(f => !rowIds.includes(f.key)).slice(0, 10);
   const q = custSearch.trim().toLowerCase();
@@ -399,10 +400,10 @@ export default function ProductionPlanPage() {
         </div>
         {canEdit && viewMode === 'edit' && (
           <div className="flex items-center gap-1.5 ml-auto flex-wrap">
-            <button onClick={copyPrevAll} className="px-3 py-1.5 rounded-lg bg-white border-2 border-amber-400 text-amber-600 text-sm font-bold" title="전주 실적을 이번주 계획으로 전체 복사">⧉ 전주복사(전체)</button>
-            <span className="text-sm font-bold text-gray-500">상위</span>
+            <button onClick={copyPrevAll} className="px-3 py-1.5 rounded-lg bg-white border-2 border-amber-400 text-amber-600 text-sm font-bold" title="현재 행들의 전주 실적을 미래 요일에 복사">⧉ 전주복사(전체)</button>
+            <span className="text-sm font-bold text-gray-500">전주물량 상위</span>
             <input type="number" min={1} value={fillN} onChange={e => setFillN(e.target.value)} className="w-14 px-2 py-1.5 border-2 border-gray-300 rounded-lg text-base font-bold text-center" />
-            <button onClick={fillFixed} className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-sm font-bold">개 자동채우기</button>
+            <button onClick={fillTopByPrev} className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-sm font-bold" title="전주 물량순 상위 N개를 자동으로 채웁니다">개 채우기</button>
             <span className="w-px h-6 bg-gray-200 mx-1" />
             <button onClick={() => doSave('planned')} disabled={saving} className="px-4 py-1.5 rounded-lg bg-slate-700 text-white text-sm font-bold disabled:opacity-50">{saving ? '저장 중…' : '💾 저장'}</button>
             <button onClick={confirmPlan} disabled={saving} className="px-4 py-1.5 rounded-lg text-white text-sm font-bold disabled:opacity-50" style={{ background: catColor }}>✅ 확정</button>
@@ -478,7 +479,7 @@ export default function ProductionPlanPage() {
                     <th className="sticky left-0 bg-slate-200 border-b border-gray-300" style={{ minWidth: 210 }} />
                     <th colSpan={5} className="px-1 py-1 text-center text-[13px] font-black text-slate-500 border-b border-gray-300">전주 실적 <span className="font-bold text-slate-400">{prevDays[0].slice(5)}~{prevDays[4].slice(5)}</span></th>
                     <th className="border-b border-gray-300 bg-amber-50" />
-                    <th colSpan={5} className="px-1 py-1 text-center text-[13px] font-black border-b border-l-2 border-gray-300" style={{ color: catColor }}>이번주 계획 <span className="font-bold text-slate-400">{days[0].slice(5)}~{days[4].slice(5)}</span></th>
+                    <th colSpan={5} className="px-1 py-1 text-center text-[13px] font-black border-b border-l-2 border-gray-300" style={{ color: catColor }}>이번주 <span className="font-bold text-slate-400">(마감=실적·이후=계획) {days[0].slice(5)}~{days[4].slice(5)}</span></th>
                     <th className="border-b border-gray-300 text-center text-[12px] font-black text-slate-400">전주▪금주</th>
                     {canEdit && <th className="border-b border-gray-300" />}
                   </tr>
@@ -490,9 +491,9 @@ export default function ProductionPlanPage() {
                       return <th key={d} className="px-1 py-0.5 text-center text-[13px] font-bold border-b-2 border-gray-200 bg-slate-50 text-slate-400" style={{ minWidth: 52 }}>{DOW[dt.getDay()]}<br /><span className="text-[11px]">{d.slice(8)}</span></th>;
                     })}
                     <th className="px-0.5 py-0.5 text-center text-[11px] font-bold border-b-2 border-gray-200 bg-amber-50 text-amber-600" style={{ width: 36 }}>복사</th>
-                    {days.map((d, i) => { const dt = new Date(d + 'T00:00:00'); const isT = d === todayStr;
-                      return <th key={d} className={`px-1 py-0.5 text-center text-sm font-black border-b-2 border-gray-200 ${i === 0 ? 'border-l-2 border-l-gray-300' : ''}`} style={{ minWidth: 68, background: isT ? catColor : '#eef2f7', color: isT ? '#fff' : '#334155' }}>
-                        {DOW[dt.getDay()]}<br /><span className="text-[12px] font-bold" style={{ color: isT ? 'rgba(255,255,255,.85)' : '#94a3b8' }}>{d.slice(8)}</span>
+                    {days.map((d, i) => { const dt = new Date(d + 'T00:00:00'); const isT = d === todayStr; const past = isPast(d);
+                      return <th key={d} className={`px-1 py-0.5 text-center text-sm font-black border-b-2 border-gray-200 ${i === 0 ? 'border-l-2 border-l-gray-300' : ''}`} style={{ minWidth: 68, background: isT ? catColor : past ? '#f1f5f9' : '#eef2f7', color: isT ? '#fff' : past ? '#94a3b8' : '#334155' }}>
+                        {DOW[dt.getDay()]}<br /><span className="text-[11px] font-bold" style={{ color: isT ? 'rgba(255,255,255,.85)' : '#94a3b8' }}>{d.slice(8)}{past ? '·마감' : isT ? '·오늘' : ''}</span>
                       </th>;
                     })}
                     <th className="px-1 py-1 text-center text-sm font-black text-gray-700 border-b-2 border-gray-200" style={{ minWidth: 116 }}>합계·바</th>
@@ -501,7 +502,7 @@ export default function ProductionPlanPage() {
                 </thead>
                 <tbody>
                   {displayRows.length === 0 ? (
-                    <tr><td colSpan={13} className="text-center text-gray-400 py-8 text-sm">‘자동채우기’ 또는 위 상위품목/검색으로 거래처·제품을 추가하세요.</td></tr>
+                    <tr><td colSpan={14} className="text-center text-gray-400 py-8 text-sm">위 <b className="text-amber-600">전주물량 상위 N개 채우기</b> 또는 검색/지정일자로 거래처·제품을 추가하세요. (마감된 날짜는 배차 실적이 자동 표시됩니다)</td></tr>
                   ) : displayRows.map((k, idx) => {
                     const r = refOf(k);
                     const firstOfGroup = idx === 0 || custOf(displayRows[idx - 1]) !== custOf(k);
@@ -525,13 +526,20 @@ export default function ProductionPlanPage() {
                           <button onClick={() => copyPrevRow(k)} disabled={!canEdit || prevRowTotal(k) === 0} title="전주 실적을 이번주로 복사"
                             className="w-7 h-7 rounded-md text-amber-500 hover:bg-amber-100 disabled:text-gray-200 text-lg leading-none">⧉</button>
                         </td>
-                        {days.map((d, i) => (
-                          <td key={d} className={`px-1 py-0.5 text-center ${i === 0 ? 'border-l-2 border-l-gray-200' : ''}`} style={d === todayStr ? { background: catColor + '14' } : undefined}>
-                            <input type="number" inputMode="numeric" value={cell(k, d) === 0 ? '' : cell(k, d)} placeholder="·" disabled={!canEdit}
-                              onChange={e => { setCell(k, d, parseInt(e.target.value || '0', 10) || 0); if (confirmed) setConfirmed(false); }}
-                              className="h-9 text-center text-lg font-black border-2 border-gray-200 rounded-lg focus:border-indigo-500 outline-none" style={{ width: 50 }} />
+                        {days.map((d, i) => {
+                          const past = isPast(d);
+                          return (
+                          <td key={d} className={`px-1 py-0.5 text-center ${i === 0 ? 'border-l-2 border-l-gray-200' : ''} ${past ? 'bg-slate-50/70' : ''}`} style={d === todayStr ? { background: catColor + '14' } : undefined}>
+                            {past ? (
+                              <span className="inline-block h-9 leading-9 text-lg font-bold tabular-nums text-slate-400" title="마감일 · 배차 실적">{actual(k, d) || '·'}</span>
+                            ) : (
+                              <input type="number" inputMode="numeric" value={cell(k, d) === 0 ? '' : cell(k, d)} placeholder="·" disabled={!canEdit}
+                                onChange={e => { setCell(k, d, parseInt(e.target.value || '0', 10) || 0); if (confirmed) setConfirmed(false); }}
+                                className="h-9 text-center text-lg font-black border-2 border-gray-200 rounded-lg focus:border-indigo-500 outline-none" style={{ width: 50 }} />
+                            )}
                           </td>
-                        ))}
+                          );
+                        })}
                         <td className="px-1.5 py-0.5">
                           <div className="flex items-center gap-1.5">
                             <div className="flex-1 min-w-[56px]">
@@ -626,7 +634,7 @@ export default function ProductionPlanPage() {
                           </div>
                           <div className="flex-1 h-6 rounded-lg bg-slate-100 overflow-hidden relative">
                             <div className="h-full rounded-lg flex items-center justify-end pr-2" style={{ width: `${Math.max(6, Math.min(100, t / maxBar * 100))}%`, background: catColor }}>
-                              <span className="text-white text-xs font-black">{days.map(d => cell(k, d)).filter(v => v > 0).join('·')}</span>
+                              <span className="text-white text-xs font-black">{days.map(d => eff(k, d)).filter(v => v > 0).join('·')}</span>
                             </div>
                           </div>
                           <span className="shrink-0 text-2xl font-black tabular-nums w-14 text-right" style={{ color: catColor }}>{t}<span className="text-xs text-gray-400 font-bold">대</span></span>
