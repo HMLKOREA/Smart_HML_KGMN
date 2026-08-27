@@ -89,6 +89,20 @@ export default function PodModal({ shipment, isAdmin, isTransporter, onClose, on
     e.preventDefault(); setDragging(false);
     await addFiles(Array.from(e.dataTransfer.files || []));
   };
+
+  // 계근수량 키패드
+  const press = (k: string) => {
+    if (!canEditWeight) return;
+    setWeight(w => {
+      if (k === '⌫') return w.slice(0, -1);
+      if (k === '.') return w.includes('.') ? w : (w === '' ? '0.' : w + '.');
+      if (w.includes('.') && (w.split('.')[1]?.length || 0) >= 2) return w; // 소수 2자리 제한
+      if (w === '0') return k;                                              // 선행 0 대체
+      if (w.replace('.', '').length >= 6) return w;                         // 과입력 방지
+      return w + k;
+    });
+  };
+  const clearWeight = () => { if (canEditWeight) setWeight(''); };
   const removePicked = (i: number) => {
     setPicked(prev => prev.filter((_, x) => x !== i));
     setPreviews(prev => { URL.revokeObjectURL(prev[i]); return prev.filter((_, x) => x !== i); });
@@ -134,7 +148,7 @@ export default function PodModal({ shipment, isAdmin, isTransporter, onClose, on
         {/* header */}
         <div style={{ padding: '16px 18px', borderBottom: '1px solid #eef1f5', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
           <div>
-            <div style={{ fontSize: 19, fontWeight: 900, color: '#0f172a', lineHeight: 1.2 }}>증빙 (POD) 업로드</div>
+            <div style={{ fontSize: 19, fontWeight: 900, color: '#0f172a', lineHeight: 1.2 }}>계근 수량 입력 및 증빙</div>
             <div style={{ fontSize: 14, color: '#475569', marginTop: 3 }}>
               {shipment.customer_name || '-'} · <b>{shipment.product_name || '-'}</b> · {shipment.shipment_date?.slice(2)}
               {shipment.vehicle_number ? ` · ${shipment.vehicle_number}` : ''}
@@ -150,11 +164,27 @@ export default function PodModal({ shipment, isAdmin, isTransporter, onClose, on
             </div>
           )}
 
-          {/* 계근수량 */}
-          <label style={{ display: 'block', fontSize: 14, fontWeight: 800, color: '#334155', marginBottom: 6 }}>계근수량 (톤) — 계근증 숫자를 읽고 입력</label>
-          <input type="number" step="0.01" inputMode="decimal" value={weight} disabled={!canEditWeight}
-            onChange={e => setWeight(e.target.value)} placeholder="예: 29.97"
-            style={{ width: '100%', fontSize: 22, fontWeight: 800, padding: '12px 14px', border: '2px solid #cbd5e1', borderRadius: 12, textAlign: 'right', color: '#0f172a', background: canEditWeight ? '#fff' : '#f1f5f9' }} />
+          {/* ── 윗면: 계근수량 키패드 ── */}
+          <label style={{ display: 'block', fontSize: 14, fontWeight: 800, color: '#334155', marginBottom: 6 }}>계근수량 (톤) — 계근증 숫자를 눌러 입력</label>
+          {/* 값 표시 */}
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end', gap: 5, padding: '11px 16px', border: '2px solid #cbd5e1', borderRadius: 11, background: canEditWeight ? '#f8fafc' : '#f1f5f9', minHeight: 52 }}>
+            <span style={{ fontSize: 32, fontWeight: 900, color: weight ? '#0f172a' : '#cbd5e1', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{weight || '0'}</span>
+            <span style={{ fontSize: 16, fontWeight: 800, color: '#64748b' }}>톤</span>
+          </div>
+          {canEditWeight && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginTop: 7, maxWidth: 300 }}>
+              {['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'].map(k => (
+                <button key={k} type="button" onClick={() => press(k)}
+                  style={{ padding: '11px 0', fontSize: 20, fontWeight: 900, borderRadius: 10, border: '1px solid #e2e8f0', background: k === '⌫' ? '#fef2f2' : '#fff', color: k === '⌫' ? '#dc2626' : '#0f172a', cursor: 'pointer', boxShadow: '0 1px 2px rgba(15,23,42,.05)' }}>
+                  {k}
+                </button>
+              ))}
+              <button type="button" onClick={clearWeight}
+                style={{ gridColumn: '1 / -1', padding: '8px 0', fontSize: 13.5, fontWeight: 800, borderRadius: 10, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', cursor: 'pointer' }}>
+                전체 지우기
+              </button>
+            </div>
+          )}
 
           {/* 사진 추가 */}
           <div style={{ marginTop: 18 }}>
@@ -181,14 +211,8 @@ export default function PodModal({ shipment, isAdmin, isTransporter, onClose, on
             )}
           </div>
 
-          {/* 확정 버튼 */}
-          <button onClick={submit} disabled={busy}
-            style={{ width: '100%', marginTop: 16, padding: '15px', borderRadius: 12, border: 'none', background: busy ? '#94a3b8' : '#16a34a', color: '#fff', fontSize: 18, fontWeight: 900, cursor: busy ? 'default' : 'pointer' }}>
-            {busy ? '저장 중…' : '✅ 증빙 확정 (업로드)'}
-          </button>
-
-          {/* 기존 증빙 */}
-          <div style={{ marginTop: 20 }}>
+          {/* 아래쪽: 등록된 증빙 현황 */}
+          <div style={{ marginTop: 18 }}>
             <div style={{ fontSize: 13.5, fontWeight: 800, color: '#64748b', marginBottom: 8 }}>등록된 증빙 {items.length > 0 ? `(${items.length})` : ''}</div>
             {loading ? (
               <div style={{ color: '#94a3b8', fontSize: 13, padding: '10px 0' }}>불러오는 중…</div>
@@ -209,6 +233,12 @@ export default function PodModal({ shipment, isAdmin, isTransporter, onClose, on
               </div>
             )}
           </div>
+
+          {/* 확정 버튼 (맨 아래) */}
+          <button onClick={submit} disabled={busy}
+            style={{ position: 'sticky', bottom: 0, width: '100%', marginTop: 18, padding: '16px', borderRadius: 12, border: 'none', background: busy ? '#94a3b8' : '#16a34a', color: '#fff', fontSize: 19, fontWeight: 900, cursor: busy ? 'default' : 'pointer', boxShadow: '0 -2px 10px rgba(15,23,42,.08)' }}>
+            {busy ? '저장 중…' : '✅ 계근 확정 · 증빙 저장'}
+          </button>
         </div>
       </div>
 

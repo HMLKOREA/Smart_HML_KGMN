@@ -96,7 +96,7 @@ const navGroups: NavGroup[] = [
     key: 'logistics', label: '운송 관리', en: 'Logistics', iconKey: 'shipping', items: [
       { label: '출하관리', path: '/shipping', iconKey: 'shipping', roles: ['admin', 'monitor', 'field'] },
       { label: '배차관리', path: '/dispatch', iconKey: 'dispatch', roles: ['admin', 'monitor', 'field', 'transporter'] },
-      ...(POD_ENABLED ? [{ label: '계근 증빙', path: '/pod-entry', iconKey: 'shipping', roles: ['transporter', 'admin', 'monitor', 'field'] as UserRole[] }] : []),
+      ...(POD_ENABLED ? [{ label: '계근 증빙', path: '/pod-entry', iconKey: 'shipping', roles: ['transporter'] as UserRole[] }] : []),
       { label: '생산계획', path: '/production-plan', iconKey: 'production', roles: ['admin', 'monitor', 'field'] },
     ],
   },
@@ -126,6 +126,7 @@ const navGroups: NavGroup[] = [
       { label: '거래처관리', path: '/customer', iconKey: 'customer', roles: ['admin', 'monitor'] },
       { label: '운송사관리', path: '/transport-company', iconKey: 'company', roles: ['admin', 'monitor'] },
       { label: '기사관리', path: '/driver', iconKey: 'driver', roles: ['admin', 'monitor', 'transporter'] },
+      ...(POD_ENABLED ? [{ label: '증빙 관리', path: '/pod-admin', iconKey: 'report', roles: ['admin', 'monitor', 'field'] as UserRole[] }] : []),
     ],
   },
   {

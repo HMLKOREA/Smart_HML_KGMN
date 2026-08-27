@@ -10,7 +10,6 @@ import { ColumnFilterButton, applyColumnFilters } from '@/components/ui/ColumnFi
 import { logActivity } from '@/lib/audit/logActivity';
 import { useToast } from '@/components/ui/Toast';
 import { getSession } from '@/lib/auth/session';
-import PodModal, { type PodShipment } from '@/components/modules/dispatch/PodModal';
 import { POD_ENABLED } from '@/lib/featureFlags';
 
 // ── Types ──────────────────────────────────────────────
@@ -124,7 +123,6 @@ export default function DispatchPage() {
   const [loading, setLoading] = useState(true);
   const [companies, setCompanies] = useState<LookupCompany[]>([]);
   const [notifying, setNotifying] = useState(false);
-  const [podShip, setPodShip] = useState<PodShipment | null>(null);
   const [drivers, setDrivers] = useState<LookupDriver[]>([]);
 
   // ── Filter State ──
@@ -364,24 +362,6 @@ export default function DispatchPage() {
       setNotifying(false);
     }
   };
-
-  // 관리자: 증빙 사용량 확인 + 보관정책 자동정리(수동 실행)
-  const podCleanup = async () => {
-    try {
-      const u = await (await fetch('/api/pod/cleanup')).json();
-      if (u.error) { toast.error(u.error); return; }
-      if (!confirm(`증빙 사진 총 ${u.total}장 (약 ${u.estimateMB}MB).\n\n보관정책대로 지금 정리할까요?\n· 최근 2개월 및 미마감분은 보존\n· 월마감(+5일) 지난 과거분만 삭제`)) return;
-      const r = await (await fetch('/api/pod/cleanup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ auto: true }) })).json();
-      if (r.error) toast.error(r.error); else toast.success(r.message || '정리 완료');
-      fetchData();
-    } catch { toast.error('증빙 정리 오류'); }
-  };
-
-  const openPod = (row: Shipment) => setPodShip({
-    id: row.id, company_name: row.company_name, customer_name: row.customer_name,
-    product_name: row.product_name, shipment_date: row.shipment_date,
-    weight_net: row.weight_net, is_shipped: row.is_shipped, vehicle_number: row.vehicle_number,
-  });
 
   const handleDriverSelect = (driverId: string) => {
     if (!editData) return;
@@ -662,12 +642,6 @@ export default function DispatchPage() {
               fontSize: 13, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontWeight: 500,
               background: '#fff', color: '#374151', border: '1px solid #d1d5db',
             }}>엑셀내보내기</button>
-            {POD_ENABLED && userRole === 'admin' && (
-              <button onClick={podCleanup} title="증빙 사진 보관정책 정리(관리자)" style={{
-                fontSize: 13, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontWeight: 500,
-                background: '#fff', color: '#64748b', border: '1px solid #d1d5db',
-              }}>🗂 증빙정리</button>
-            )}
           </div>
         </div>
 
@@ -699,7 +673,6 @@ export default function DispatchPage() {
                     { label: '기사연락처', k: 'driver_phone', st: { minWidth: 110 } },
                     { label: '계근수량(D+1)', k: 'weight_net', st: { minWidth: 80, textAlign: 'right' as const } },
                     { label: '출하증발급시간', k: 'certificate_time', st: { minWidth: 140 } },
-                    ...(POD_ENABLED ? [{ label: '증빙', k: null, st: { width: 48, textAlign: 'center' as const } }] : []),
                     { label: '작업', k: null, st: { width: 50, textAlign: 'center' as const } },
                   ] as { label: string; k: string | null; f?: boolean; st: React.CSSProperties }[]).map(({ label, k, f, st }) => (
                     <th
@@ -838,15 +811,6 @@ export default function DispatchPage() {
                         <td style={{ padding: '6px 8px', fontSize: 12, whiteSpace: 'nowrap', color: '#6b7280' }}>
                           {formatCertTime(row.certificate_time)}
                         </td>
-                        {/* 증빙 */}
-                        {POD_ENABLED && (
-                        <td style={{ textAlign: 'center', padding: '6px 4px' }}>
-                          <button type="button" onClick={() => openPod(row)} title={row.has_attachment ? '증빙 보기/추가' : '증빙 올리기'}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 17, padding: 2, lineHeight: 1, opacity: row.has_attachment ? 1 : 0.4 }}>
-                            {row.has_attachment ? '📎' : '📷'}
-                          </button>
-                        </td>
-                        )}
                         {/* 작업 */}
                         <td style={{ textAlign: 'center', padding: '6px 8px', whiteSpace: 'nowrap' }}>
                           <button onClick={saveEdit} style={{
@@ -896,21 +860,18 @@ export default function DispatchPage() {
                       <td style={{ padding: '6px 8px', fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>
                         {driverInfo?.phone || '-'}
                       </td>
-                      <td style={{ padding: '6px 8px', fontSize: 13, textAlign: 'right' }}>
+                      <td style={{ padding: '6px 8px', fontSize: 13, textAlign: 'right', whiteSpace: 'nowrap' }}>
                         {row.weight_net != null ? row.weight_net.toFixed(2) : '0.00'}
+                        {POD_ENABLED && (
+                          <span title={row.has_attachment ? '증빙 있음' : '증빙 없음'} style={{ marginLeft: 5, fontSize: 12, opacity: row.has_attachment ? 1 : 0.3 }}>
+                            {row.has_attachment ? '✅' : '📄'}
+                          </span>
+                        )}
                       </td>
                       <td style={{ padding: '6px 8px', fontSize: 12, whiteSpace: 'nowrap', color: row.certificate_time ? '#b45309' : '#d1d5db',
                         backgroundColor: row.certificate_time ? '#fef9c3' : undefined }}>
                         {formatCertTime(row.certificate_time)}
                       </td>
-                      {POD_ENABLED && (
-                      <td style={{ textAlign: 'center', padding: '6px 4px' }}>
-                        <button onClick={(e) => { e.stopPropagation(); openPod(row); }} title={row.has_attachment ? '증빙 보기/추가' : '증빙 올리기'}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 17, padding: 2, lineHeight: 1, opacity: row.has_attachment ? 1 : 0.4 }}>
-                          {row.has_attachment ? '📎' : '📷'}
-                        </button>
-                      </td>
-                      )}
                       <td style={{ textAlign: 'center', padding: '6px 8px' }}>
                         <button onClick={(e) => { e.stopPropagation(); startEdit(row); }} style={{
                           background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', padding: 2,
@@ -964,15 +925,6 @@ export default function DispatchPage() {
         </div>
       </div>
 
-      {POD_ENABLED && podShip && (
-        <PodModal
-          shipment={podShip}
-          isAdmin={userRole === 'admin'}
-          isTransporter={isTransporter}
-          onClose={() => setPodShip(null)}
-          onChanged={() => fetchData()}
-        />
-      )}
     </div>
   );
 }
