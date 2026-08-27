@@ -106,11 +106,8 @@ export function useShipmentCrud() {
 
   const toggleShip = useCallback(async (id: string, currentValue: boolean): Promise<{ success: boolean; error?: string }> => {
     try {
-      const updateData: Record<string, unknown> = { is_shipped: !currentValue };
-      if (!currentValue) {
-        updateData.certificate_time = new Date().toISOString();
-      }
-      const { error } = await supabase.from('shipments').update(updateData).eq('id', id);
+      // 출하확정(마감) = is_shipped 토글만. 출하증 발급(certificate_time)은 별개 개념이므로 건드리지 않는다.
+      const { error } = await supabase.from('shipments').update({ is_shipped: !currentValue }).eq('id', id);
       if (error) throw error;
       logActivity({ module: 'shipping', action: currentValue ? 'unship' : 'ship', targetId: id, details: { is_shipped: !currentValue } });
       return { success: true };
