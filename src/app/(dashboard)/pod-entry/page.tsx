@@ -76,44 +76,49 @@ export default function PodEntryPage() {
         </div>
       </div>
 
-      {/* 배차 카드 목록 */}
-      <div style={{ padding: '14px 14px 40px', display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 640, margin: '0 auto' }}>
+      {/* 배차 목록 — 한눈에, 계근수량 눌러 입력 */}
+      <div style={{ padding: '12px', maxWidth: 920, margin: '0 auto' }}>
         {loading ? (
           <div style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 0', fontSize: 15 }}>불러오는 중…</div>
         ) : rows.length === 0 ? (
           <div style={{ textAlign: 'center', color: '#94a3b8', padding: '48px 16px', fontSize: 15 }}>
             이 날짜에 배차된 건이 없습니다.<br /><span style={{ fontSize: 13, color: '#cbd5e1' }}>날짜를 바꿔 확인해 보세요.</span>
           </div>
-        ) : rows.map(r => {
-          const hasWeight = r.weight_net != null && r.weight_net > 0;
-          const hasPod = !!r.has_attachment;
-          const complete = hasWeight && hasPod;
-          return (
-            <button key={r.id} onClick={() => setPod({
-              id: r.id, company_name: r.company_name, customer_name: r.customer_name, product_name: r.product_name,
-              shipment_date: r.shipment_date, weight_net: r.weight_net, is_shipped: r.is_shipped, vehicle_number: r.vehicle_number,
+        ) : (
+          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 2px rgba(15,23,42,.05)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 116px 52px', gap: 8, padding: '9px 12px', background: '#f1f5f9', fontSize: 12, fontWeight: 800, color: '#64748b' }}>
+              <span>거래처 · 제품 · 차량</span>
+              <span style={{ textAlign: 'center' }}>계근수량(톤)</span>
+              <span style={{ textAlign: 'center' }}>증빙</span>
+            </div>
+            {rows.map(r => {
+              const hasWeight = r.weight_net != null && r.weight_net > 0;
+              const hasPod = !!r.has_attachment;
+              return (
+                <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '1fr 116px 52px', gap: 8, alignItems: 'center', padding: '8px 12px', borderTop: '1px solid #f1f5f9' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 15.5, fontWeight: 900, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {r.customer_name || '(거래처)'} <span style={{ color: '#2563eb', fontSize: 13.5, fontWeight: 800 }}>{r.product_name || ''}</span>
+                    </div>
+                    <div style={{ fontSize: 12.5, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {r.vehicle_number || '차량미정'}{r.driver_name ? ` · ${r.driver_name}` : ''}{(!isTransporter && r.company_name) ? ` · ${r.company_name}` : ''}
+                    </div>
+                  </div>
+                  <button onClick={() => setPod({
+                    id: r.id, company_name: r.company_name, customer_name: r.customer_name, product_name: r.product_name,
+                    shipment_date: r.shipment_date, weight_net: r.weight_net, is_shipped: r.is_shipped, vehicle_number: r.vehicle_number,
+                  })}
+                    style={{ width: 116, padding: '11px 0', borderRadius: 10, border: `2px solid ${hasWeight ? '#6d28d9' : '#cbd5e1'}`, background: hasWeight ? '#f5f3ff' : '#fff', color: hasWeight ? '#6d28d9' : '#94a3b8', fontSize: 19, fontWeight: 900, cursor: 'pointer', fontVariantNumeric: 'tabular-nums' }}>
+                    {hasWeight ? r.weight_net!.toFixed(2) : '입력'}
+                  </button>
+                  <div style={{ width: 52, textAlign: 'center', fontSize: 18 }} title={hasPod ? '증빙 있음' : '증빙 없음'}>
+                    {hasPod ? '✅' : <span style={{ opacity: .3 }}>—</span>}
+                  </div>
+                </div>
+              );
             })}
-              style={{ textAlign: 'left', background: '#fff', border: `1px solid ${complete ? '#bbf7d0' : '#e2e8f0'}`, borderLeft: `5px solid ${complete ? '#22c55e' : hasWeight || hasPod ? '#f59e0b' : '#cbd5e1'}`, borderRadius: 14, padding: '13px 15px', boxShadow: '0 1px 2px rgba(15,23,42,.05)', cursor: 'pointer' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 17, fontWeight: 900, color: '#0f172a', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.customer_name || '(거래처)'}</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#2563eb', marginTop: 2 }}>{r.product_name || '-'}</div>
-                  <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 3 }}>
-                    {r.vehicle_number || '차량미정'}{r.driver_name ? ` · ${r.driver_name}` : ''}{(!isTransporter && r.company_name) ? ` · ${r.company_name}` : ''}
-                  </div>
-                </div>
-                <div style={{ flex: 'none', textAlign: 'right' }}>
-                  <div style={{ fontSize: 22, fontWeight: 900, color: hasWeight ? '#6d28d9' : '#cbd5e1', lineHeight: 1 }}>
-                    {hasWeight ? r.weight_net!.toFixed(2) : '—'}<span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 700 }}> 톤</span>
-                  </div>
-                  <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 800, padding: '3px 9px', borderRadius: 999, background: complete ? '#dcfce7' : '#fef3c7', color: complete ? '#15803d' : '#b45309' }}>
-                    {complete ? '✅ 완료' : hasPod ? '📎 사진만' : hasWeight ? '⚖ 계근만' : '입력 필요'}
-                  </div>
-                </div>
-              </div>
-            </button>
-          );
-        })}
+          </div>
+        )}
       </div>
 
       {pod && (
