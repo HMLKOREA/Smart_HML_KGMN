@@ -161,23 +161,26 @@ export default function PodModal({ shipment, isAdmin, isTransporter, onClose, on
             </div>
           )}
 
-          {/* ── 윗면: 계근수량 키패드 ── */}
-          <label style={{ display: 'block', fontSize: 14, fontWeight: 800, color: '#334155', marginBottom: 6 }}>계근수량 (톤) — 계근증 숫자를 눌러 입력</label>
-          {/* 값 표시 */}
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end', gap: 5, padding: '11px 16px', border: '2px solid #cbd5e1', borderRadius: 11, background: canEditWeight ? '#f8fafc' : '#f1f5f9', minHeight: 52 }}>
-            <span style={{ fontSize: 32, fontWeight: 900, color: weight ? '#0f172a' : '#cbd5e1', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{weight || '0'}</span>
-            <span style={{ fontSize: 16, fontWeight: 800, color: '#64748b' }}>톤</span>
+          {/* ── 윗면: 계근수량 — 직접 입력 or 키패드 ── */}
+          <label style={{ display: 'block', fontSize: 14, fontWeight: 800, color: '#334155', marginBottom: 6 }}>계근수량 (톤) — 키보드로 직접 입력하거나 아래 키패드 사용</label>
+          <div style={{ position: 'relative' }}>
+            <input
+              type="text" inputMode="decimal" value={weight} disabled={!canEditWeight}
+              onChange={e => { const v = e.target.value.replace(/[^0-9.]/g, ''); if ((v.match(/\./g) || []).length <= 1) setWeight(v); }}
+              placeholder="0"
+              style={{ width: '100%', boxSizing: 'border-box', fontSize: 34, fontWeight: 900, padding: '12px 46px 12px 16px', textAlign: 'right', border: '2px solid #cbd5e1', borderRadius: 12, background: canEditWeight ? '#f8fafc' : '#f1f5f9', color: '#0f172a', outline: 'none', fontVariantNumeric: 'tabular-nums' }} />
+            <span style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', fontSize: 16, fontWeight: 800, color: '#64748b', pointerEvents: 'none' }}>톤</span>
           </div>
           {canEditWeight && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginTop: 7, maxWidth: 300 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: '46px', gap: 8, marginTop: 10 }}>
               {['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'].map(k => (
                 <button key={k} type="button" onClick={() => press(k)}
-                  style={{ padding: '11px 0', fontSize: 20, fontWeight: 900, borderRadius: 10, border: '1px solid #e2e8f0', background: k === '⌫' ? '#fef2f2' : '#fff', color: k === '⌫' ? '#dc2626' : '#0f172a', cursor: 'pointer', boxShadow: '0 1px 2px rgba(15,23,42,.05)' }}>
+                  style={{ width: '100%', height: '100%', fontSize: 22, fontWeight: 900, borderRadius: 10, border: '1px solid #e2e8f0', background: k === '⌫' ? '#fef2f2' : '#fff', color: k === '⌫' ? '#dc2626' : '#0f172a', cursor: 'pointer', boxShadow: '0 1px 2px rgba(15,23,42,.05)' }}>
                   {k}
                 </button>
               ))}
               <button type="button" onClick={clearWeight}
-                style={{ gridColumn: '1 / -1', padding: '8px 0', fontSize: 13.5, fontWeight: 800, borderRadius: 10, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', cursor: 'pointer' }}>
+                style={{ gridColumn: '1 / -1', height: 38, fontSize: 14, fontWeight: 800, borderRadius: 10, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', cursor: 'pointer' }}>
                 전체 지우기
               </button>
             </div>

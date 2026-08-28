@@ -1142,11 +1142,18 @@ export default function ShippingPage() {
               href="/shipping?waiting=1"
               target="waitingScreen"
               rel="noopener"
-              title="출하증 대기화면을 독립된 새 창으로 엽니다 (현장 게시용)"
+              title={isField ? '이 화면에서 전체화면 키오스크로 엽니다 (현장 게시용)' : '출하증 대기화면을 독립된 새 창으로 엽니다'}
               onClick={(e) => {
-                // 팝업 창 우선 시도 → 성공하면 기본 이동 취소, 차단되면 새 탭(앵커 기본동작)으로 열림
+                e.preventDefault();
+                if (isField) {
+                  // 금산 현장(KGMN): 클릭 제스처로 즉시 전체화면 + 같은 창 오버레이 (자동전체화면 차단 회피)
+                  enterFullscreen();
+                  openWaitingScreen();
+                  return;
+                }
+                // 스태프: 독립 새 창
                 const w = window.open('/shipping?waiting=1', 'waitingScreen', 'width=1400,height=900');
-                if (w) { w.focus(); e.preventDefault(); }
+                if (w) w.focus();
               }}
               style={{
                 fontSize: 13, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 700,
