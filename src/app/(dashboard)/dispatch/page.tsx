@@ -11,6 +11,7 @@ import { logActivity } from '@/lib/audit/logActivity';
 import { useToast } from '@/components/ui/Toast';
 import { getSession } from '@/lib/auth/session';
 import { POD_ENABLED } from '@/lib/featureFlags';
+import PodModal, { type PodShipment } from '@/components/modules/dispatch/PodModal';
 
 // ── Types ──────────────────────────────────────────────
 interface Shipment {
@@ -123,6 +124,12 @@ export default function DispatchPage() {
   const [loading, setLoading] = useState(true);
   const [companies, setCompanies] = useState<LookupCompany[]>([]);
   const [notifying, setNotifying] = useState(false);
+  const [podShip, setPodShip] = useState<PodShipment | null>(null);
+  const openPod = (row: Shipment) => setPodShip({
+    id: row.id, company_name: row.company_name, customer_name: row.customer_name,
+    product_name: row.product_name, shipment_date: row.shipment_date,
+    weight_net: row.weight_net, is_shipped: row.is_shipped, vehicle_number: row.vehicle_number,
+  });
   const [drivers, setDrivers] = useState<LookupDriver[]>([]);
 
   // ── Filter State ──
@@ -860,13 +867,14 @@ export default function DispatchPage() {
                       <td style={{ padding: '6px 8px', fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>
                         {driverInfo?.phone || '-'}
                       </td>
-                      <td style={{ padding: '6px 8px', fontSize: 13, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        {row.weight_net != null ? row.weight_net.toFixed(2) : '0.00'}
-                        {POD_ENABLED && (
-                          <span title={row.has_attachment ? '증빙 있음' : '증빙 없음'} style={{ marginLeft: 5, fontSize: 12, opacity: row.has_attachment ? 1 : 0.3 }}>
-                            {row.has_attachment ? '✅' : '📄'}
-                          </span>
-                        )}
+                      <td style={{ padding: '4px 6px', textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
+                        {POD_ENABLED ? (
+                          <button onClick={() => openPod(row)} title="계근수량 입력 / 증빙"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 9px', borderRadius: 8, border: `1.5px solid ${(row.weight_net || 0) > 0 ? '#c4b5fd' : '#cbd5e1'}`, background: (row.weight_net || 0) > 0 ? '#f5f3ff' : '#fff', color: (row.weight_net || 0) > 0 ? '#6d28d9' : '#64748b', fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>
+                            {row.weight_net != null ? row.weight_net.toFixed(2) : '입력'}
+                            <span style={{ fontSize: 12, opacity: row.has_attachment ? 1 : 0.35 }}>{row.has_attachment ? '✅' : '📄'}</span>
+                          </button>
+                        ) : (row.weight_net != null ? row.weight_net.toFixed(2) : '0.00')}
                       </td>
                       <td style={{ padding: '6px 8px', fontSize: 12, whiteSpace: 'nowrap', color: row.certificate_time ? '#b45309' : '#d1d5db',
                         backgroundColor: row.certificate_time ? '#fef9c3' : undefined }}>
@@ -925,6 +933,15 @@ export default function DispatchPage() {
         </div>
       </div>
 
+      {POD_ENABLED && podShip && (
+        <PodModal
+          shipment={podShip}
+          isAdmin={userRole === 'admin'}
+          isTransporter={isTransporter}
+          onClose={() => setPodShip(null)}
+          onChanged={() => fetchData()}
+        />
+      )}
     </div>
   );
 }
