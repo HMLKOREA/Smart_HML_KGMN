@@ -2,8 +2,18 @@
 
 export const TONBAG_PRODUCTS = ['K200', 'K10', 'K18', 'K50', 'K325'];
 
-// 톤백 1개당 중량(톤) — 톤 표시·사일로 연동 공용
+// 톤백 1개당 중량(톤) — 톤 표시·사일로 연동 공용(제품 대표중량)
 export const BAG_TON: Record<string, number> = { K200: 1.2, K10: 1.4, K18: 1.4, K50: 1.4, K325: 1.6 };
+
+// 품목별 톤백 종류(라벨·1개당 중량) — 아침 재고를 종류별 개수로 입력, 개수×중량 합 = 재고(톤)
+export interface TonbagVariant { label: string; weight: number }
+export const TONBAG_VARIANTS: Record<string, TonbagVariant[]> = {
+  K200: [{ label: '지대-팔레트', weight: 1.6 }, { label: '톤백', weight: 1.2 }],
+  K10:  [{ label: '톤백', weight: 1.4 }, { label: '톤백', weight: 1.0 }],
+  K18:  [{ label: '톤백', weight: 1.6 }, { label: '톤백', weight: 1.4 }],
+  K50:  [{ label: '톤백', weight: 1.3 }],
+  K325: [{ label: '지대-팔레트', weight: 1.6 }, { label: '지대-팔레트', weight: 1.2 }],
+};
 
 // 톤백 제품 → 사일로 번호
 export const PRODUCT_SILO: Record<string, number> = { K200: 3, K10: 6, K18: 8, K50: 7, K325: 1 };
@@ -24,7 +34,7 @@ export function computeTonbagInventory(
   const out: Record<string, number> = {};
   for (const p of TONBAG_PRODUCTS) {
     let morning = 0;
-    for (const c of stockRows) if (c.product === p && c.check_date === asOf) morning = c.qty;
+    for (const c of stockRows) if (c.product === p && c.check_date === asOf) morning += c.qty; // 종류(중량)별 개수 합산
     out[p] = Math.max(0, morning);
   }
   return out;
