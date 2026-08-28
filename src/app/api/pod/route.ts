@@ -18,13 +18,9 @@ export const runtime = 'nodejs';
 const BUCKET = 'shipment-pods';
 const STAFF = ['admin', 'monitor', 'field'];
 
-/** 잠금 여부: 출하확정(is_shipped) 또는 마감(출하일+3일 경과) */
+/** 잠금 여부: 출하확정(is_shipped) 시에만. (D+3 자동잠금 없음 — 증빙 나중 제출 허용) */
 function isLocked(s: { is_shipped: boolean | null; shipment_date: string }): boolean {
-  if (s.is_shipped) return true;
-  const deadline = new Date(s.shipment_date + 'T00:00:00');
-  deadline.setDate(deadline.getDate() + 3);
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  return today > deadline;
+  return !!s.is_shipped;
 }
 
 function extOf(name: string, type: string): string {

@@ -17,10 +17,7 @@ export interface PodShipment {
 interface PodItem { id: string; url: string; uploaded_by: string; created_at: string; }
 
 function locked(s: PodShipment): boolean {
-  if (s.is_shipped) return true;
-  const d = new Date(s.shipment_date + 'T00:00:00'); d.setDate(d.getDate() + 3);
-  const t = new Date(); t.setHours(0, 0, 0, 0);
-  return t > d;
+  return !!s.is_shipped; // 출하확정 시에만 잠금(D+3 자동잠금 없음)
 }
 
 export default function PodModal({ shipment, isAdmin, isTransporter, onClose, onChanged }: {
@@ -160,7 +157,7 @@ export default function PodModal({ shipment, isAdmin, isTransporter, onClose, on
         <div style={{ padding: 18 }}>
           {isLocked && (
             <div style={{ background: '#fbe9e7', border: '1px solid #f0a89f', color: '#7f1d1d', borderRadius: 10, padding: '10px 13px', fontSize: 13.5, marginBottom: 14 }}>
-              🔒 마감/출하확정된 건입니다. {isAdmin ? '관리자는 수정 가능합니다.' : '계근수량 변경·삭제는 불가하며, 조회만 됩니다.'}
+              🔒 출하확정된 건입니다. {isAdmin ? '관리자는 계근수량도 수정 가능합니다.' : '계근수량은 잠겼지만, 증빙 사진은 계속 추가할 수 있습니다.'}
             </div>
           )}
 
