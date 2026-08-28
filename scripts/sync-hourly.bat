@@ -14,7 +14,8 @@ set "LOG_FILE=%LOG_DIR%\sync-%TODAY%.log"
 set "NODE_EXE=C:\Program Files\nodejs\node.exe"
 
 echo [%date% %time%] sync start >> "%LOG_FILE%"
-"%NODE_EXE%" scripts\sync-mysql-to-supabase.mjs --delta >> "%LOG_FILE%" 2>&1
+REM 2026-08-28: --delta 제거(전체 동기화). 레거시 update_date 미갱신(출하증발급/차량배정/날짜변경) 누락 방지.
+"%NODE_EXE%" scripts\sync-mysql-to-supabase.mjs >> "%LOG_FILE%" 2>&1
 set "RC=%ERRORLEVEL%"
 echo [%date% %time%] sync done exit=%RC% >> "%LOG_FILE%"
 echo. >> "%LOG_FILE%"
