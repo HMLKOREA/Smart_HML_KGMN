@@ -29,6 +29,12 @@ export async function POST(request: NextRequest) {
     const digest = await fetchDailyDigest(dateStr);
     await sendChannelImage(`${IMG_BASE}?date=${dateStr}`); // 다음날 배차 표 이미지
     await sendChannelMessage(formatCaption(digest));        // 요약 텍스트
+    // 크론 생존 하트비트(온라인 독립성 점검용)
+    try {
+      const { createServiceRoleClient } = await import('@/lib/supabase/server');
+      const { recordHeartbeat } = await import('@/lib/telegram/checks');
+      await recordHeartbeat(await createServiceRoleClient(), 'daily-report', { date: dateStr });
+    } catch { /* 무시 */ }
     return NextResponse.json({ success: true, date: dateStr, mode: 'image+text' });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });

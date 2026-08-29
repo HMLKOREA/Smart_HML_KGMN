@@ -99,6 +99,7 @@ export async function POST(request: NextRequest) {
         cutoff = closedCutoff > backstop3 ? closedCutoff : backstop3; // 백스톱과 비교(더 많이 지우는 쪽=더 과거)
       }
       const res = await purgeBefore(svc, cutoff);
+      try { const { recordHeartbeat } = await import('@/lib/telegram/checks'); await recordHeartbeat(svc, 'pod-cleanup', { cutoff, deleted: res.deleted }); } catch { /* 무시 */ }
       return NextResponse.json({ success: true, mode: 'auto', cutoff, ...res, message: `${cutoff} 이전 증빙 ${res.deleted}장 정리` });
     }
 
