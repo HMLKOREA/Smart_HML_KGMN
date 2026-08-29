@@ -287,29 +287,39 @@ async function syncShipments(conn) {
 
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     const batch = rows.slice(i, i + BATCH_SIZE);
-    const upserts = [];
+    // 우선순위 규칙(컷오버 이후):
+    //  · 새 시스템 우선 — 이미 존재하는(OUT-) 행은 레거시가 다른 필드를 덮어쓰지 않는다.
+    //    (운송사가 새 시스템에서 입력한 계근/기사/배차통보 등은 싱크로 사라지지 않음)
+    //  · 예외: '출하증 발급'은 현장이 레거시에서 하므로 레거시 우선 →
+    //    기존 행에는 certificate_time(발급시간)만, 그것도 레거시에 값이 있을 때만 반영.
+    //  · 새 행(레거시에만 있는 신규 출고)은 전체 필드 신규 삽입.
+    const fullInserts = [];   // 새 행: 전체 삽입
+    const certUpdates = [];   // 기존 행: 출하증 발급시간만 레거시 우선 반영
 
     for (const r of batch) {
       const shipmentNumber = `OUT-${r.uid}`;
       const companyId = cache.companies.get(String(r.carr_uid)) || null;
       const customerId = cache.customers.get(String(r.cus_uid)) || null;
 
-      // car_no로 기사 찾기
-      let driverId = null;
-      if (r.car_no) {
-        for (const [mysqlUid, sbId] of cache.drivers) {
-          // driver_mst의 gubun이 car_no의 뒷 4자리
-          if (String(r.car_no) === mysqlUid.slice(-4) ||
-              cache.drivers.get(mysqlUid) === sbId) {
-            // 차량번호 뒷자리로 매칭 시도
-          }
+      // 출하증 발급시간(out_time): 레거시 KST 벽시계 → UTC instant(Z)로 확정 변환
+      const certificateTime = r.out_time_str
+        ? new Date(`${r.out_time_str.replace(' ', 'T')}+09:00`).toISOString()
+        : null;
+
+      if (existingMap.has(shipmentNumber)) {
+        // 기존 행: 새 시스템 데이터 보존. 레거시에 발급시간이 있을 때만 그 값만 갱신.
+        if (certificateTime) {
+          certUpdates.push({ shipment_number: shipmentNumber, certificate_time: certificateTime });
         }
+        // 레거시 발급시간이 없으면 아무것도 건드리지 않음(새 시스템 값 유지)
+        continue;
       }
 
       // car_type → transport_type 매핑
       const typeMap = { BCT: '탱크', DUMP: '덤프', CGO: '카고' };
 
-      const record = {
+      // 새 행: 레거시 전체 스냅샷으로 신규 삽입
+      fullInserts.push({
         shipment_number: shipmentNumber,
         shipment_date: normalizeDate(r.out_date),
         company_id: companyId,
@@ -325,39 +335,40 @@ async function syncShipments(conn) {
         is_shipped: r.out_yn === 'Y',
         is_confirmed: r.confirm === 'Y',
         dispatch_notified: r.noti_yn === 'Y',
-        // 출하증 발급시간(out_time): 레거시 KST 벽시계 → UTC instant(Z)로 확정 변환
-        certificate_time: r.out_time_str
-          ? new Date(`${r.out_time_str.replace(' ', 'T')}+09:00`).toISOString()
-          : null,
+        certificate_time: certificateTime,
         // 기타/비고 (그리드 '기타' 컬럼은 notes 를 표시)
         notes: r.remarks || null,
         memo: r.remarks || null,
-      };
-
-      // id 는 넣지 않는다: onConflict='shipment_number' 로 기존행을 갱신하므로
-      // (id 혼합 시 배치 upsert가 'null value in id' 로 실패하던 문제 제거)
-      upserts.push(record);
+      });
     }
 
-    // Batch upsert (shipment_number 충돌 시 갱신)
-    const { error } = await supabase.from('shipments')
-      .upsert(upserts, { onConflict: 'shipment_number' });
+    // ① 새 행 전체 삽입 (shipment_number 충돌 시 갱신)
+    if (fullInserts.length) {
+      const { error } = await supabase.from('shipments')
+        .upsert(fullInserts, { onConflict: 'shipment_number' });
+      if (error) {
+        log(`  ⚠️ 신규 배치 ${i} 오류: ${error.message} → 개별 폴백`);
+        for (const rec of fullInserts) {
+          const { error: e2 } = await supabase.from('shipments')
+            .upsert(rec, { onConflict: 'shipment_number' });
+          if (e2) errors++; else created++;
+        }
+      } else created += fullInserts.length;
+    }
 
-    if (error) {
-      log(`  ⚠️ 배치 ${i}~${i + batch.length} 오류: ${error.message}`);
-      // 개별 폴백
-      for (const rec of upserts) {
-        const { error: e2 } = await supabase.from('shipments')
-          .upsert(rec, { onConflict: 'shipment_number' });
-        if (e2) errors++;
-        else if (existingMap.has(rec.shipment_number)) updated++;
-        else created++;
-      }
-    } else {
-      for (const u of upserts) {
-        if (existingMap.has(u.shipment_number)) updated++;
-        else created++;
-      }
+    // ② 기존 행: 출하증 발급시간만 갱신 (다른 필드는 새 시스템 값 보존)
+    if (certUpdates.length) {
+      const { error } = await supabase.from('shipments')
+        .upsert(certUpdates, { onConflict: 'shipment_number' });
+      if (error) {
+        log(`  ⚠️ 발급시간 배치 ${i} 오류: ${error.message} → 개별 폴백`);
+        for (const rec of certUpdates) {
+          const { error: e2 } = await supabase.from('shipments')
+            .update({ certificate_time: rec.certificate_time })
+            .eq('shipment_number', rec.shipment_number);
+          if (e2) errors++; else updated++;
+        }
+      } else updated += certUpdates.length;
     }
 
     if (i % 2000 === 0 && i > 0) log(`  진행: ${i}/${rows.length}`);
@@ -555,8 +566,11 @@ async function reconcileDeletedShipments(conn) {
     more = ch.length === 1000;
     pg++;
   }
-  const orphanIds = ours.filter(o => !liveSet.has(o.shipment_number)).map(o => o.id);
-  if (!orphanIds.length) { log('  고아 출하 없음'); return; }
+  // 레거시 원본(OUT-)만 삭제 대상. 새 시스템에서 생성한 행(SH-)은 레거시에 없어도 절대 삭제하지 않음.
+  const orphanIds = ours
+    .filter(o => o.shipment_number?.startsWith('OUT-') && !liveSet.has(o.shipment_number))
+    .map(o => o.id);
+  if (!orphanIds.length) { log('  고아 출하 없음(새 시스템 SH- 행은 보존)'); return; }
 
   let del = 0;
   for (let i = 0; i < orphanIds.length; i += 200) {
