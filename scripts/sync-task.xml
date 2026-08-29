@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <URI>\SmartHML_Sync_Hourly</URI>
+    <Description>SmartHML MySQL->Supabase hourly sync. Self-healing: recover missed runs (StartWhenAvailable), run at logon, retry on failure, run on battery.</Description>
+  </RegistrationInfo>
+  <Principals>
+    <Principal id="Author">
+      <UserId>S-1-5-21-3440862192-3122575172-32180456-1001</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <ExecutionTimeLimit>PT10M</ExecutionTimeLimit>
+    <Enabled>true</Enabled>
+    <RestartOnFailure>
+      <Interval>PT5M</Interval>
+      <Count>3</Count>
+    </RestartOnFailure>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+  </Settings>
+  <Triggers>
+    <TimeTrigger>
+      <StartBoundary>2026-06-26T00:05:00+09:00</StartBoundary>
+      <Enabled>true</Enabled>
+      <Repetition>
+        <Interval>PT1H</Interval>
+        <StopAtDurationEnd>false</StopAtDurationEnd>
+      </Repetition>
+    </TimeTrigger>
+    <LogonTrigger>
+      <Enabled>true</Enabled>
+      <Delay>PT3M</Delay>
+    </LogonTrigger>
+  </Triggers>
+  <Actions Context="Author">
+    <Exec>
+      <Command>wscript.exe</Command>
+      <Arguments>"C:\SmartHML\web-app\scripts\run-sync-hidden.vbs"</Arguments>
+    </Exec>
+  </Actions>
+</Task>

@@ -1,10 +1,20 @@
 @echo off
-REM SmartHML MySQL -> Supabase FULL sync (ASCII only, no powershell dependency).
+REM SmartHML MySQL -> Supabase sync (ASCII only). merge-legacy mode until cutover.
+REM Self-healing: retry once if node fails, so a transient MySQL/network hiccup is not a miss.
 cd /d C:\SmartHML\web-app
 if not exist logs mkdir logs
 echo [%date% %time%] sync start >> logs\sync.log
-REM --merge-legacy: 컷오버 전까지 레거시 값 반영 + 새 시스템 입력(운송사 등)은 보존.
-REM 월요일 컷오버 시 sync 중단 예정(이 태스크 비활성화).
-"C:\Program Files\nodejs\node.exe" scripts\sync-mysql-to-supabase.mjs --merge-legacy >> logs\sync.log 2>&1
-echo [%date% %time%] sync done exit=%ERRORLEVEL% >> logs\sync.log
+set NODE="C:\Program Files\nodejs\node.exe"
+
+%NODE% scripts\sync-mysql-to-supabase.mjs --merge-legacy >> logs\sync.log 2>&1
+set RC=%ERRORLEVEL%
+if not "%RC%"=="0" (
+  echo [%date% %time%] sync retry (first exit=%RC%) >> logs\sync.log
+  timeout /t 30 /nobreak > nul
+  %NODE% scripts\sync-mysql-to-supabase.mjs --merge-legacy >> logs\sync.log 2>&1
+  set RC=%ERRORLEVEL%
+)
+echo [%date% %time%] sync done exit=%RC% >> logs\sync.log
 echo. >> logs\sync.log
+REM propagate node's real exit so the scheduler LastResult is meaningful
+exit /b %RC%
