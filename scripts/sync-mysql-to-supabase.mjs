@@ -56,6 +56,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY || SUPABASE_ANO
 
 let isDelta = process.argv.includes('--delta');
 const isCron = process.argv.includes('--cron');
+// --full-legacy : 일회성 기준선. 기존 OUT- 행까지 레거시 전체 필드로 덮어써 '레거시와 완전 일치'.
+//   (평소는 새 시스템 우선 = 기존 행은 출하증 발급시간만. SH-/과거행 삭제는 어느 모드든 안 함.)
+const isFullLegacy = process.argv.includes('--full-legacy');
 
 // ─── 유틸 ──────────────────────────────────────────
 function log(msg) {
@@ -306,7 +309,7 @@ async function syncShipments(conn) {
         ? new Date(`${r.out_time_str.replace(' ', 'T')}+09:00`).toISOString()
         : null;
 
-      if (existingMap.has(shipmentNumber)) {
+      if (existingMap.has(shipmentNumber) && !isFullLegacy) {
         // 기존 행: 새 시스템 데이터 보존. 레거시에 발급시간이 있을 때만 그 값만 갱신.
         if (certificateTime) {
           certUpdates.push({ shipment_number: shipmentNumber, certificate_time: certificateTime });
@@ -314,6 +317,7 @@ async function syncShipments(conn) {
         // 레거시 발급시간이 없으면 아무것도 건드리지 않음(새 시스템 값 유지)
         continue;
       }
+      // (--full-legacy 모드에서는 기존 행도 아래 전체 upsert 경로로 → 레거시 전체 필드로 덮어씀)
 
       // car_type → transport_type 매핑
       const typeMap = { BCT: '탱크', DUMP: '덤프', CGO: '카고' };
@@ -347,13 +351,20 @@ async function syncShipments(conn) {
       const { error } = await supabase.from('shipments')
         .upsert(fullInserts, { onConflict: 'shipment_number' });
       if (error) {
-        log(`  ⚠️ 신규 배치 ${i} 오류: ${error.message} → 개별 폴백`);
+        log(`  ⚠️ 배치 ${i} 오류: ${error.message} → 개별 폴백`);
         for (const rec of fullInserts) {
           const { error: e2 } = await supabase.from('shipments')
             .upsert(rec, { onConflict: 'shipment_number' });
-          if (e2) errors++; else created++;
+          if (e2) errors++;
+          else if (existingMap.has(rec.shipment_number)) updated++;
+          else created++;
         }
-      } else created += fullInserts.length;
+      } else {
+        for (const rec of fullInserts) {
+          if (existingMap.has(rec.shipment_number)) updated++;
+          else created++;
+        }
+      }
     }
 
     // ② 기존 행: 출하증 발급시간만 갱신 (다른 필드는 새 시스템 값 보존)
