@@ -150,6 +150,9 @@ export default function ShippingPage() {
   const [showListPrint, setShowListPrint] = useState(false);
   const [showWaitingScreen, setShowWaitingScreen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // 대기화면: 기사 미지정 배차에 현장에서 인적사항 입력 후 발급
+  const [adhoc, setAdhoc] = useState<{ row: Shipment; vehicle: string; name: string; phone: string } | null>(null);
+  const [adhocSaving, setAdhocSaving] = useState(false);
   const [showDispatchNotify, setShowDispatchNotify] = useState(false);
   const [notifyMethod, setNotifyMethod] = useState<'email' | 'kakao'>('email');
   const [notifyLoading, setNotifyLoading] = useState(false);
@@ -693,6 +696,32 @@ export default function ShippingPage() {
     setPrintRow({ ...row, certificate_time: new Date().toISOString() });
     setShowPrint(true);
     fetchData();
+  };
+
+  // 출하증발급 클릭: 기사 미지정이면 인적사항 입력부터
+  const beginIssue = (row: Shipment) => {
+    const missing = !(row.vehicle_number && row.vehicle_number.trim()) && !(row.driver_name && row.driver_name.trim());
+    if (missing) setAdhoc({ row, vehicle: '', name: '', phone: '' });
+    else startIssueFlow(row);
+  };
+  const submitAdhoc = async () => {
+    if (!adhoc) return;
+    if (!adhoc.vehicle.trim() || !adhoc.name.trim()) { toast.warning('차량번호와 기사이름을 입력하세요.'); return; }
+    setAdhocSaving(true);
+    try {
+      const res = await fetch('/api/shipment/adhoc-driver', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shipmentId: adhoc.row.id, vehicle: adhoc.vehicle, name: adhoc.name, phone: adhoc.phone }),
+      });
+      const j = await res.json();
+      if (!res.ok || j.error) { toast.error(j.error || '기사 정보 저장 실패'); return; }
+      const updated = { ...adhoc.row, vehicle_number: j.vehicle_number, driver_name: j.driver_name, driver_id: j.driver_id } as Shipment;
+      setAdhoc(null);
+      fetchData();
+      startIssueFlow(updated);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '저장 오류');
+    } finally { setAdhocSaving(false); }
   };
 
   // ── 출하증 대기화면 헬퍼 ──
@@ -1290,7 +1319,7 @@ export default function ShippingPage() {
                         <th onClick={() => toggleSort('vehicle_number')} title="클릭 시 정렬" style={sortable}>차량정보{arrow('vehicle_number')}<Handle ck="vehicle_number" /></th>
                         <th onClick={() => toggleSort('silo')} title="클릭 시 정렬" style={sortable}>사일로{arrow('silo')}{fIcon('silo')}<Handle ck="silo" /></th>
                         <th style={base}>전달사항<Handle ck="driver_message" /></th>
-                        <th style={{ ...base, textAlign: 'center' }}>출하<Handle ck="shipped" /></th>
+                        <th onClick={() => toggleSort('is_shipped')} title="클릭 시 출하완료/미출하 정렬" style={{ ...sortable, textAlign: 'center' }}>출하{arrow('is_shipped')}<Handle ck="shipped" /></th>
                         <th onClick={() => toggleSort('weight_net')} title="클릭 시 정렬" style={sortable}>계근결과{arrow('weight_net')}<Handle ck="weight_net" /></th>
                         <th style={base}>기타<Handle ck="notes" /></th>
                         <th onClick={() => toggleSort('certificate_time')} title="클릭 시 정렬" style={sortable}>출하증 발급시간{arrow('certificate_time')}<Handle ck="certificate_time" /></th>
@@ -1913,7 +1942,7 @@ export default function ShippingPage() {
                                   </>
                                 ) : (
                                   <button
-                                    onClick={() => startIssueFlow(row)}
+                                    onClick={() => beginIssue(row)}
                                     style={{
                                       padding: '9px 24px', fontSize: 19, fontWeight: 800,
                                       backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: 10,
@@ -1961,6 +1990,41 @@ export default function ShippingPage() {
           </div>
         );
       })()}
+
+      {/* ═══ 기사 미지정 배차: 현장 인적사항 입력 후 발급 ═══ */}
+      {adhoc && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 410, background: 'rgba(15,23,42,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          onClick={() => !adhocSaving && setAdhoc(null)}>
+          <div style={{ background: '#fff', borderRadius: 22, width: '94vw', maxWidth: 520, boxShadow: '0 24px 70px rgba(0,0,0,0.45)', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+            <div style={{ background: '#16a34a', color: '#fff', padding: '18px 24px' }}>
+              <div style={{ fontSize: 24, fontWeight: 900 }}>기사 정보 입력</div>
+              <div style={{ fontSize: 15, opacity: .9, marginTop: 2 }}>{adhoc.row.customer_name} · {adhoc.row.product_name} — 입력 후 출하증이 발급됩니다</div>
+            </div>
+            <div style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {[
+                { k: 'vehicle' as const, label: '차량번호', ph: '예: 12가3456', mode: 'text' as const },
+                { k: 'name' as const, label: '기사 이름', ph: '예: 홍길동', mode: 'text' as const },
+                { k: 'phone' as const, label: '기사 연락처', ph: '예: 010-1234-5678', mode: 'tel' as const },
+              ].map(f => (
+                <label key={f.k} style={{ display: 'block' }}>
+                  <span style={{ display: 'block', fontSize: 15, fontWeight: 800, color: '#334155', marginBottom: 6 }}>{f.label}{f.k !== 'phone' && <span style={{ color: '#dc2626' }}> *</span>}</span>
+                  <input value={adhoc[f.k]} inputMode={f.mode === 'tel' ? 'tel' : 'text'} placeholder={f.ph}
+                    onChange={e => setAdhoc(a => a ? { ...a, [f.k]: e.target.value } : a)}
+                    style={{ width: '100%', boxSizing: 'border-box', fontSize: 24, fontWeight: 800, padding: '14px 16px', border: '2px solid #cbd5e1', borderRadius: 12, color: '#0f172a', outline: 'none' }} />
+                </label>
+              ))}
+            </div>
+            <div style={{ padding: '0 24px 22px', display: 'flex', gap: 12 }}>
+              <button onClick={() => setAdhoc(null)} disabled={adhocSaving}
+                style={{ flex: 1, padding: '18px 0', fontSize: 20, fontWeight: 800, background: '#e5e7eb', color: '#374151', border: 'none', borderRadius: 14, cursor: 'pointer' }}>취소</button>
+              <button onClick={submitAdhoc} disabled={adhocSaving}
+                style={{ flex: 2, padding: '18px 0', fontSize: 22, fontWeight: 900, background: '#16a34a', color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', opacity: adhocSaving ? 0.6 : 1 }}>
+                {adhocSaving ? '저장 중…' : '입력하고 발급 →'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══ 출하증 발급 전 확인 팝업 (A 안전서약 → B 지정사일로 → C 전달사항) ═══ */}
       {issueFlow && (() => {
