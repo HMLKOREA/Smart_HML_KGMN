@@ -12,15 +12,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { getAuthProfile, authErrorResponse } from '@/lib/auth/serverAuth';
 import { createServiceRoleClient } from '@/lib/supabase/server';
+import { isWeightLocked, weightLockDeadline } from '@/lib/podLock';
 
 export const runtime = 'nodejs';
 
 const BUCKET = 'shipment-pods';
 const STAFF = ['admin', 'monitor', 'field'];
 
-/** 잠금 여부: 출하확정(is_shipped) 시에만. (D+3 자동잠금 없음 — 증빙 나중 제출 허용) */
+/** 계근수량 잠금 여부: 출하확정과 무관하게 출하일 +1 영업일(주말 건너뜀)까지 허용, 그 이후 잠금.
+ *  (관리자는 호출측에서 별도 우회) */
 function isLocked(s: { is_shipped: boolean | null; shipment_date: string }): boolean {
-  return !!s.is_shipped;
+  return isWeightLocked(s.shipment_date);
 }
 
 function extOf(name: string, type: string): string {
@@ -64,7 +66,7 @@ export async function POST(request: NextRequest) {
     const weightChanges = wantWeight && weight !== Number(ship.weight_net);
     const canEditWeight = profile.role === 'admin' || !locked;
     if (weightChanges && !canEditWeight) {
-      return NextResponse.json({ error: '계근수량은 출하확정 또는 마감(출하일+3일) 이후에는 관리자만 수정할 수 있습니다.' }, { status: 403 });
+      return NextResponse.json({ error: `계근수량 입력 마감(${weightLockDeadline(ship.shipment_date)})이 지났습니다. 이후에는 관리자만 수정할 수 있습니다.` }, { status: 403 });
     }
 
     // 파일 업로드

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/components/ui/Toast';
+import { isWeightLocked, weightLockDeadline } from '@/lib/podLock';
 
 export interface PodShipment {
   id: string;
@@ -17,7 +18,8 @@ export interface PodShipment {
 interface PodItem { id: string; url: string; uploaded_by: string; created_at: string; }
 
 function locked(s: PodShipment): boolean {
-  return !!s.is_shipped; // 출하확정 시에만 잠금(D+3 자동잠금 없음)
+  // 출하확정과 무관하게 출하일 +1 영업일(주말 건너뜀)까지 입력 허용, 그 이후 잠금
+  return isWeightLocked(s.shipment_date);
 }
 
 export default function PodModal({ shipment, isAdmin, isTransporter, onClose, onChanged }: {
@@ -157,7 +159,12 @@ export default function PodModal({ shipment, isAdmin, isTransporter, onClose, on
         <div style={{ padding: 18 }}>
           {isLocked && (
             <div style={{ background: '#fbe9e7', border: '1px solid #f0a89f', color: '#7f1d1d', borderRadius: 10, padding: '10px 13px', fontSize: 13.5, marginBottom: 14 }}>
-              🔒 출하확정된 건입니다. {isAdmin ? '관리자는 계근수량도 수정 가능합니다.' : '계근수량은 잠겼지만, 증빙 사진은 계속 추가할 수 있습니다.'}
+              🔒 계근수량 입력 마감({weightLockDeadline(shipment.shipment_date)})이 지났습니다. {isAdmin ? '관리자는 계근수량도 수정 가능합니다.' : '계근수량은 잠겼지만, 증빙 사진은 계속 추가할 수 있습니다.'}
+            </div>
+          )}
+          {!isLocked && shipment.is_shipped && (
+            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af', borderRadius: 10, padding: '10px 13px', fontSize: 13.5, marginBottom: 14 }}>
+              ℹ️ 출하확정된 건이지만 <b>{weightLockDeadline(shipment.shipment_date)}까지</b> 계근수량을 입력·수정할 수 있습니다.
             </div>
           )}
 
