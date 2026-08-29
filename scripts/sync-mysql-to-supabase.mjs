@@ -59,6 +59,9 @@ const isCron = process.argv.includes('--cron');
 // --full-legacy : 일회성 기준선. 기존 OUT- 행까지 레거시 전체 필드로 덮어써 '레거시와 완전 일치'.
 //   (평소는 새 시스템 우선 = 기존 행은 출하증 발급시간만. SH-/과거행 삭제는 어느 모드든 안 함.)
 const isFullLegacy = process.argv.includes('--full-legacy');
+// --merge-legacy : 컷오버 전 주말용. 레거시가 값을 가진 필드는 레거시로 반영하되,
+//   레거시가 비어있고 새 시스템이 채운 값(운송사 입력 등)은 그대로 보존. 진행플래그(출하/배차통보/확정)는 켜졌으면 유지.
+const isMergeLegacy = process.argv.includes('--merge-legacy');
 
 // ─── 유틸 ──────────────────────────────────────────
 function log(msg) {
@@ -248,15 +251,19 @@ async function syncShipments(conn) {
   log('── 출하 동기화 ──');
 
   // 기존 shipment_number로 매핑 (OUT-{uid} 형식) — 페이징(1000행 제한 회피)
+  // 병합 모드(--merge-legacy)에서는 새 시스템이 채운 값을 보존하려고 기존 값도 함께 담는다.
   const existingMap = new Map();
   {
+    const cols = isMergeLegacy
+      ? 'id, shipment_number, vehicle_number, driver_id, weight_net, silo, is_shipped, is_confirmed, dispatch_notified, certificate_time, notes'
+      : 'id, shipment_number';
     const PAGE = 1000;
     let pg = 0, more = true;
     while (more) {
       const { data } = await supabase.from('shipments')
-        .select('id, shipment_number').range(pg * PAGE, (pg + 1) * PAGE - 1);
+        .select(cols).range(pg * PAGE, (pg + 1) * PAGE - 1);
       const rows = data || [];
-      for (const e of rows) existingMap.set(e.shipment_number, e.id);
+      for (const e of rows) existingMap.set(e.shipment_number, isMergeLegacy ? e : e.id);
       more = rows.length === PAGE;
       pg++;
     }
@@ -309,8 +316,40 @@ async function syncShipments(conn) {
         ? new Date(`${r.out_time_str.replace(' ', 'T')}+09:00`).toISOString()
         : null;
 
+      // car_type → transport_type 매핑
+      const typeMap = { BCT: '탱크', DUMP: '덤프', CGO: '카고' };
+
       if (existingMap.has(shipmentNumber) && !isFullLegacy) {
-        // 기존 행: 새 시스템 데이터 보존. 레거시에 발급시간이 있을 때만 그 값만 갱신.
+        if (isMergeLegacy) {
+          // 병합: 레거시가 값을 가진 필드는 레거시로, 비어있으면 새 시스템(기존) 값 보존.
+          //       진행플래그는 어느 쪽이든 켜졌으면 유지(OR). 발급시간은 레거시 우선, 없으면 기존.
+          const ex = existingMap.get(shipmentNumber); // {id, vehicle_number, driver_id, weight_net, silo, is_shipped, is_confirmed, dispatch_notified, certificate_time, notes}
+          const legacyVeh = r.car_no || null;
+          const legacyDriver = legacyVeh ? (cache.driversByVehicle.get(String(legacyVeh).trim()) || null) : null;
+          const legacyWeight = r.weight ? parseFloat(r.weight) : null;
+          const shipped = (r.out_yn === 'Y') || !!ex.is_shipped;
+          fullInserts.push({
+            shipment_number: shipmentNumber,
+            shipment_date: normalizeDate(r.out_date),
+            company_id: companyId,
+            customer_id: customerId,
+            product_id: custProduct.get(String(r.cus_uid)) || null,
+            vehicle_number: legacyVeh ?? ex.vehicle_number ?? null,
+            driver_id: legacyDriver ?? ex.driver_id ?? null,
+            transport_type: typeMap[r.car_type] || r.car_type || typeMap[custTransport.get(String(r.cus_uid))] || null,
+            silo: r.silo_no || ex.silo || null,
+            weight_net: legacyWeight ?? ex.weight_net ?? null,
+            status: shipped ? (r.comp_yn === 'Y' ? 'completed' : 'delivered') : 'pending',
+            is_shipped: shipped,
+            is_confirmed: (r.confirm === 'Y') || !!ex.is_confirmed,
+            dispatch_notified: (r.noti_yn === 'Y') || !!ex.dispatch_notified,
+            certificate_time: certificateTime || ex.certificate_time || null,
+            notes: r.remarks || ex.notes || null,
+            memo: r.remarks || ex.notes || null,
+          });
+          continue;
+        }
+        // 기본(새 시스템 우선): 레거시에 발급시간이 있을 때만 그 값만 갱신.
         if (certificateTime) {
           certUpdates.push({ shipment_number: shipmentNumber, certificate_time: certificateTime });
         }
@@ -318,9 +357,6 @@ async function syncShipments(conn) {
         continue;
       }
       // (--full-legacy 모드에서는 기존 행도 아래 전체 upsert 경로로 → 레거시 전체 필드로 덮어씀)
-
-      // car_type → transport_type 매핑
-      const typeMap = { BCT: '탱크', DUMP: '덤프', CGO: '카고' };
 
       // 새 행: 레거시 전체 스냅샷으로 신규 삽입
       fullInserts.push({
