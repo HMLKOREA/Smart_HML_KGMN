@@ -717,8 +717,8 @@ export default function ShippingPage() {
       if (!res.ok || j.error) { toast.error(j.error || '기사 정보 저장 실패'); return; }
       const updated = { ...adhoc.row, vehicle_number: j.vehicle_number, driver_name: j.driver_name, driver_id: j.driver_id } as Shipment;
       setAdhoc(null);
-      fetchData();
-      startIssueFlow(updated);
+      // 기사정보 입력이 이미 마지막 단계 → 중간 확인단계 건너뛰고 바로 출하증 발급+프린트
+      await finalizeIssue(updated);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '저장 오류');
     } finally { setAdhocSaving(false); }
