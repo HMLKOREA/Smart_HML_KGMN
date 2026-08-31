@@ -160,6 +160,14 @@ export default function InlineShipmentRow({
     onUpdateEditData(row.id, updates);
   }, [row.id, onUpdateEditData]);
 
+  // 계근결과 입력은 문자열 상태로 관리 — 숫자에 바인딩하면 "." 입력 시 즉시 정수화되어
+  // 소수점이 유실된다(26.17 → 2617). 편집 진입 시 현재값으로 초기화.
+  const [weightStr, setWeightStr] = useState('');
+  useEffect(() => {
+    if (isEditing) setWeightStr(editData?.weight_net != null ? String(editData.weight_net) : '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing, row.id]);
+
   // Auto-fill: driver → vehicle_number + company_id
   const handleDriverChange = useCallback((driverId: string) => {
     const driver = drivers.find(d => d.id === driverId);
@@ -365,16 +373,23 @@ export default function InlineShipmentRow({
         <input
           type="text"
           inputMode="decimal"
-          value={editData.weight_net ?? ''}
+          value={weightStr}
           onChange={e => {
             const v = e.target.value;
             if (v === '' || /^-?\d*\.?\d*$/.test(v)) {
-              update({ weight_net: v === '' ? null : parseFloat(v) || null });
+              setWeightStr(v);
+              const n = parseFloat(v);
+              update({ weight_net: v === '' || Number.isNaN(n) ? null : n });
             }
           }}
-          onBlur={e => {
-            if (e.target.value) {
-              update({ weight_net: parseFloat(parseFloat(e.target.value).toFixed(2)) });
+          onBlur={() => {
+            const n = parseFloat(weightStr);
+            if (weightStr !== '' && Number.isFinite(n)) {
+              const r = parseFloat(n.toFixed(2));
+              setWeightStr(String(r));
+              update({ weight_net: r });
+            } else if (weightStr === '') {
+              update({ weight_net: null });
             }
           }}
           style={{ ...inputStyle, width: 66, textAlign: 'right', fontWeight: 600 }}
