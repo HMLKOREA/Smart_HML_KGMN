@@ -690,12 +690,13 @@ export default function ShippingPage() {
     if (row.driver_message && row.driver_message.trim()) setIssueFlow({ row, step: 'message' });
     else finalizeIssue(row);
   };
-  const finalizeIssue = async (row: Shipment) => {
+  const finalizeIssue = (row: Shipment) => {
+    // 프린트를 먼저 무조건 띄운다(네트워크·저장 지연과 무관하게 출력 보장).
     setIssueFlow(null);
-    await crud.issueCertificate(row.id);
     setPrintRow({ ...row, certificate_time: new Date().toISOString() });
     setShowPrint(true);
-    fetchData();
+    // 출하증 발급시간 저장은 백그라운드로 (실패해도 프린트에는 영향 없음)
+    crud.issueCertificate(row.id).then(() => fetchData()).catch(() => { /* 무시 */ });
   };
 
   // 출하증발급 클릭: 기사(이름)가 없으면 현장에서 수기 입력 후 발급. (차량은 있으면 미리 채움)
@@ -704,24 +705,20 @@ export default function ShippingPage() {
     if (noDriver) setAdhoc({ row, vehicle: row.vehicle_number || '', name: '', phone: '' });
     else startIssueFlow(row);
   };
-  const submitAdhoc = async () => {
+  const submitAdhoc = () => {
     if (!adhoc) return;
-    if (!adhoc.vehicle.trim() || !adhoc.name.trim()) { toast.warning('차량번호와 기사이름을 입력하세요.'); return; }
-    setAdhocSaving(true);
-    try {
-      const res = await fetch('/api/shipment/adhoc-driver', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shipmentId: adhoc.row.id, vehicle: adhoc.vehicle, name: adhoc.name, phone: adhoc.phone }),
-      });
-      const j = await res.json();
-      if (!res.ok || j.error) { toast.error(j.error || '기사 정보 저장 실패'); return; }
-      const updated = { ...adhoc.row, vehicle_number: j.vehicle_number, driver_name: j.driver_name, driver_id: j.driver_id } as Shipment;
-      setAdhoc(null);
-      // 기사정보 입력 후 → 확인 단계(안전서약/사일로/전달사항) → 마지막에 출하증 프린트
-      startIssueFlow(updated);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : '저장 오류');
-    } finally { setAdhocSaving(false); }
+    const veh = adhoc.vehicle.trim(), nm = adhoc.name.trim(), ph = adhoc.phone.trim();
+    if (!veh || !nm) { toast.warning('차량번호와 기사이름을 입력하세요.'); return; }
+    const shipmentId = adhoc.row.id;
+    const updated = { ...adhoc.row, vehicle_number: veh, driver_name: nm } as Shipment;
+    setAdhoc(null);
+    // 입력 즉시 → 확인 단계(안전서약/사일로/전달사항) → 출하증 프린트. 저장을 기다리지 않음.
+    startIssueFlow(updated);
+    // 기사정보 저장은 백그라운드(느리거나 실패해도 발급·프린트에는 영향 없음)
+    fetch('/api/shipment/adhoc-driver', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shipmentId, vehicle: veh, name: nm, phone: ph }),
+    }).then(r => r.json()).then(() => fetchData()).catch(() => { /* 무시 */ });
   };
 
   // ── 출하증 대기화면 헬퍼 ──
