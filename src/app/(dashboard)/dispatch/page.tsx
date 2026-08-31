@@ -12,6 +12,7 @@ import { useToast } from '@/components/ui/Toast';
 import { getSession } from '@/lib/auth/session';
 import { POD_ENABLED } from '@/lib/featureFlags';
 import PodModal, { type PodShipment } from '@/components/modules/dispatch/PodModal';
+import { isWeightLocked, weightLockDeadline } from '@/lib/podLock';
 
 // ── Types ──────────────────────────────────────────────
 interface Shipment {
@@ -284,14 +285,11 @@ export default function DispatchPage() {
   const saveEdit = async () => {
     if (!editingId || !editData) return;
 
-    // D+3 제한: 운송사는 출하일 +3일까지만 계근수량 수정 가능
+    // 운송사·현장: 계근수량은 출하일 +1 영업일(주말 건너뜀)까지만 수정 가능 (서버 트리거와 동일 규칙)
     const row = data.find(r => r.id === editingId);
-    if (isTransporter && row) {
-      const shipDate = new Date(row.shipment_date + 'T00:00:00');
-      const deadline = addDays(shipDate, 3);
-      const now = new Date();
-      if (now > deadline && editData.weight_net !== row.weight_net) {
-        toast.error('계근수량은 출하일 +3일까지만 수정 가능합니다.');
+    if (isTransporter && row && editData.weight_net !== row.weight_net) {
+      if (isWeightLocked(row.shipment_date)) {
+        toast.error(`계근수량 입력 마감(${weightLockDeadline(row.shipment_date)})이 지났습니다. 이후에는 하멜코리아·경기광업에 문의하세요.`);
         return;
       }
     }
