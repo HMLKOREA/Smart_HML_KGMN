@@ -270,16 +270,18 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    const successCount = result.groupInfo?.count?.total || messages.length;
-    const failCount = noPhoneResults.length;
+    // Solapi send-many 응답은 그룹 객체를 그대로 반환(count가 최상위). groupInfo 하위가 아님.
+    const cnt = result.count || result.groupInfo?.count || {};
+    const successCount = cnt.registeredSuccess ?? cnt.total ?? messages.length;
+    const sendFailed = cnt.registeredFailed ?? 0;
+    const failCount = sendFailed + noPhoneResults.length;
+    const failedList = Array.isArray(result.failedMessageList) ? result.failedMessageList : [];
 
     return NextResponse.json({
-      success: true,
+      success: failCount === 0,
       message: `카카오톡 발송 완료: 성공 ${successCount}건, 실패 ${failCount}건`,
-      solapiResult: {
-        groupId: result.groupInfo?.groupId,
-        count: result.groupInfo?.count,
-      },
+      solapiResult: { groupId: result._id || result.groupInfo?.groupId, count: cnt },
+      failedList: failedList.slice(0, 20),
       noPhoneResults,
     });
   } catch (err: unknown) {
