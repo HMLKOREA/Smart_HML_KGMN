@@ -168,13 +168,12 @@ export default function InlineShipmentRow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditing, row.id]);
 
-  // Auto-fill: driver → vehicle_number + company_id
+  // Auto-fill: driver → vehicle_number. (운송사(company)는 자동으로 딸려오지 않음 — 완전 독립 입력)
   const handleDriverChange = useCallback((driverId: string) => {
     const driver = drivers.find(d => d.id === driverId);
     update({
       driver_id: driverId,
       vehicle_number: driver?.vehicle_number || '',
-      company_id: driver?.company_id || '',
     });
   }, [drivers, update]);
 

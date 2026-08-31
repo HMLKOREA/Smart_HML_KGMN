@@ -102,7 +102,7 @@ export default function MultiCustomerPanel({
         transport_type: e.transport_type || '탱크',
         customer_id: e.customer_id!,
         product_id: e.product_id!,
-        silo: e.warehouse_code || '',
+        silo: '', // 창고코드는 사일로에 넣지 않음 — 사일로는 독립 입력(현장에서 직접)
         count: e.count,
       })),
     });

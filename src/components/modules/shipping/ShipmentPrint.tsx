@@ -113,10 +113,17 @@ export default function ShipmentPrint({ shipment, onClose }: ShipmentPrintProps)
     document.addEventListener('keydown', h);
     return () => document.removeEventListener('keydown', h);
   }, [onClose]);
+  // 인쇄 대화상자가 닫히면(인쇄 완료/취소) 자동으로 닫아 대기화면으로 복귀.
+  useEffect(() => {
+    let done = false;
+    const after = () => { if (done) return; done = true; setTimeout(() => onClose(), 150); };
+    window.addEventListener('afterprint', after);
+    return () => window.removeEventListener('afterprint', after);
+  }, [onClose]);
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center">
-      <div className="no-print fixed top-4 right-4 flex gap-2 z-[210]">
+    <div className="fixed inset-0 bg-black/50 z-[500] flex items-center justify-center">
+      <div className="no-print fixed top-4 right-4 flex gap-2 z-[510]">
         <button onClick={() => window.print()} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">인쇄</button>
         <button onClick={onClose} className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-medium">닫기</button>
       </div>

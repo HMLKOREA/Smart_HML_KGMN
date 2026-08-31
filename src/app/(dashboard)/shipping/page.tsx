@@ -698,10 +698,10 @@ export default function ShippingPage() {
     fetchData();
   };
 
-  // 출하증발급 클릭: 기사 미지정이면 인적사항 입력부터
+  // 출하증발급 클릭: 기사(이름)가 없으면 현장에서 수기 입력 후 발급. (차량은 있으면 미리 채움)
   const beginIssue = (row: Shipment) => {
-    const missing = !(row.vehicle_number && row.vehicle_number.trim()) && !(row.driver_name && row.driver_name.trim());
-    if (missing) setAdhoc({ row, vehicle: '', name: '', phone: '' });
+    const noDriver = !(row.driver_name && row.driver_name.trim());
+    if (noDriver) setAdhoc({ row, vehicle: row.vehicle_number || '', name: '', phone: '' });
     else startIssueFlow(row);
   };
   const submitAdhoc = async () => {
