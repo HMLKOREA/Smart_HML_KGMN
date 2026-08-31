@@ -157,10 +157,10 @@ export function useShipmentCrud() {
 
   const issueCertificate = useCallback(async (id: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      // 출하증 발급 = 출하 나감 → 출하(is_shipped)도 함께 체크. (수동 출하체크는 여전히 발급과 무관)
+      // 출하증 발급과 출하(is_shipped) 체크는 분리 — 발급은 발급시간만 기록. 출하체크는 수동/별도.
       const { error } = await supabase
         .from('shipments')
-        .update({ certificate_time: new Date().toISOString(), is_shipped: true, status: 'delivered' })
+        .update({ certificate_time: new Date().toISOString() })
         .eq('id', id);
       if (error) throw error;
       logActivity({ module: 'shipping', action: 'issue_cert', targetId: id });
