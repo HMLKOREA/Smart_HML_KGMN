@@ -2115,7 +2115,16 @@ export default function ShippingPage() {
             certificate_time: printRow.certificate_time || undefined,
             notes: printRow.notes || undefined,
           }}
-          onClose={() => setShowPrint(false)}
+          onClose={() => {
+            // 프린트 끝나면 무조건 대기화면으로 복귀(대기화면 상태 유지 + 현장은 전체화면 재진입)
+            setShowPrint(false);
+            if (showWaitingScreen && isField) {
+              enterFullscreen(); // 즉시 시도(제스처 잔여활성 이용)
+              const once = () => { enterFullscreen(); window.removeEventListener('pointerdown', once); window.removeEventListener('keydown', once); };
+              window.addEventListener('pointerdown', once); // 실패 시 다음 터치에서 확실히 전체화면
+              window.addEventListener('keydown', once);
+            }
+          }}
         />
       )}
     </div>

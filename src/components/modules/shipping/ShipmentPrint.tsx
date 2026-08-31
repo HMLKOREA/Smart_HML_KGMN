@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 /**
  * 출하증 출력 — 경기광업주식회사 양식 (기존 출하증과 동일)
@@ -104,8 +104,9 @@ export default function ShipmentPrint({ shipment, onClose }: ShipmentPrintProps)
     ? String(shipment.shipment_date).slice(0, 10)
     : fmtDate(issued);
 
+  const printed = useRef(false);
   useEffect(() => {
-    const timer = setTimeout(() => window.print(), 400);
+    const timer = setTimeout(() => { printed.current = true; window.print(); }, 400);
     return () => clearTimeout(timer);
   }, []);
   useEffect(() => {
@@ -114,17 +115,20 @@ export default function ShipmentPrint({ shipment, onClose }: ShipmentPrintProps)
     return () => document.removeEventListener('keydown', h);
   }, [onClose]);
   // 인쇄 대화상자가 닫히면(인쇄 완료/취소) 자동으로 닫아 대기화면으로 복귀.
+  // afterprint 미발화 브라우저 대비 focus 폴백 병행(인쇄 중 blur → 닫히면 focus).
   useEffect(() => {
     let done = false;
-    const after = () => { if (done) return; done = true; setTimeout(() => onClose(), 150); };
-    window.addEventListener('afterprint', after);
-    return () => window.removeEventListener('afterprint', after);
+    const close = () => { if (done) return; done = true; setTimeout(() => onClose(), 200); };
+    const onFocus = () => { if (printed.current) close(); };
+    window.addEventListener('afterprint', close);
+    window.addEventListener('focus', onFocus);
+    return () => { window.removeEventListener('afterprint', close); window.removeEventListener('focus', onFocus); };
   }, [onClose]);
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[500] flex items-center justify-center">
       <div className="no-print fixed top-4 right-4 flex gap-2 z-[510]">
-        <button onClick={() => window.print()} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">인쇄</button>
+        <button onClick={() => { printed.current = true; window.print(); }} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">인쇄</button>
         <button onClick={onClose} className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-medium">닫기</button>
       </div>
 

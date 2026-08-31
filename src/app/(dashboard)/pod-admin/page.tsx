@@ -112,16 +112,16 @@ export default function PodAdminPage() {
           <div className="text-center text-gray-400 py-16">해당 날짜의 {onlyPod ? '증빙이 있는 ' : ''}배차가 없습니다.</div>
         ) : (
           <div className="overflow-x-auto bg-white rounded-xl border shadow-sm">
-            <table className="w-full text-sm" style={{ minWidth: 860 }}>
+            <table className="w-full text-[13px]" style={{ minWidth: 820 }}>
               <thead>
-                <tr className="bg-slate-100 text-slate-600 text-[13px]">
-                  <th className="text-left px-3 py-2 font-bold">운송사</th>
-                  <th className="text-left px-3 py-2 font-bold">거래처</th>
-                  <th className="text-left px-3 py-2 font-bold">제품</th>
-                  <th className="text-left px-3 py-2 font-bold">차량 · 기사</th>
-                  <th className="text-right px-3 py-2 font-bold">계근수량(톤)</th>
-                  <th className="text-center px-3 py-2 font-bold">증빙</th>
-                  <th className="text-center px-3 py-2 font-bold">확정</th>
+                <tr className="bg-slate-100 text-slate-600 text-[12px]">
+                  <th className="text-left px-2.5 py-1.5 font-bold">운송사</th>
+                  <th className="text-left px-2.5 py-1.5 font-bold">거래처</th>
+                  <th className="text-left px-2.5 py-1.5 font-bold">제품</th>
+                  <th className="text-left px-2.5 py-1.5 font-bold">차량 · 기사</th>
+                  <th className="text-right px-2.5 py-1.5 font-bold">계근(톤)</th>
+                  <th className="text-center px-2.5 py-1.5 font-bold">계근증 사진</th>
+                  <th className="text-center px-2.5 py-1.5 font-bold">확정</th>
                 </tr>
               </thead>
               <tbody>
@@ -129,29 +129,29 @@ export default function PodAdminPage() {
                   const locked = !!r.is_shipped;
                   const canEditW = isAdmin || !locked;
                   return (
-                    <tr key={r.id} className="border-t border-gray-100" style={r.is_shipped ? { background: '#f5f7ff' } : undefined}>
-                      <td className="px-3 py-2 font-bold text-blue-700 whitespace-nowrap">{r.company_name || '-'}</td>
-                      <td className="px-3 py-2 font-semibold text-gray-800 whitespace-nowrap">{r.customer_name || '-'}</td>
-                      <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{r.product_name || '-'}</td>
-                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{r.vehicle_number || '-'}{r.driver_name ? ` · ${r.driver_name}` : ''}</td>
-                      <td className="px-3 py-2 text-right whitespace-nowrap">
+                    <tr key={r.id} className="border-t border-gray-100 hover:bg-slate-50/60" style={r.is_shipped ? { background: '#f5f7ff' } : undefined}>
+                      <td className="px-2.5 py-1 font-bold text-blue-700 whitespace-nowrap">{r.company_name || '-'}</td>
+                      <td className="px-2.5 py-1 font-semibold text-gray-800 whitespace-nowrap">{r.customer_name || '-'}</td>
+                      <td className="px-2.5 py-1 text-gray-600 whitespace-nowrap">{r.product_name || '-'}</td>
+                      <td className="px-2.5 py-1 text-gray-500 whitespace-nowrap">{r.vehicle_number || '-'}{r.driver_name ? ` · ${r.driver_name}` : ''}</td>
+                      <td className="px-2.5 py-1 text-right whitespace-nowrap">
                         <input type="number" step="0.01" inputMode="decimal" disabled={!canEditW}
                           value={editW[r.id] ?? (r.weight_net != null ? String(r.weight_net) : '')}
                           onChange={e => setEditW(p => ({ ...p, [r.id]: e.target.value }))}
                           onBlur={() => saveWeight(r)} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                           placeholder="0.00"
-                          className="w-24 px-2 py-1.5 text-right text-base font-black border-2 border-gray-200 rounded-lg focus:border-indigo-500 outline-none disabled:bg-gray-50 disabled:text-gray-400" />
+                          className="w-20 px-2 py-1 text-right text-[15px] font-black border-2 border-gray-200 rounded-lg focus:border-indigo-500 outline-none disabled:bg-gray-50 disabled:text-gray-400" />
                       </td>
-                      <td className="px-3 py-2 text-center whitespace-nowrap">
-                        {r.has_attachment ? (
-                          <button onClick={() => openViewer(r)} className="px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-[13px] font-bold">✅ 보기</button>
-                        ) : (
-                          <span className="text-gray-300 text-[13px]">— 없음</span>
-                        )}
+                      <td className="px-2.5 py-1 text-center whitespace-nowrap">
+                        {/* 확정 전에 계근증 사진을 클릭해 확인 가능 (증빙 없어도 클릭 시 '없음' 표시) */}
+                        <button onClick={() => openViewer(r)}
+                          className={`px-2.5 py-1 rounded-lg text-[13px] font-bold border ${r.has_attachment ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-white border-gray-200 text-gray-400'}`}>
+                          {r.has_attachment ? '📷 사진확인' : '사진확인'}
+                        </button>
                       </td>
-                      <td className="px-3 py-2 text-center whitespace-nowrap">
+                      <td className="px-2.5 py-1 text-center whitespace-nowrap">
                         <button onClick={() => toggleConfirm(r)}
-                          className={`px-3 py-1.5 rounded-lg text-[13px] font-bold border ${r.is_shipped ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-300'}`}>
+                          className={`px-3 py-1 rounded-lg text-[13px] font-bold border ${r.is_shipped ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-300'}`}>
                           {r.is_shipped ? '확정됨' : '확정'}
                         </button>
                       </td>
