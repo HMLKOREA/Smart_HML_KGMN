@@ -8,7 +8,7 @@
  */
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
-import { recordHeartbeat } from '@/lib/telegram/checks';
+import { recordHeartbeat, isCutoverDone } from '@/lib/telegram/checks';
 
 export const runtime = 'nodejs';
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
@@ -24,7 +24,9 @@ async function evaluate() {
   const gapMin = at ? Math.round((Date.now() - new Date(at).getTime()) / 60_000) : null;
   const biz = kstHour() >= 8 && kstHour() < 20;
   const stale = gapMin == null || gapMin > STALE_MIN;
-  const shouldAlert = biz && stale;
+  // 컷오버 완료 후에는 레거시 sync가 의도적으로 중단되므로 지연 경고하지 않음
+  const cutover = await isCutoverDone(svc);
+  const shouldAlert = biz && stale && !cutover;
   const lastKst = at ? new Date(at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'short', timeStyle: 'short' }) : '기록 없음';
   return { svc, at, gapMin, biz, stale, shouldAlert, lastKst };
 }

@@ -27,6 +27,14 @@ export async function recordHeartbeat(svc: SB, name: string, meta?: Record<strin
   } catch { /* 하트비트 실패는 무시 */ }
 }
 
+/** 컷오버 완료 여부 — 완료 시 레거시 sync는 의도적으로 중단됨(지연 경고 대상 아님) */
+export async function isCutoverDone(svc: SB): Promise<boolean> {
+  try {
+    const { data } = await svc.from('app_heartbeats').select('name').eq('name', 'cutover-done').maybeSingle();
+    return !!data;
+  } catch { return false; }
+}
+
 /** ■ 서버·DB */
 export async function checkServer(svc: SB): Promise<CheckResult> {
   const t0 = Date.now();
@@ -40,8 +48,11 @@ export async function checkServer(svc: SB): Promise<CheckResult> {
   return { text, warns };
 }
 
-/** ■ 동기화 — 유일한 PC 의존 항목 */
+/** ■ 동기화 — 컷오버 후에는 의도적으로 중단(정상). 컷오버 전에는 PC 의존 항목. */
 export async function checkSync(svc: SB): Promise<CheckResult> {
+  if (await isCutoverDone(svc)) {
+    return { text: `<b>■ 데이터 동기화</b>\n  ✅ 컷오버 완료 — 레거시 sync 중단, 새 시스템 단독 운영 (PC 무관)\n`, warns: [] };
+  }
   const { data } = await svc.from('sync_status').select('last_run_at, is_delta').eq('id', 'main').maybeSingle();
   const at = (data as { last_run_at?: string } | null)?.last_run_at || null;
   const gap = minsAgo(at);
@@ -83,16 +94,24 @@ export async function checkIndependence(svc: SB): Promise<CheckResult> {
     else rows.push(`  ✅ ${label}: ${fmt(at)}${ago(g)}`);
   }
 
-  // 3) 유일한 PC 의존: sync
-  const { data: s } = await svc.from('sync_status').select('last_run_at').eq('id', 'main').maybeSingle();
-  const sgap = minsAgo((s as { last_run_at?: string } | null)?.last_run_at || null);
-  const pcDep = 1; // 현재 sync 하나
-  rows.push(`  ⚠️ 동기화(PC 의존): ${fmt((s as { last_run_at?: string } | null)?.last_run_at || null)}${ago(sgap)}`);
+  // 3) PC 의존: sync (컷오버 완료 시 제거됨)
+  const cutover = await isCutoverDone(svc);
+  let pcDep = 0;
+  if (cutover) {
+    rows.push(`  ✅ 레거시 sync 중단(컷오버 완료) — PC 의존 없음`);
+  } else {
+    const { data: s } = await svc.from('sync_status').select('last_run_at').eq('id', 'main').maybeSingle();
+    const sgap = minsAgo((s as { last_run_at?: string } | null)?.last_run_at || null);
+    pcDep = 1;
+    rows.push(`  ⚠️ 동기화(PC 의존): ${fmt((s as { last_run_at?: string } | null)?.last_run_at || null)}${ago(sgap)}`);
+  }
 
   const text = `<b>■ 클라우드 독립성 점검</b>\n` +
     rows.join('\n') + `\n` +
     `  ─────────────\n` +
-    `  <b>PC 의존 항목: ${pcDep}개 (동기화)</b> · 컷오버 완료 시 <b>0개</b>\n`;
+    (cutover
+      ? `  <b>✅ 완전 독립 — PC 의존 0개</b> (내 PC on/off 무관)\n`
+      : `  <b>PC 의존 항목: ${pcDep}개 (동기화)</b> · 컷오버 완료 시 <b>0개</b>\n`);
   return { text, warns };
 }
 
