@@ -1,7 +1,7 @@
-name: 일일 배차 보고 자동전송 (네이버웍스·Teams)
+name: 일일 배차 보고 자동전송 (텔레그램·네이버웍스·Teams)
 
-# 매일 23:59 KST(=14:59 UTC)에 배차 보고를 네이버웍스 + Teams로 전송한다.
-# (텔레그램은 배차보고에서 제외 — 텔레그램은 시스템 점검만)
+# 매일 23:59 KST(=14:59 UTC)에 배차 보고를 텔레그램 + 네이버웍스 + Teams로 전송한다.
+# 데이터는 신규 시스템(Supabase)에서 읽으므로 컷오버 후에도 그대로 유효. 전부 클라우드(PC 무관).
 # 수동 실행(workflow_dispatch)도 가능 — 테스트용.
 on:
   schedule:
@@ -42,3 +42,13 @@ jobs:
             -d '{"date":"${{ steps.kst.outputs.date }}"}')
           echo "Teams HTTP $HTTP"; cat resp3.json; echo ""
           case "$HTTP" in 2*) echo "✅ Teams OK";; *) echo "❌ Teams 실패"; exit 1;; esac
+
+      - name: 텔레그램 전송 (신규 시스템 기준 배차 보고)
+        if: always()   # 앞 단계 실패해도 텔레그램은 발송
+        run: |
+          HTTP=$(curl -s -o resp1.json -w "%{http_code}" \
+            -X POST "https://smart-hml.vercel.app/api/telegram" \
+            -H "Content-Type: application/json" \
+            -d '{"date":"${{ steps.kst.outputs.date }}"}')
+          echo "텔레그램 HTTP $HTTP"; cat resp1.json; echo ""
+          case "$HTTP" in 2*) echo "✅ 텔레그램 OK";; *) echo "❌ 텔레그램 실패"; exit 1;; esac
