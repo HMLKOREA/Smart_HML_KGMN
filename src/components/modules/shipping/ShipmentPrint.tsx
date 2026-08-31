@@ -107,29 +107,45 @@ export default function ShipmentPrint({ shipment, onClose }: ShipmentPrintProps)
   const printed = useRef(false);
   useEffect(() => {
     const timer = setTimeout(() => { printed.current = true; window.print(); }, 400);
-    return () => clearTimeout(timer);
+    // 안전장치: 인쇄 후 25초 내 자동복귀 트리거가 안 걸리면(무인 키오스크 등) 강제로 대기화면 복귀
+    const fallback = setTimeout(() => onClose(), 25000);
+    return () => { clearTimeout(timer); clearTimeout(fallback); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', h);
     return () => document.removeEventListener('keydown', h);
   }, [onClose]);
-  // 인쇄 대화상자가 닫히면(인쇄 완료/취소) 자동으로 닫아 대기화면으로 복귀.
-  // afterprint 미발화 브라우저 대비 focus 폴백 병행(인쇄 중 blur → 닫히면 focus).
+  // 인쇄가 끝나면(완료/취소) 자동으로 닫아 대기화면으로 복귀.
+  // 현장 PC 대비 3중 트리거: afterprint + focus + matchMedia('print'). 미발화 환경도 커버.
   useEffect(() => {
     let done = false;
     const close = () => { if (done) return; done = true; setTimeout(() => onClose(), 200); };
     const onFocus = () => { if (printed.current) close(); };
+    const mql = window.matchMedia('print');
+    const onMql = (e: MediaQueryListEvent) => { if (!e.matches && printed.current) close(); };
     window.addEventListener('afterprint', close);
     window.addEventListener('focus', onFocus);
-    return () => { window.removeEventListener('afterprint', close); window.removeEventListener('focus', onFocus); };
+    try { mql.addEventListener('change', onMql); } catch { /* 구형 */ }
+    return () => {
+      window.removeEventListener('afterprint', close);
+      window.removeEventListener('focus', onFocus);
+      try { mql.removeEventListener('change', onMql); } catch { /* 구형 */ }
+    };
   }, [onClose]);
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[500] flex items-center justify-center">
       <div className="no-print fixed top-4 right-4 flex gap-2 z-[510]">
-        <button onClick={() => { printed.current = true; window.print(); }} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">인쇄</button>
-        <button onClick={onClose} className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-medium">닫기</button>
+        <button onClick={() => { printed.current = true; window.print(); }} className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-lg">🖨 다시 인쇄</button>
+      </div>
+      {/* 큰 수동 복귀 버튼 — 자동복귀가 안 될 때도 무조건 대기화면으로 (현장 터치용) */}
+      <div className="no-print fixed left-1/2 -translate-x-1/2 bottom-8 z-[510]">
+        <button onClick={onClose}
+          className="px-14 py-5 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 font-black text-2xl shadow-2xl border-4 border-white">
+          ✓ 출력 완료 — 대기화면으로 ↩
+        </button>
       </div>
 
       <div
