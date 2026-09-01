@@ -68,6 +68,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!loading && !isAuthenticated) router.push('/login');
   }, [loading, isAuthenticated, router]);
 
+  // 키오스크 계정: 출하관리(대기화면) 외 접근 차단 — 다른 경로로 가면 대기화면으로 되돌림
+  useEffect(() => {
+    if (profile?.is_kiosk && pathname && !pathname.startsWith('/shipping')) {
+      router.replace('/shipping?waiting=1&kiosk=1');
+    }
+  }, [profile?.is_kiosk, pathname, router]);
+
   const toggleSidebar = useCallback(() => {
     if (bp === 'mobile') setSidebarOpen(v => !v);
     else setSidebarCollapsed(v => !v);
@@ -85,6 +92,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   if (!isAuthenticated || !profile) return null;
+
+  // 키오스크 계정: 사이드바·헤더 없이 대기화면(children)만 전체화면으로.
+  if (profile.is_kiosk) {
+    return <div className="min-h-screen bg-gray-50">{children}</div>;
+  }
 
   // 모바일: 사이드바 = 오버레이 드로어
   // 태블릿: 축소 사이드바 (64px)

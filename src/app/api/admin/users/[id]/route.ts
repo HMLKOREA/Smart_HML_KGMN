@@ -28,7 +28,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
 
     const svc = await createServiceRoleClient();
     const body = await request.json();
-    const { name, loginId, password, category, permission, email, phone, company_id, is_active } = body;
+    const { name, loginId, password, category, permission, email, phone, company_id, is_active, is_kiosk } = body;
 
     const update: Record<string, unknown> = {};
 
@@ -43,6 +43,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
       if (email != null) update.email = email;
       if (company_id !== undefined && (update.role ?? me.role) === 'transporter') update.company_id = company_id || null;
       if (typeof is_active === 'boolean') update.is_active = is_active;
+      if (typeof is_kiosk === 'boolean') update.is_kiosk = is_kiosk;
 
       // ID(username/이메일) 변경 — Auth 이메일도 함께 갱신
       if (loginId != null && loginId.trim()) {

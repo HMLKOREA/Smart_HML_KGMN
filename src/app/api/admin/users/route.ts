@@ -23,7 +23,7 @@ export async function GET() {
 
     const { data: users, error } = await svc
       .from('user_profiles')
-      .select('id, username, name, role, role_label, company_id, email, phone, password, is_active, department')
+      .select('id, username, name, role, role_label, company_id, email, phone, password, is_active, department, is_kiosk')
       .order('role')
       .order('username');
     if (error) throw error;
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     await requireRole(['admin']);
     const svc = await createServiceRoleClient();
     const body = await request.json();
-    const { name, loginId, password, category, permission, email, phone, company_id } = body;
+    const { name, loginId, password, category, permission, email, phone, company_id, is_kiosk } = body;
 
     if (!name || !loginId || !password) {
       return NextResponse.json({ success: false, error: '이름·ID·비밀번호는 필수입니다.' }, { status: 400 });
@@ -81,6 +81,7 @@ export async function POST(request: NextRequest) {
       password: normPw(password), // 표시용(레거시 호환)
       company_id: role === 'transporter' ? (company_id || null) : null,
       is_active: true,
+      is_kiosk: !!is_kiosk,
     });
     if (pErr) {
       await svc.auth.admin.deleteUser(authData.user.id); // 롤백

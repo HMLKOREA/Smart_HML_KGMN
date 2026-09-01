@@ -14,6 +14,7 @@ export interface UserProfile {
   company_name?: string;
   phone?: string;
   is_active: boolean;
+  is_kiosk?: boolean; // 키오스크 전용 계정(출하증 대기화면만)
   created_at: string;
   updated_at: string;
 }

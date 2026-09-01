@@ -34,6 +34,7 @@ interface UserRow {
   phone: string;
   company_id: string | null;
   isActive: boolean;
+  isKiosk: boolean;
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -58,11 +59,12 @@ const toRow = (u: ApiUser): UserRow => ({
   phone: u.phone || '',
   company_id: u.company_id,
   isActive: u.is_active !== false,
+  isKiosk: (u as { is_kiosk?: boolean }).is_kiosk === true,
 });
 
 const emptyForm = (): UserRow => ({
   id: '', name: '', category: '운송사', role: 'transporter', permission: '운송사',
-  loginId: '', password: '', email: '', phone: '', company_id: null, isActive: true,
+  loginId: '', password: '', email: '', phone: '', company_id: null, isActive: true, isKiosk: false,
 });
 
 export default function UserManagementPage() {
@@ -138,6 +140,7 @@ export default function UserManagementPage() {
         category: formData.category, permission: formData.permission,
         email: formData.email || undefined, phone: formData.phone || undefined,
         company_id: formData.category === '운송사' ? formData.company_id : null,
+        is_kiosk: formData.isKiosk,
       };
       const res = isNew
         ? await fetch('/api/admin/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
@@ -340,6 +343,19 @@ export default function UserManagementPage() {
                     <option value="">[선택]</option>
                     {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
+                </div>
+              )}
+
+              {formData.category !== '운송사' && isAdmin && (
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#334155' }}>
+                    <input type="checkbox" checked={formData.isKiosk} style={{ width: 18, height: 18 }}
+                      onChange={(e) => setFormData({ ...formData, isKiosk: e.target.checked })} />
+                    🖥️ 키오스크 모드
+                  </label>
+                  <p style={{ margin: '6px 0 0 27px', fontSize: 12, color: '#64748b' }}>
+                    로그인하면 <b>출하증 대기화면만</b> 뜨고 다른 메뉴는 잠깁니다. 현장 게시용(기사 셀프). 분류는 <b>관리자, 제한(현장)</b> 권장.
+                  </p>
                 </div>
               )}
 
