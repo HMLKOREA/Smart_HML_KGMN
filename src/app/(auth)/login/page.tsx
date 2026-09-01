@@ -6,9 +6,10 @@ import Image from 'next/image';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { getSession } from '@/lib/auth/session';
 
-// 로그인 후 랜딩: 출하 권한 있으면 출하관리, 운송사는 배차관리
+// 로그인 후 랜딩: 현장(KGMN)=출하증 대기화면 키오스크, 운송사=배차관리, 그 외=출하관리
 function landingPath(): string {
   const role = getSession()?.profile?.role;
+  if (role === 'field') return '/shipping?waiting=1&kiosk=1'; // 현장 = 키오스크(대기화면 자동)
   return role === 'transporter' ? '/dispatch' : '/shipping';
 }
 

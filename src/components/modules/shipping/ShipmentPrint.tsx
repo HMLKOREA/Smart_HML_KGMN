@@ -138,14 +138,8 @@ export default function ShipmentPrint({ shipment, onClose }: ShipmentPrintProps)
   return (
     <div className="fixed inset-0 bg-black/50 z-[500] flex items-center justify-center">
       <div className="no-print fixed top-4 right-4 flex gap-2 z-[510]">
-        <button onClick={() => { printed.current = true; window.print(); }} className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-lg">🖨 다시 인쇄</button>
-      </div>
-      {/* 큰 수동 복귀 버튼 — 자동복귀가 안 될 때도 무조건 대기화면으로 (현장 터치용) */}
-      <div className="no-print fixed left-1/2 -translate-x-1/2 bottom-8 z-[510]">
-        <button onClick={onClose}
-          className="px-14 py-5 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 font-black text-2xl shadow-2xl border-4 border-white">
-          ✓ 출력 완료 — 대기화면으로 ↩
-        </button>
+        <button onClick={() => { printed.current = true; window.print(); }} className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold">🖨 다시 인쇄</button>
+        <button onClick={onClose} className="px-5 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-bold">닫기</button>
       </div>
 
       <div

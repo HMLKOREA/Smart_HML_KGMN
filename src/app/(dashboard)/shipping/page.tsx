@@ -756,6 +756,17 @@ export default function ShippingPage() {
       window.addEventListener('keydown', once);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // 키오스크: 발급 진행 중이 아닐 때(idle) 20분마다 새로고침 → 항상 최신 버전 유지(옛 버전 물림 방지)
+  const kioskBusyRef = useRef(false);
+  kioskBusyRef.current = !!(issueFlow || showPrint || adhoc);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const q = new URLSearchParams(window.location.search);
+    if (q.get('kiosk') !== '1' && !(q.get('waiting') === '1' && isField)) return;
+    const iv = setInterval(() => { if (!kioskBusyRef.current) window.location.reload(); }, 20 * 60 * 1000);
+    return () => clearInterval(iv);
+  }, [isField]);
+
   const closeWaitingScreen = () => {
     // 팝업(새 창)으로 열린 대기화면이면 창을 닫는다 (독립 실행)
     if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('waiting') === '1') {
@@ -2113,13 +2124,20 @@ export default function ShippingPage() {
             notes: printRow.notes || undefined,
           }}
           onClose={() => {
-            // 프린트 끝나면 무조건 대기화면으로 복귀(대기화면 상태 유지 + 현장은 전체화면 재진입)
+            // 프린트 끝나면 무조건 대기화면 '첫 화면(운송사 선택)'으로 복귀 → 다음 기사 준비
             setShowPrint(false);
-            if (showWaitingScreen && isField) {
-              enterFullscreen(); // 즉시 시도(제스처 잔여활성 이용)
-              const once = () => { enterFullscreen(); window.removeEventListener('pointerdown', once); window.removeEventListener('keydown', once); };
-              window.addEventListener('pointerdown', once); // 실패 시 다음 터치에서 확실히 전체화면
-              window.addEventListener('keydown', once);
+            if (showWaitingScreen) {
+              setWaitingStep('select');
+              setWaitingCompanyId('');
+              setWaitingCompanyName('');
+              setWaitingPassword('');
+              setWaitingPasswordError('');
+              if (isField) {
+                enterFullscreen();
+                const once = () => { enterFullscreen(); window.removeEventListener('pointerdown', once); window.removeEventListener('keydown', once); };
+                window.addEventListener('pointerdown', once);
+                window.addEventListener('keydown', once);
+              }
             }
           }}
         />
